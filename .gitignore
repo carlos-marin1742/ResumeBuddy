@@ -1,0 +1,68 @@
+# ============================================================
+# ATS Resume Builder — Root .gitignore
+# ============================================================
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+wheels/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# ── Environment & Secrets ────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.json
+
+# ── FastAPI / Uvicorn ────────────────────────────────────────
+*.log
+
+# ── Node / React (frontend) ──────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+.npm/
+*.tsbuildinfo
+
+# ── Generated Resume Outputs ─────────────────────────────────
+backend/outputs/
+*.docx
+*.pdf
+
+# ── Data — keep schema, ignore personal resume data ──────────
+backend/data/base_resume.json
+!backend/data/base_resume_schema.md
+!backend/data/base_resume.example.json
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDEs ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Testing & Coverage ───────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
