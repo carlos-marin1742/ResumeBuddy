@@ -13,6 +13,8 @@ Responsibilities:
   3. score_resume(tailored_resume: dict, job_description: str) -> ATSScoreResult
      Evaluates keyword coverage and ATS compatibility of the tailored output.
 """
+from dotenv import load_dotenv
+load_dotenv()
 
 import json
 import os
@@ -21,6 +23,7 @@ from typing import Any
 
 import anthropic
 from pydantic import BaseModel
+ 
 
 # ---------------------------------------------------------------------------
 # Pydantic response models
