@@ -1,7 +1,7 @@
 import "./ResumePreview.css";
 
 export default function ResumePreview({ result, apiBase, onBack, onReset }) {
-  const { summary, experiences, skills_to_highlight, ats, docx_url, generated_at } = result;
+  const { summary, experiences, skills_to_highlight, ats, pdf_url, generated_at } = result;
 
   const scoreColor =
     ats.overall_score >= 80 ? "score-high" :
@@ -10,7 +10,7 @@ export default function ResumePreview({ result, apiBase, onBack, onReset }) {
   const coveragePct = Math.round(ats.keyword_coverage * 100);
 
   function handleDownload() {
-    window.open(`${apiBase}${docx_url}`, "_blank");
+    window.open(`${apiBase}${pdf_url}`, "_blank");
   }
 
   return (
@@ -29,7 +29,7 @@ export default function ResumePreview({ result, apiBase, onBack, onReset }) {
               Start over
             </button>
             <button className="btn btn-primary" onClick={handleDownload}>
-              ↓ Download .docx
+              ↓ Download PDF
             </button>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function ResumePreview({ result, apiBase, onBack, onReset }) {
 
           {/* Download */}
           <button className="btn btn-primary rp-download-btn" onClick={handleDownload}>
-            ↓ Download .docx
+            ↓ Download PDF
           </button>
         </aside>
       </div>
