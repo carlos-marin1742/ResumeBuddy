@@ -270,11 +270,28 @@ def _render_html(resume: dict) -> str:
 
 
 def build_pdf(resume_data: dict, output_path) -> Path:
-    """Render a resume dict to PDF using WeasyPrint."""
-    from weasyprint import HTML
+    """
+    Render a resume dict to a single-page PDF using Playwright (headless Chromium).
+    Works on macOS, Windows, and Linux — no system dependencies beyond pip install.
+    """
+    from playwright.sync_api import sync_playwright
+
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    HTML(string=_render_html(resume_data)).write_pdf(str(output_path))
+
+    html_content = _render_html(resume_data)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html_content, wait_until="networkidle")
+        page.pdf(
+            path=str(output_path),
+            format="Letter",
+            print_background=True,
+        )
+        browser.close()
+
     return output_path
 
 
