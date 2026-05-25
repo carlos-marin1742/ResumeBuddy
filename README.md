@@ -1,21 +1,17 @@
 # ResuméBuddy
 
-An AI-powered resume tailoring tool that takes a job description and your base resume, extracts the keywords that matter most for ATS systems, rewrites your bullets to match, and exports a polished single-page `.docx` — ready to submit.
+An AI-powered resume tailoring tool built for engineers targeting specific roles. Paste a job description, review the extracted keywords, and get a tailored single-page PDF resume — generated in seconds using Claude.
 
-Built with FastAPI, React, and the Anthropic API (Claude).
+Built as a portfolio project demonstrating full-stack AI engineering: FastAPI backend, React frontend, Anthropic API integration, and automated PDF generation.
 
 ---
 
-## How it works
+## What it does
 
-**Step 1 — Paste the job description**
-Drop in any job posting. Claude extracts hard skills, soft skills, tools, and role signals, then ranks them by ATS weight and flags gaps against your base resume.
-
-**Step 2 — Select your keywords**
-Review the extracted keywords grouped by category. Green = already in your resume. Yellow = gaps to address. Priority keywords are pre-selected; you control the final list.
-
-**Step 3 — Generate & download**
-Claude rewrites your resume bullets to naturally incorporate your selected keywords, generates a targeted summary, and scores the result against the JD. Download a formatted `.docx` immediately.
+1. **Extracts keywords** from a job description using Claude — hard skills, tools, soft skills, and role signals, each scored by ATS weight and checked against your base resume
+2. **Tailors your resume** — rewrites bullets to naturally incorporate your selected keywords without fabricating experience
+3. **Scores the output** — runs an ATS compatibility check and surfaces missing keywords and suggestions
+4. **Generates a PDF** — single-page, pixel-perfect output via WeasyPrint
 
 ---
 
@@ -23,11 +19,11 @@ Claude rewrites your resume bullets to naturally incorporate your selected keywo
 
 | Layer | Stack |
 |---|---|
-| Frontend | React + Vite |
+| Frontend | React, Vite |
 | Backend | Python, FastAPI |
 | AI | Anthropic API (Claude Haiku) |
-| Document generation | Node.js (`docx` library) |
-| Resume data | Structured JSON schema |
+| PDF generation | WeasyPrint (HTML/CSS → PDF) |
+| Resume data | Structured JSON |
 
 ---
 
@@ -41,20 +37,18 @@ ResumeBuddy/
 │   │   ├── extract.py            # POST /api/extract-keywords
 │   │   └── generate.py           # POST /api/generate-resume, GET /api/download/{file}
 │   ├── services/
-│   │   ├── claude_service.py     # Anthropic API — extraction, tailoring, scoring
-│   │   ├── resume_builder.py     # Python wrapper for docx generation
-│   │   └── build_resume_docx.js  # Node.js document renderer
-│   ├── data/
-│   │   ├── base_resume.json      # Your resume data (gitignored)
-│   │   └── base_resume_schema.md # Schema reference
-│   └── outputs/                  # Generated .docx files (gitignored)
+│   │   ├── claude_service.py     # Keyword extraction, resume tailoring, ATS scoring
+│   │   └── build_resume_pdf.py   # HTML/CSS resume template → PDF via WeasyPrint
+│   └── data/
+│       ├── base_resume.json      # Your resume data (gitignored)
+│       └── base_resume_schema.md # Schema reference
 └── frontend/
     └── src/
-        ├── App.jsx               # Root component, step state, API calls
+        ├── App.jsx               # Step state, API calls
         └── components/
-            ├── JDInput.jsx       # Step 1: job description input
-            ├── KeywordSelector.jsx  # Step 2: keyword review & selection
-            └── ResumePreview.jsx    # Step 3: tailored preview + download
+            ├── JDInput.jsx       # Step 1: paste job description
+            ├── KeywordSelector.jsx  # Step 2: review and select keywords
+            └── ResumePreview.jsx    # Step 3: tailored preview + PDF download
 ```
 
 ---
@@ -64,7 +58,6 @@ ResumeBuddy/
 ### Prerequisites
 
 - Python 3.10+
-- Node.js 18+
 - An [Anthropic API key](https://console.anthropic.com/)
 
 ### Backend
@@ -72,31 +65,27 @@ ResumeBuddy/
 ```bash
 cd backend
 
-# Install Python dependencies
-pip install fastapi uvicorn anthropic python-dotenv pydantic
+# Install dependencies
+pip install fastapi uvicorn anthropic python-dotenv pydantic weasyprint
 
-# Install Node dependencies for the docx builder
-cd services && npm install && cd ..
+# macOS only — WeasyPrint requires Pango for text rendering
+brew install pango
 
-# Create your .env file
+# Set up environment
 cp .env.example .env
-# Add your ANTHROPIC_API_KEY to .env
+# → Add your ANTHROPIC_API_KEY
 
 # Add your resume data
 # Copy base_resume.example.json → data/base_resume.json and fill it in
 
-# Start the server
+# Start
 uvicorn main:app --reload --port 8000
 ```
 
-Verify everything is healthy:
+Verify:
 ```
 GET http://127.0.0.1:8000/health
-```
-
-Expected response:
-```json
-{ "status": "ok", "checks": { "anthropic_api_key": true, "base_resume": true, "outputs_dir": true } }
+→ { "status": "ok", "checks": { "anthropic_api_key": true, "base_resume": true, "outputs_dir": true } }
 ```
 
 ### Frontend
@@ -107,13 +96,13 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` — the backend must be running on port `8000`.
+Open `http://localhost:5173` with the backend running on port 8000.
 
 ---
 
 ## Environment variables
 
-Create `backend/.env`:
+`backend/.env`:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
@@ -124,44 +113,26 @@ ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 
 ## Base resume setup
 
-Your resume lives in `backend/data/base_resume.json` and is **gitignored** — it never leaves your machine unless you deploy it.
+Your resume lives in `backend/data/base_resume.json` and is gitignored — it never leaves your machine unless you deploy it. See `base_resume_schema.md` for the full schema.
 
-Use `backend/data/base_resume_schema.md` as a reference for the full schema. The key sections are:
+Key sections:
 
 - `contact` — name, email, phone, links
-- `summary` — default + role-specific variants (`ai_focused`, `backend_focused`, `ml_focused`)
-- `skills` — categorized skill lists
-- `experience` — roles with bullet objects containing `text`, `keywords`, and `strength`
-- `projects` — same bullet structure as experience
-- `education` + `certifications`
-- `ats_config` — controls max bullets, skills render order, keyword injection targets
+- `summary` — default + role variants (`ai_focused`, `backend_focused`, `ml_focused`)
+- `skills` — categorized lists, render order controlled by `ats_config.skills_order`
+- `experience` / `projects` — bullet objects with `text`, `keywords`, and `strength`
+- `ats_config` — max bullets per section, keyword injection targets
 
 ---
 
-## API reference
+## API
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/health` | Service health check |
-| `POST` | `/api/extract-keywords` | Extract and categorize keywords from a JD |
-| `POST` | `/api/generate-resume` | Tailor resume, score it, generate .docx |
-| `GET` | `/api/download/{filename}` | Download a generated resume file |
-
-### `POST /api/extract-keywords`
-
-```json
-{ "job_description": "string" }
-```
-
-### `POST /api/generate-resume`
-
-```json
-{
-  "job_description": "string",
-  "selected_keywords": ["Python", "FastAPI", "LangChain"],
-  "summary_variant": "ai_focused"
-}
-```
+| `POST` | `/api/extract-keywords` | Extract and score keywords from a JD |
+| `POST` | `/api/generate-resume` | Tailor, score, and generate PDF |
+| `GET` | `/api/download/{filename}` | Download a generated resume |
 
 ---
 
