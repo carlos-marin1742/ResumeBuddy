@@ -180,7 +180,7 @@ You rewrite resume bullets to emphasize relevance to a specific job description 
   - Keeping bullets concise (1–2 lines, action-verb first)
   - Naturally weaving in the provided keywords
   - Maintaining strong impact framing (STAR-adjacent: action → scale → result)
-  - Never using em-dashes (—) or en-dashes (–)
+  - Never using em-dashes (—) or en-dashes (–) anywhere in the output; use commas, colons, or rephrase instead
 
 Always respond with ONLY valid JSON — no preamble, no markdown fences, no explanation.
 """
