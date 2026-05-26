@@ -2,7 +2,7 @@
 build_resume_pdf.py
 -------------------
 Generates a single-page PDF resume from a structured resume dict.
-Uses playwright to render HTML/CSS → PDF — pixel-perfect, no renderer variance.
+Uses WeasyPrint to render HTML/CSS → PDF — pixel-perfect, no renderer variance.
 
 Usage (standalone):
     python build_resume_pdf.py resume.json output.pdf
@@ -38,9 +38,19 @@ def _render_html(resume: dict) -> str:
         "frontend": "Frontend", "databases_cloud": "Data & Cloud", "tools": "Tools",
     }
 
+    MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
     def fmt_date(d):
         if not d or d == "present": return "Present"
-        return d.split("-")[0]
+        parts = d.split("-")
+        year = parts[0]
+        if len(parts) >= 2:
+            try:
+                month = MONTHS[int(parts[1]) - 1]
+                return f"{month} {year}"
+            except (ValueError, IndexError):
+                pass
+        return year
 
     def bullet_text(b):
         if isinstance(b, str): return b
@@ -105,7 +115,7 @@ def _render_html(resume: dict) -> str:
     # Education
     edu_html = ""
     for edu in education:
-        grad = edu.get("graduation_date","").split("-")[0] if edu.get("graduation_date") else ""
+        grad = fmt_date(edu.get("graduation_date","")) if edu.get("graduation_date") else ""
         edu_html += f"""
         <div class='entry'>
           <div class='entry-header'>
@@ -117,7 +127,7 @@ def _render_html(resume: dict) -> str:
     # Certifications
     cert_html = ""
     for cert in certs:
-        year  = cert.get("date","").split("-")[0] if cert.get("date") else ""
+        year  = fmt_date(cert.get("date","")) if cert.get("date") else ""
         issuer = cert.get("issuer","")
         ctype  = cert.get("type","")
         sub    = f"{issuer} — {ctype}" if ctype else issuer
