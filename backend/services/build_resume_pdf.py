@@ -2,7 +2,7 @@
 build_resume_pdf.py
 -------------------
 Generates a single-page PDF resume from a structured resume dict.
-Uses WeasyPrint to render HTML/CSS → PDF — pixel-perfect, no renderer variance.
+Uses playwright to render HTML/CSS → PDF — pixel-perfect, no renderer variance.
 
 Usage (standalone):
     python build_resume_pdf.py resume.json output.pdf

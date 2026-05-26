@@ -17,14 +17,19 @@ from services.claude_service import extract_keywords as claude_extract_keywords
 
 router = APIRouter()
 
-# ── Path to resume data ──────────────────────────────────────────────────────
-BASE_RESUME_PATH = Path(__file__).resolve().parents[1] / "data" / "base_resume.json"
+# ── Resume profile paths ─────────────────────────────────────────────────────
+RESUME_PATHS = {
+    "tech":     Path(__file__).resolve().parents[1] / "data" / "base_resume.json",
+    "clinical": Path(__file__).resolve().parents[1] / "data" / "base_resume_clinical.json",
+    "admin":    Path(__file__).resolve().parents[1] / "data" / "base_resume_admin.json",
+}
 
 
 # ── Request / Response Models ────────────────────────────────────────────────
 
 class ExtractRequest(BaseModel):
     job_description: str
+    profile: str = "tech"
 
 
 class Keyword(BaseModel):
@@ -44,28 +49,28 @@ class ExtractResponse(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def load_base_resume() -> dict:
-    """Load base_resume.json. Raises 500 if missing or malformed."""
-    if not BASE_RESUME_PATH.exists():
+def load_base_resume(path: Path) -> dict:
+    """Load a resume JSON file. Raises 500 if missing or malformed."""
+    if not path.exists():
         raise HTTPException(
             status_code=500,
-            detail="base_resume.json not found. Run the resume ingestion step first."
+            detail=f"Resume file not found: {path.name}"
         )
     try:
-        return json.loads(BASE_RESUME_PATH.read_text())
+        return json.loads(path.read_text())
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"base_resume.json is malformed: {e}")
+        raise HTTPException(status_code=500, detail=f"{path.name} is malformed: {e}")
 
 
 def flatten_resume_keywords(resume: dict) -> set[str]:
     """
-    Pull every keyword string out of base_resume.json into a flat lowercase set
+    Pull every keyword string out of a base_resume JSON into a flat lowercase set
     so we can do O(1) gap-checking against Claude's extracted keywords.
 
     Reads from:
       - skills.*  (all skill category lists)
       - experience[].bullets[].keywords[]
-      - projects[].keywords[]
+      - projects[].bullets[].keywords[]
     """
     keywords: set[str] = set()
 
@@ -81,7 +86,8 @@ def flatten_resume_keywords(resume: dict) -> set[str]:
 
     # Projects
     for project in resume.get("projects", []):
-        keywords.update(k.lower() for k in project.get("keywords", []))
+        for bullet in project.get("bullets", []):
+            keywords.update(k.lower() for k in bullet.get("keywords", []))
 
     return keywords
 
@@ -98,8 +104,14 @@ def extract_keywords_route(request: ExtractRequest) -> ExtractResponse:
     if len(jd) > 20_000:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
+    if request.profile not in RESUME_PATHS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown profile '{request.profile}'. Must be 'tech' or 'clinical', 'or 'admin'."
+        )
+
     # 1. Load resume and flatten keywords for gap analysis
-    resume = load_base_resume()
+    resume = load_base_resume(RESUME_PATHS[request.profile])
     resume_keywords = flatten_resume_keywords(resume)
 
     # 2. Call claude_service — handles prompting, API call, and JSON parsing
@@ -116,11 +128,11 @@ def extract_keywords_route(request: ExtractRequest) -> ExtractResponse:
     #    We flatten all into a single list with category + ats_weight assigned here.
 
     CATEGORY_MAP = {
-        "hard_skills":           ("hard_skill",  8),
-        "tools_and_technologies":("hard_skill",  7),
-        "soft_skills":           ("soft_skill",  4),
-        "job_titles":            ("role_signal", 6),
-        "certifications":        ("hard_skill",  5),
+        "hard_skills":            ("hard_skill",  8),
+        "tools_and_technologies": ("hard_skill",  7),
+        "soft_skills":            ("soft_skill",  4),
+        "job_titles":             ("role_signal", 6),
+        "certifications":         ("hard_skill",  5),
     }
 
     priority_set = {kw.lower() for kw in kw_result.priority_keywords}
