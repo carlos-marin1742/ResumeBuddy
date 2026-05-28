@@ -252,8 +252,10 @@ Return a JSON object matching this schema exactly:
 Rules:
 - Only rewrite bullets where adding keywords genuinely improves relevance.
 - Never fabricate metrics, technologies, or experiences.
+- Never add credentials, licenses, or certifications the candidate does not already have in their profile (e.g. do not add RN, MD, PMP, or any license not listed in the certifications section).
 - Preserve the candidate's voice — do not over-polish into generic corporate speak.
 - Every tailored bullet must start with a strong past-tense action verb.
+- Limit to a maximum of 4 bullets per role. Prioritize the highest-impact bullets only.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=4096)
 
