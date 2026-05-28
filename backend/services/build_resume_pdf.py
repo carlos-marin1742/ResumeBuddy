@@ -2,7 +2,7 @@
 build_resume_pdf.py
 -------------------
 Generates a single-page PDF resume from a structured resume dict.
-Uses WeasyPrint to render HTML/CSS → PDF — pixel-perfect, no renderer variance.
+Uses Playwright (headless Chromium) to render HTML/CSS → PDF.
 
 Usage (standalone):
     python build_resume_pdf.py resume.json output.pdf
@@ -11,12 +11,13 @@ Public API:
     build_pdf(resume_data: dict, output_path: Path | str) -> Path
 """
 
+import concurrent.futures
 import json
 import sys
 from pathlib import Path
 
 
-def _render_html(resume: dict) -> str:
+def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     contact    = resume.get("contact", {})
     skills     = resume.get("skills", {})
     experience = resume.get("experience", [])
@@ -150,6 +151,11 @@ def _render_html(resume: dict) -> str:
     if edu_html:     sections += section("EDUCATION",      edu_html)
     if cert_html:    sections += section("CERTIFICATIONS", cert_html)
 
+    # Dynamic spacing values
+    li_margin     = max(0.5, 1.5 + spacing_adjust)
+    entry_margin  = max(3.0, 7.0 + spacing_adjust)
+    section_margin = max(4.0, 8.0 + (spacing_adjust * 0.5))
+
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -189,7 +195,7 @@ def _render_html(resume: dict) -> str:
   .sep {{ margin: 0 2pt; color: #555; }}
 
   .section {{
-    margin-top: 8pt;
+    margin-top: {section_margin:.1f}pt;
   }}
 
   .section-title {{
@@ -210,7 +216,7 @@ def _render_html(resume: dict) -> str:
   .skill-cat {{ font-weight: bold; }}
   .hl        {{ font-weight: normal; }}
 
-  .entry {{ margin-top: 7pt; }}
+  .entry {{ margin-top: {entry_margin:.1f}pt; }}
   .entry:first-child {{ margin-top: 0; }}
 
   .entry-header {{
@@ -260,7 +266,7 @@ def _render_html(resume: dict) -> str:
   li {{
     font-size: 8pt;
     line-height: 1.40;
-    margin-bottom: 1.5pt;
+    margin-bottom: {li_margin:.1f}pt;
   }}
 
   li:last-child {{ margin-bottom: 0; }}
@@ -279,22 +285,39 @@ def _render_html(resume: dict) -> str:
 </html>"""
 
 
-def build_pdf(resume_data: dict, output_path) -> Path:
-    """
-    Render a resume dict to a single-page PDF using Playwright (headless Chromium).
-    Works on macOS, Windows, and Linux — no system dependencies beyond pip install.
-    """
+def _build_pdf_worker(resume_data: dict, output_path) -> Path:
+    """Runs Playwright in a clean thread — isolates it from FastAPI's event loop on Windows."""
     from playwright.sync_api import sync_playwright
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    html_content = _render_html(resume_data)
-
     with sync_playwright() as p:
         browser = p.chromium.launch()
+
+        # ── First pass: measure content height ───────────────────────────────
         page = browser.new_page()
-        page.set_content(html_content, wait_until="networkidle")
+        page.set_content(_render_html(resume_data), wait_until="networkidle")
+
+        content_height = page.evaluate("document.body.scrollHeight")
+        page_height    = 1056  # letter at 96dpi (11in × 96)
+        margins        = 77    # 0.4in top + 0.4in bottom at 96dpi
+        usable_height  = page_height - margins
+        slack          = usable_height - content_height
+
+        # ── Second pass: adjust spacing if needed ────────────────────────────
+        if abs(slack) > 20:
+            line_count = page.evaluate(
+                "document.querySelectorAll('li, .entry, .skill-row, .section').length"
+            )
+            if line_count > 0:
+                extra_per_element = slack / line_count
+                extra_per_element = max(-2, min(4, extra_per_element))
+                page.set_content(
+                    _render_html(resume_data, spacing_adjust=extra_per_element),
+                    wait_until="networkidle"
+                )
+
         page.pdf(
             path=str(output_path),
             format="Letter",
@@ -303,6 +326,17 @@ def build_pdf(resume_data: dict, output_path) -> Path:
         browser.close()
 
     return output_path
+
+
+def build_pdf(resume_data: dict, output_path) -> Path:
+    """
+    Render a resume dict to a single-page PDF using Playwright (headless Chromium).
+    Runs Playwright in a ThreadPoolExecutor to avoid Windows asyncio event loop conflicts.
+    Works on macOS, Windows, and Linux.
+    """
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_build_pdf_worker, resume_data, output_path)
+        return future.result()
 
 
 if __name__ == "__main__":
