@@ -151,13 +151,25 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     if edu_html:     sections += section("EDUCATION",      edu_html)
     if cert_html:    sections += section("CERTIFICATIONS", cert_html)
 
-    # Dynamic spacing — tighter base values to fit dense tech resumes,
-    # auto-fill logic expands them for lighter admin/clinical resumes.
-    li_margin      = max(0.5, 1.0  + spacing_adjust)
-    entry_margin   = max(2.0, 5.0  + spacing_adjust)
-    section_margin = max(3.0, 6.0  + (spacing_adjust * 0.5))
-    contact_margin = max(4.0, 6.0  + spacing_adjust)
-    section_pb     = max(0.3, 0.5  + (spacing_adjust * 0.2))
+    # Profile-aware spacing:
+    # Tech resumes have projects — use tighter base values to fit more content.
+    # Admin/clinical have no projects — use comfortable base values.
+    has_projects = bool(projects)
+
+    if has_projects:
+        li_margin      = max(0.5, 1.0 + spacing_adjust)
+        entry_margin   = max(2.0, 5.0 + spacing_adjust)
+        section_margin = max(3.0, 6.0 + (spacing_adjust * 0.5))
+        contact_margin = max(4.0, 6.0 + spacing_adjust)
+        section_pb     = max(0.3, 0.5 + (spacing_adjust * 0.2))
+        body_lh        = "1.25"
+    else:
+        li_margin      = max(0.5, 2.5 + spacing_adjust)
+        entry_margin   = max(3.0, 9.0 + spacing_adjust)
+        section_margin = max(4.0, 10.0 + (spacing_adjust * 0.5))
+        contact_margin = max(5.0, 9.0 + spacing_adjust)
+        section_pb     = max(0.5, 1.0 + (spacing_adjust * 0.2))
+        body_lh        = "1.30"
 
     return f"""<!DOCTYPE html>
 <html>
@@ -174,7 +186,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
   body {{
     font-family: Arial, Helvetica, sans-serif;
     font-size: 8.5pt;
-    line-height: 1.25;
+    line-height: {body_lh};
     color: #000;
     width: 100%;
   }}
@@ -295,29 +307,30 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    page_height   = 1056  # letter at 96dpi (11in × 96)
+    margins       = 77    # 0.4in top + 0.4in bottom at 96dpi
+    usable_height = page_height - margins
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
-
-        # ── First pass: measure content height ───────────────────────────────
         page = browser.new_page()
+
+        # ── First pass: render with profile-aware base spacing ────────────────
         page.set_content(_render_html(resume_data), wait_until="networkidle")
 
         content_height = page.evaluate("document.body.scrollHeight")
-        page_height    = 1056  # letter at 96dpi (11in × 96)
-        margins        = 77    # 0.4in top + 0.4in bottom at 96dpi
-        usable_height  = page_height - margins
-        slack          = usable_height - content_height
+        slack = usable_height - content_height
 
-        # ── Second pass: adjust spacing if needed ────────────────────────────
+        # ── Second pass: single correction if still off by more than 20px ────
         if abs(slack) > 20:
             line_count = page.evaluate(
                 "document.querySelectorAll('li, .entry, .skill-row, .section').length"
             )
             if line_count > 0:
                 extra_per_element = slack / line_count
-                extra_per_element = max(-2, min(4, extra_per_element))
+                extra_per_element = max(-2.0, min(3.0, extra_per_element))
                 page.set_content(
-                    _render_html(resume_data, spacing_adjust=extra_per_element),
+                    _render_html(resume_data, extra_per_element),
                     wait_until="networkidle"
                 )
 

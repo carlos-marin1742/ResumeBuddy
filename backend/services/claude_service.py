@@ -259,10 +259,10 @@ Rules:
 - Never add credentials, licenses, or certifications the candidate does not already have in their profile (e.g. do not add RN, MD, PMP, or any license not listed in the certifications section).
 - Preserve the candidate's voice — do not over-polish into generic corporate speak.
 - Every tailored bullet must start with a strong past-tense action verb.
-- Use exactly 4 bullets for the first two roles and exactly 3 bullets for the third (oldest) role.
+- Use exactly 5 bullets for all three roles.
 - Never use fewer bullets than specified — a short resume wastes space.
 - Keep every bullet to a maximum of 165 characters. Trim or rephrase if needed — never sacrifice accuracy, just cut filler words.
-- If selected_keywords include skills not present in the candidate's skills section, add them to the most relevant skills category in skills_to_add. Only add skills the candidate plausibly has based on their project and experience context — never fabricate.
+- If selected_keywords include skills not present in the candidate's skills section, add them to the most relevant skills category in skills_to_add.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=4096)
 
