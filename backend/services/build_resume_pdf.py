@@ -151,10 +151,13 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     if edu_html:     sections += section("EDUCATION",      edu_html)
     if cert_html:    sections += section("CERTIFICATIONS", cert_html)
 
-    # Dynamic spacing values
-    li_margin     = max(0.5, 1.5 + spacing_adjust)
-    entry_margin  = max(3.0, 7.0 + spacing_adjust)
-    section_margin = max(4.0, 8.0 + (spacing_adjust * 0.5))
+    # Dynamic spacing — tighter base values to fit dense tech resumes,
+    # auto-fill logic expands them for lighter admin/clinical resumes.
+    li_margin      = max(0.5, 1.0  + spacing_adjust)
+    entry_margin   = max(2.0, 5.0  + spacing_adjust)
+    section_margin = max(3.0, 6.0  + (spacing_adjust * 0.5))
+    contact_margin = max(4.0, 6.0  + spacing_adjust)
+    section_pb     = max(0.3, 0.5  + (spacing_adjust * 0.2))
 
     return f"""<!DOCTYPE html>
 <html>
@@ -171,7 +174,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
   body {{
     font-family: Arial, Helvetica, sans-serif;
     font-size: 8.5pt;
-    line-height: 1.30;
+    line-height: 1.25;
     color: #000;
     width: 100%;
   }}
@@ -189,7 +192,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
   .contact {{
     text-align: center;
     font-size: 8pt;
-    margin-bottom: 10pt;
+    margin-bottom: {contact_margin:.1f}pt;
   }}
 
   .sep {{ margin: 0 2pt; color: #555; }}
@@ -203,14 +206,14 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     font-weight: bold;
     text-transform: uppercase;
     border-bottom: 0.75pt solid #000;
-    padding-bottom: 1pt;
+    padding-bottom: {section_pb:.1f}pt;
     margin-bottom: 4pt;
     line-height: 1.3;
   }}
 
   .skill-row {{
     font-size: 8pt;
-    line-height: 1.40;
+    line-height: 1.35;
   }}
 
   .skill-cat {{ font-weight: bold; }}
@@ -229,7 +232,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     font-weight: bold;
     font-size: 9pt;
     flex: 1;
-    line-height: 1.4;
+    line-height: 1.3;
   }}
 
   .entry-date {{
@@ -246,7 +249,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     font-style: italic;
     font-size: 8pt;
     margin-bottom: 2pt;
-    line-height: 1.4;
+    line-height: 1.3;
   }}
 
   .entry-sub-inline {{
@@ -265,7 +268,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
 
   li {{
     font-size: 8pt;
-    line-height: 1.40;
+    line-height: 1.35;
     margin-bottom: {li_margin:.1f}pt;
   }}
 
@@ -273,7 +276,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
 
   .summary {{
     font-size: 8pt;
-    line-height: 1.40;
+    line-height: 1.35;
   }}
 </style>
 </head>
