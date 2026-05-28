@@ -55,7 +55,9 @@ class TailoredResume(BaseModel):
     summary: str
     experiences: list[TailoredExperience]
     skills_to_highlight: list[str]
+    skills_to_add: dict[str, list[str]] = {}  # category → new skills to add
     raw_response: str
+    
 
 
 class ATSScoreResult(BaseModel):
@@ -232,7 +234,9 @@ def tailor_resume(
             }
         ],
         "skills_to_highlight": ["skills from the candidate's profile most relevant to this JD"],
-    }
+            "skills_to_add": {
+        "category_name": ["new skill 1", "new skill 2","new skill 3"]}}
+    
 
     user_prompt = f"""\
 Tailor the following resume for the job description below.
@@ -257,6 +261,8 @@ Rules:
 - Every tailored bullet must start with a strong past-tense action verb.
 - Use exactly 4 bullets for the first two roles and exactly 3 bullets for the third (oldest) role.
 - Never use fewer bullets than specified — a short resume wastes space.
+- Keep every bullet to a maximum of 165 characters. Trim or rephrase if needed — never sacrifice accuracy, just cut filler words.
+- If selected_keywords include skills not present in the candidate's skills section, add them to the most relevant skills category in skills_to_add. Only add skills the candidate plausibly has based on their project and experience context — never fabricate.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=4096)
 
