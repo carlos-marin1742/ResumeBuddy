@@ -174,7 +174,7 @@ JOB DESCRIPTION:
 # ---------------------------------------------------------------------------
 
 _TAILORING_SYSTEM = """\
-You are an expert technical resume writer specializing in AI and software engineering roles.
+You are an expert resume writer with deep experience tailoring resumes across technical, clinical, and administrative roles.
 You rewrite resume bullets to emphasize relevance to a specific job description while:
   - Preserving all factual accuracy (never invent metrics or experiences)
   - Keeping bullets concise (1–2 lines, action-verb first)
@@ -255,7 +255,8 @@ Rules:
 - Never add credentials, licenses, or certifications the candidate does not already have in their profile (e.g. do not add RN, MD, PMP, or any license not listed in the certifications section).
 - Preserve the candidate's voice — do not over-polish into generic corporate speak.
 - Every tailored bullet must start with a strong past-tense action verb.
-- Limit to a maximum of 4 bullets per role. Prioritize the highest-impact bullets only.
+- Use exactly 4 bullets for the first two roles and exactly 3 bullets for the third (oldest) role.
+- Never use fewer bullets than specified — a short resume wastes space.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=4096)
 
