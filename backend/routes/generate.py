@@ -37,6 +37,7 @@ class GenerateRequest(BaseModel):
     job_description: str
     selected_keywords: list[str] = Field(default_factory=list)
     summary_variant: str | None = None
+    profile: str = "tech"
 
 
 class BulletPreview(BaseModel):
@@ -63,21 +64,34 @@ class GenerateResponse(BaseModel):
     summary: str
     experiences: list[ExperiencePreview]
     skills_to_highlight: list[str]
+    skills_added: dict[str, list[str]]
     ats: ATSPreview
     pdf_url: str
     generated_at: str
     resume_id: str
 
 
+# ── Resume profile paths ──────────────────────────────────────────────────────
+
+RESUME_PATHS = {
+    "tech":     Path(__file__).resolve().parents[1] / "data" / "base_resume.json",
+    "clinical": Path(__file__).resolve().parents[1] / "data" / "base_resume_clinical.json",
+    "admin":    Path(__file__).resolve().parents[1] / "data" / "base_resume_admin.json",
+}
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _load_base_resume() -> dict:
-    if not BASE_RESUME_PATH.exists():
-        raise HTTPException(status_code=500, detail="base_resume.json not found.")
+def _load_base_resume(profile: str = "tech") -> dict:
+    path = RESUME_PATHS.get(profile)
+    if not path:
+        raise HTTPException(status_code=422, detail=f"Unknown profile '{profile}'.")
+    if not path.exists():
+        raise HTTPException(status_code=500, detail=f"{path.name} not found.")
     try:
-        return json.loads(BASE_RESUME_PATH.read_text())
+        return json.loads(path.read_text())
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=500, detail=f"base_resume.json is malformed: {exc}")
+        raise HTTPException(status_code=500, detail=f"{path.name} is malformed: {exc}")
 
 
 def _apply_summary_variant(base_resume: dict, variant_key: str | None) -> dict:
@@ -95,6 +109,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
     output = dict(base_resume)
     output["tailored_summary"] = tailored.summary
 
+    # ── Merge tailored bullets ────────────────────────────────────────────────
     tailored_exp_map = {exp.company: exp for exp in tailored.experiences}
     updated_experience = []
     for exp in base_resume.get("experience", []):
@@ -113,6 +128,19 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
             updated_experience.append(exp)
 
     output["experience"] = updated_experience
+
+    # ── Merge new skills suggested by Claude ─────────────────────────────────
+    if tailored.skills_to_add:
+        skills = {k: list(v) for k, v in output.get("skills", {}).items()}
+        for category, new_skills in tailored.skills_to_add.items():
+            if category in skills:
+                existing_lower = {s.lower() for s in skills[category]}
+                for skill in new_skills:
+                    if skill.lower() not in existing_lower:
+                        skills[category].append(skill)
+                        existing_lower.add(skill.lower())
+        output["skills"] = skills
+
     output["skills_to_highlight"] = tailored.skills_to_highlight
     return output
 
@@ -135,7 +163,7 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
     # Step 1: Load base resume
-    base_resume = _load_base_resume()
+    base_resume = _load_base_resume(request.profile)
     base_resume = _apply_summary_variant(base_resume, request.summary_variant)
 
     # Step 2: Tailor via Claude
@@ -148,7 +176,7 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"Tailoring failed: {exc}")
 
-    # Step 3: Merge tailored content into full resume dict
+    # Step 3: Merge tailored content + new skills into full resume dict
     full_tailored_dict = _build_tailored_resume_dict(base_resume, tailored)
 
     # Step 4: ATS scoring
@@ -191,6 +219,7 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         summary=tailored.summary,
         experiences=experience_preview,
         skills_to_highlight=tailored.skills_to_highlight,
+        skills_added=tailored.skills_to_add,
         ats=ATSPreview(
             overall_score=ats_result.overall_score,
             keyword_coverage=ats_result.keyword_coverage,
