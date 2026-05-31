@@ -23,7 +23,7 @@ from typing import Any
 
 import anthropic
 from pydantic import BaseModel
- 
+
 
 # ---------------------------------------------------------------------------
 # Pydantic response models
@@ -35,8 +35,8 @@ class KeywordExtractionResult(BaseModel):
     tools_and_technologies: list[str]
     job_titles: list[str]
     certifications: list[str]
-    priority_keywords: list[str]   # top ~10 must-haves for this role
-    raw_response: str              # preserved for debugging
+    priority_keywords: list[str]
+    raw_response: str
 
 
 class TailoredBullet(BaseModel):
@@ -51,18 +51,23 @@ class TailoredExperience(BaseModel):
     tailored_bullets: list[TailoredBullet]
 
 
+class TailoredProject(BaseModel):
+    name: str
+    tailored_bullets: list[TailoredBullet]
+
+
 class TailoredResume(BaseModel):
     summary: str
     experiences: list[TailoredExperience]
+    projects: list[TailoredProject] = []
     skills_to_highlight: list[str]
-    skills_to_add: dict[str, list[str]] = {}  # category → new skills to add
+    skills_to_add: dict[str, list[str]] = {}
     raw_response: str
-    
 
 
 class ATSScoreResult(BaseModel):
-    overall_score: int             # 0–100
-    keyword_coverage: float        # 0.0–1.0
+    overall_score: int
+    keyword_coverage: float
     matched_keywords: list[str]
     missing_keywords: list[str]
     suggestions: list[str]
@@ -74,7 +79,6 @@ class ATSScoreResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _get_client() -> anthropic.Anthropic:
-    """Return an Anthropic client, reading the key from the environment."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise EnvironmentError(
@@ -87,12 +91,12 @@ def _get_client() -> anthropic.Anthropic:
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 2048
 
+
 # ---------------------------------------------------------------------------
 # Helper: call the API and return the text content
 # ---------------------------------------------------------------------------
 
 def _call_claude(system: str, user: str, max_tokens: int = MAX_TOKENS) -> str:
-    """Thin wrapper around the Messages API. Returns the assistant text."""
     client = _get_client()
     message = client.messages.create(
         model=MODEL,
@@ -104,10 +108,6 @@ def _call_claude(system: str, user: str, max_tokens: int = MAX_TOKENS) -> str:
 
 
 def _extract_json(text: str) -> Any:
-    """
-    Strip markdown fences and parse JSON.
-    Handles both ```json ... ``` and raw JSON blobs.
-    """
     cleaned = re.sub(r"```(?:json)?\s*", "", text).replace("```", "").strip()
     return json.loads(cleaned)
 
@@ -135,15 +135,6 @@ _KEYWORD_EXTRACTION_SCHEMA = {
 
 
 def extract_keywords(job_description: str) -> KeywordExtractionResult:
-    """
-    Parse a job description and return structured keyword categories.
-
-    Args:
-        job_description: Raw text of the job description.
-
-    Returns:
-        KeywordExtractionResult with categorized and prioritized keywords.
-    """
     user_prompt = f"""\
 Analyze the following job description and extract keywords.
 
@@ -187,23 +178,12 @@ You rewrite resume bullets to emphasize relevance to a specific job description 
 Always respond with ONLY valid JSON — no preamble, no markdown fences, no explanation.
 """
 
+
 def tailor_resume(
     base_resume: dict,
     job_description: str,
     selected_keywords: list[str],
 ) -> TailoredResume:
-    """
-    Generate a tailored version of the resume for a specific job.
-
-    Args:
-        base_resume:       The parsed base_resume.json as a Python dict.
-        job_description:   Full text of the target job description.
-        selected_keywords: Keywords the user confirmed they want to target
-                           (typically from extract_keywords → user selection in the UI).
-
-    Returns:
-        TailoredResume with a new summary, rewritten bullets, and highlighted skills.
-    """
     # Slim the payload — send only the fields Claude needs
     resume_payload = {
         "summary": base_resume.get("summary", ""),
@@ -215,6 +195,13 @@ def tailor_resume(
                 "bullets": [b.get("text") for b in exp.get("bullets", [])],
             }
             for exp in base_resume.get("experience", [])
+        ],
+        "projects": [
+            {
+                "name": proj.get("name"),
+                "bullets": [b.get("text") for b in proj.get("bullets", [])],
+            }
+            for proj in base_resume.get("projects", [])
         ],
     }
 
@@ -233,10 +220,23 @@ def tailor_resume(
                 ],
             }
         ],
+        "projects": [
+            {
+                "name": "string",
+                "tailored_bullets": [
+                    {
+                        "original": "exact original bullet text",
+                        "tailored": "rewritten bullet",
+                        "keywords_injected": ["keyword1", "keyword2"],
+                    }
+                ],
+            }
+        ],
         "skills_to_highlight": ["skills from the candidate's profile most relevant to this JD"],
-            "skills_to_add": {
-        "category_name": ["new skill 1", "new skill 2","new skill 3"]}}
-    
+        "skills_to_add": {
+            "category_name": ["new skill 1", "new skill 2", "new skill 3"]
+        },
+    }
 
     user_prompt = f"""\
 Tailor the following resume for the job description below.
@@ -259,10 +259,12 @@ Rules:
 - Never add credentials, licenses, or certifications the candidate does not already have in their profile (e.g. do not add RN, MD, PMP, or any license not listed in the certifications section).
 - Preserve the candidate's voice — do not over-polish into generic corporate speak.
 - Every tailored bullet must start with a strong past-tense action verb.
-- Use exactly 5 bullets for all three roles.
+- Use exactly 5 bullets for all three experience roles.
+- Keep the same number of bullets per project as in the original — do not add or remove project bullets.
+- Only rewrite project bullets where adding keywords genuinely improves relevance.
 - Never use fewer bullets than specified — a short resume wastes space.
 - Keep every bullet to a maximum of 165 characters. Trim or rephrase if needed — never sacrifice accuracy, just cut filler words.
-- If selected_keywords include skills not present in the candidate's skills section, add them to the most relevant skills category in skills_to_add.
+- If selected_keywords include skills not present in the candidate's skills section, add them to the most relevant skills category in skills_to_add. Only add skills the candidate plausibly has based on their project and experience context — never fabricate.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=4096)
 
@@ -282,9 +284,20 @@ Rules:
         for exp in parsed.get("experiences", [])
     ]
 
+    projects = [
+        TailoredProject(
+            name=proj["name"],
+            tailored_bullets=[
+                TailoredBullet(**b) for b in proj.get("tailored_bullets", [])
+            ],
+        )
+        for proj in parsed.get("projects", [])
+    ]
+
     return TailoredResume(
         summary=parsed.get("summary", ""),
         experiences=experiences,
+        projects=projects,
         skills_to_highlight=parsed.get("skills_to_highlight", []),
         skills_to_add=parsed.get("skills_to_add", {}),
         raw_response=raw,
@@ -313,16 +326,6 @@ _SCORING_SCHEMA = {
 
 
 def score_resume(tailored_resume: dict, job_description: str) -> ATSScoreResult:
-    """
-    Score a tailored resume against a job description for ATS compatibility.
-
-    Args:
-        tailored_resume: The assembled resume dict (post-tailoring, pre-docx).
-        job_description: The target job description.
-
-    Returns:
-        ATSScoreResult with score, coverage stats, and improvement suggestions.
-    """
     user_prompt = f"""\
 Score the following resume against the job description for ATS compatibility.
 
@@ -382,6 +385,7 @@ if __name__ == "__main__":
                 ],
             }
         ],
+        "projects": [],
     }
     tailored = tailor_resume(stub_resume, sample_jd, kw_result.priority_keywords)
     print(json.dumps(tailored.model_dump(exclude={"raw_response"}), indent=2))

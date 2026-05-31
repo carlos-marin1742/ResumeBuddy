@@ -28,8 +28,6 @@ router = APIRouter()
 OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
 OUTPUTS_DIR.mkdir(exist_ok=True)
 
-BASE_RESUME_PATH = Path(__file__).resolve().parents[1] / "data" / "base_resume.json"
-
 
 # ── Request / Response Models ─────────────────────────────────────────────────
 
@@ -52,6 +50,11 @@ class ExperiencePreview(BaseModel):
     bullets: list[BulletPreview]
 
 
+class ProjectPreview(BaseModel):
+    name: str
+    bullets: list[BulletPreview]
+
+
 class ATSPreview(BaseModel):
     overall_score: int
     keyword_coverage: float
@@ -63,6 +66,7 @@ class ATSPreview(BaseModel):
 class GenerateResponse(BaseModel):
     summary: str
     experiences: list[ExperiencePreview]
+    projects: list[ProjectPreview]
     skills_to_highlight: list[str]
     skills_added: dict[str, list[str]]
     ats: ATSPreview
@@ -109,7 +113,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
     output = dict(base_resume)
     output["tailored_summary"] = tailored.summary
 
-    # ── Merge tailored bullets ────────────────────────────────────────────────
+    # ── Merge tailored experience bullets ─────────────────────────────────────
     tailored_exp_map = {exp.company: exp for exp in tailored.experiences}
     updated_experience = []
     for exp in base_resume.get("experience", []):
@@ -126,10 +130,29 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
             updated_experience.append({**exp, "bullets": updated_bullets})
         else:
             updated_experience.append(exp)
-
     output["experience"] = updated_experience
 
-    # ── Merge new skills suggested by Claude ─────────────────────────────────
+    # ── Merge tailored project bullets ────────────────────────────────────────
+    if tailored.projects:
+        tailored_proj_map = {proj.name: proj for proj in tailored.projects}
+        updated_projects = []
+        for proj in base_resume.get("projects", []):
+            tailored_proj = tailored_proj_map.get(proj["name"])
+            if tailored_proj:
+                updated_bullets = [
+                    {
+                        "original": b.original,
+                        "text": b.tailored,
+                        "keywords_injected": b.keywords_injected,
+                    }
+                    for b in tailored_proj.tailored_bullets
+                ]
+                updated_projects.append({**proj, "bullets": updated_bullets})
+            else:
+                updated_projects.append(proj)
+        output["projects"] = updated_projects
+
+    # ── Merge new skills suggested by Claude ──────────────────────────────────
     if tailored.skills_to_add:
         skills = {k: list(v) for k, v in output.get("skills", {}).items()}
         for category, new_skills in tailored.skills_to_add.items():
@@ -215,9 +238,25 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         for exp in tailored.experiences
     ]
 
+    project_preview = [
+        ProjectPreview(
+            name=proj.name,
+            bullets=[
+                BulletPreview(
+                    original=b.original,
+                    tailored=b.tailored,
+                    keywords_injected=b.keywords_injected,
+                )
+                for b in proj.tailored_bullets
+            ],
+        )
+        for proj in tailored.projects
+    ]
+
     return GenerateResponse(
         summary=tailored.summary,
         experiences=experience_preview,
+        projects=project_preview,
         skills_to_highlight=tailored.skills_to_highlight,
         skills_added=tailored.skills_to_add,
         ats=ATSPreview(
