@@ -1,0 +1,11 @@
+services:
+  resumebuddy:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/data:/app/backend/data
+      - ./backend/outputs:/app/backend/outputs
+    restart: unless-stopped

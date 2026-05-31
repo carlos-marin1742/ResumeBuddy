@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+venv/
+
+# Node
+client/node_modules/
+client/.next/
+
+# Dev/test artifacts
+backend/outputs/
+backend/test_*.py
+backend/services/test_*.py
+
+# Environment
+.env
+
+# Git
+.git/
+.gitignore
+
+# Misc
+*.md
+.DS_Store
