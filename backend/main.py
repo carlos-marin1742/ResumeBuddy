@@ -24,6 +24,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes.extract import router as extract_router
 from routes.generate import router as generate_router
 
+
+
 load_dotenv()
 
 # ── App ────────────────────────────────────────────────────────────────────
@@ -50,6 +52,18 @@ app.add_middleware(
 # ── Routers ────────────────────────────────────────────────────────────────
 app.include_router(extract_router)
 app.include_router(generate_router)
+
+#──Added for Docker ────────────────────────────────────────────────────────────────
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+_static_dir = Path(__file__).resolve().parent / "static"
+if _static_dir.exists():
+    app.mount("/assets", StaticFiles(directory=_static_dir / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        return FileResponse(_static_dir / "index.html")
 
 # ── Health check ───────────────────────────────────────────────────────────
 BASE_RESUME_PATH = Path(__file__).resolve().parent / "data" / "base_resume.json"
