@@ -286,6 +286,7 @@ Rules:
         summary=parsed.get("summary", ""),
         experiences=experiences,
         skills_to_highlight=parsed.get("skills_to_highlight", []),
+        skills_to_add=parsed.get("skills_to_add", {}),
         raw_response=raw,
     )
 
