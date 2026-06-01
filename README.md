@@ -54,9 +54,7 @@ ResumeBuddy/
 │   │   ├── claude_service.py     # Keyword extraction, resume tailoring, ATS scoring
 │   │   └── build_resume_pdf.py   # Profile-aware HTML/CSS resume template → PDF via Playwright
 │   └── data/
-│       ├── base_resume.json          # Tech profile (gitignored)
-│       ├── base_resume_clinical.json # Clinical research profile (gitignored)
-│       ├── base_resume_admin.json    # Administrative profile (gitignored)
+│       ├── base_resume.json          # Resume profile (gitignored)
 │       └── base_resume_schema.md     # Schema reference
 └── client/
     └── src/
@@ -78,7 +76,7 @@ The fastest way to run ResumeBuddy on any machine with no Python or Node setup r
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
 ```bash
-git clone <repo-url>
+git clone git@github.com:carlos-marin1742/ResumeBuddy.git
 cd ResumeBuddy
 
 # Create your environment file
