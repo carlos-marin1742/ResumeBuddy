@@ -154,9 +154,12 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     if cert_html:    sections += section("CERTIFICATIONS", cert_html)
 
     # Profile-aware spacing:
-    # Tech resumes have projects — use tighter base values to fit more content.
-    # Admin/clinical have no projects — use comfortable base values.
+    # Tech: has projects — tight base
+    # Admin/clinical with dense injected skills (4+ rows) — medium base
+    # Admin/clinical with normal skills — comfortable base
     has_projects = bool(projects)
+    skill_row_count = sum(1 for cat in skills_order if skills.get(cat))
+    has_dense_skills = skill_row_count >= 4 and not has_projects
 
     if has_projects:
         li_margin      = max(0.5, 1.0 + spacing_adjust)
@@ -165,11 +168,18 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
         contact_margin = max(4.0, 6.0 + spacing_adjust)
         section_pb     = max(0.3, 0.5 + (spacing_adjust * 0.2))
         body_lh        = "1.25"
+    elif has_dense_skills:
+        li_margin      = max(0.5, 1.5 + spacing_adjust)
+        entry_margin   = max(2.0, 6.0 + spacing_adjust)
+        section_margin = max(3.0, 7.0 + (spacing_adjust * 0.5))
+        contact_margin = max(4.0, 7.0 + spacing_adjust)
+        section_pb     = max(0.3, 0.5 + (spacing_adjust * 0.2))
+        body_lh        = "1.25"
     else:
         li_margin      = max(0.5, 2.5 + spacing_adjust)
-        entry_margin   = max(3.0, 9.0 + spacing_adjust)
-        section_margin = max(4.0, 10.0 + (spacing_adjust * 0.5))
-        contact_margin = max(5.0, 9.0 + spacing_adjust)
+        entry_margin   = max(3.0, 7.0 + spacing_adjust) # changed from 9.0 to 7.0, claude suggestion
+        section_margin = max(4.0, 8.0 + (spacing_adjust * 0.5)) #changed from 10.0 to 8.0, claude suggestion
+        contact_margin = max(5.0, 7.0 + spacing_adjust) # changed from 9.0 to 7.0, claude suggestion
         section_pb     = max(0.5, 1.0 + (spacing_adjust * 0.2))
         body_lh        = "1.30"
 
@@ -310,6 +320,9 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # letter at 96dpi (11in × 96) minus 0.4in top + 0.4in bottom margins
+    usable_height = 979
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
@@ -319,7 +332,7 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
         for attempt in range(5):
             page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
 
-            # Render to temp file and check actual page count
+            # Render to temp file and check actual PDF page count
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp_path = tmp.name
 
@@ -329,14 +342,29 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
             page_count = len(reader.pages)
 
             if page_count == 1:
-                # Single page — copy to final destination
+                # Check for whitespace using scroll height
+                content_height = page.evaluate("document.body.scrollHeight")
+                slack = usable_height - content_height
+
+                if slack > 80 and attempt < 4:
+                    # Too much whitespace — expand spacing and retry
+                    Path(tmp_path).unlink(missing_ok=True)
+                    line_count = page.evaluate(
+                        "document.querySelectorAll('li, .entry, .skill-row, .section').length"
+                    )
+                    if line_count > 0:
+                        spacing += min(1.0, slack / line_count)
+                    continue
+
+                # Good fit — use this render
                 shutil.copy(tmp_path, output_path)
                 Path(tmp_path).unlink(missing_ok=True)
                 break
 
-            # Still overflowing — compress more each attempt
+            # More than 1 page — compress and retry
             Path(tmp_path).unlink(missing_ok=True)
-            spacing -= 2.0
+            spacing -= 1.5  # reduce spacing and try again
+
         else:
             # All attempts exhausted — use last render as-is
             page.pdf(path=str(output_path), format="Letter", print_background=True)
