@@ -1,7 +1,7 @@
 import "./ResumePreview.css";
 
 export default function ResumePreview({ result, apiBase, onBack, onReset }) {
-  const { summary, experiences, skills_to_highlight, ats, pdf_url, generated_at } = result;
+  const { summary, experiences, projects = [], skills_to_highlight, ats, pdf_url, generated_at } = result;
 
   const scoreColor =
     ats.overall_score >= 80 ? "score-high" :
@@ -98,6 +98,49 @@ export default function ResumePreview({ result, apiBase, onBack, onReset }) {
               </div>
             </section>
           ))}
+
+          {/* Project bullets */}
+          {projects.length > 0 && (
+            <>
+              <div className="rp-section-divider">
+                <span>Projects</span>
+              </div>
+              {projects.map((proj) => (
+                <section key={proj.name} className="rp-section card">
+                  <div className="rp-section-header">
+                    <div>
+                      <span className="rp-section-title">{proj.name}</span>
+                    </div>
+                    <span className="rp-badge tailored">Tailored</span>
+                  </div>
+                  <div className="rp-bullets">
+                    {proj.bullets.map((b, i) => (
+                      <div key={i} className="rp-bullet">
+                        <div className="rp-bullet-new">
+                          <span className="rp-bullet-label">After</span>
+                          <p>{b.tailored}</p>
+                          {b.keywords_injected.length > 0 && (
+                            <div className="rp-injected">
+                              {b.keywords_injected.map((kw) => (
+                                <span key={kw} className="rp-injected-chip">{kw}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {b.original !== b.tailored && (
+                          <div className="rp-bullet-old">
+                            <span className="rp-bullet-label muted">Before</span>
+                            <p>{b.original}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </>
+          )}
+
         </div>
 
         {/* ── Right: ATS score sidebar ── */}
