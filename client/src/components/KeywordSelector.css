@@ -139,11 +139,16 @@
 }
 
 .ks-chip.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-bg);
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
 }
-.ks-chip.match.selected { background: #c8f0d5; }
-.ks-chip.gap.selected   { background: #fef08a; }
+.ks-chip.match.selected,
+.ks-chip.gap.selected {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
+}
 
 .ks-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 
