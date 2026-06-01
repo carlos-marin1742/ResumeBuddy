@@ -13,7 +13,9 @@ Public API:
 
 import concurrent.futures
 import json
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -303,42 +305,42 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
 def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     """Runs Playwright in a clean thread — isolates it from FastAPI's event loop on Windows."""
     from playwright.sync_api import sync_playwright
+    from pypdf import PdfReader
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    page_height   = 1056  # letter at 96dpi (11in × 96)
-    margins       = 77    # 0.4in top + 0.4in bottom at 96dpi
-    usable_height = page_height - margins
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
 
-        # ── First pass: render with profile-aware base spacing ────────────────
-        page.set_content(_render_html(resume_data), wait_until="networkidle")
+        spacing = 0.0
 
-        content_height = page.evaluate("document.body.scrollHeight")
-        slack = usable_height - content_height
+        for attempt in range(5):
+            page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
 
-        # ── Second pass: single correction if still off by more than 20px ────
-        if abs(slack) > 20:
-            line_count = page.evaluate(
-                "document.querySelectorAll('li, .entry, .skill-row, .section').length"
-            )
-            if line_count > 0:
-                extra_per_element = slack / line_count
-                extra_per_element = max(-2.0, min(3.0, extra_per_element))
-                page.set_content(
-                    _render_html(resume_data, extra_per_element),
-                    wait_until="networkidle"
-                )
+            # Render to temp file and check actual page count
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp_path = tmp.name
 
-        page.pdf(
-            path=str(output_path),
-            format="Letter",
-            print_background=True,
-        )
+            page.pdf(path=tmp_path, format="Letter", print_background=True)
+
+            reader = PdfReader(tmp_path)
+            page_count = len(reader.pages)
+
+            if page_count == 1:
+                # Single page — copy to final destination
+                shutil.copy(tmp_path, output_path)
+                Path(tmp_path).unlink(missing_ok=True)
+                break
+
+            # Still overflowing — compress more each attempt
+            Path(tmp_path).unlink(missing_ok=True)
+            spacing -= 2.0
+        else:
+            # All attempts exhausted — use last render as-is
+            page.pdf(path=str(output_path), format="Letter", print_background=True)
+
         browser.close()
 
     return output_path
