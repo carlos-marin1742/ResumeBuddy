@@ -326,7 +326,14 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     # Tech resumes (with projects) need a higher expand threshold to stay tight.
     # Admin/clinical (no projects) expand on smaller gaps to fill the page.
     has_projects = bool(resume_data.get("projects", []))
-    expand_threshold = 100 if has_projects else 50
+    has_certs = bool(resume_data.get("certifications", []))
+
+    if has_projects:
+        expand_threshold = 100
+    elif has_certs:
+        expand_threshold = 60
+    else:
+        expand_threshold = 50
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
