@@ -329,7 +329,7 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     has_certs = bool(resume_data.get("certifications", []))
 
     if has_projects:
-        expand_threshold = 100
+        expand_threshold = 130
     elif has_certs:
         expand_threshold = 60
     else:
