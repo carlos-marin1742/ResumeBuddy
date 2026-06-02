@@ -7,6 +7,7 @@ anthropic
 
 # PDF generation
 playwright
+pypdf
 
 # Utilities
 python-dotenv
