@@ -177,9 +177,9 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
         body_lh        = "1.25"
     else:
         li_margin      = max(0.5, 2.5 + spacing_adjust)
-        entry_margin   = max(3.0, 7.0 + spacing_adjust) # changed from 9.0 to 7.0, claude suggestion
-        section_margin = max(4.0, 8.0 + (spacing_adjust * 0.5)) #changed from 10.0 to 8.0, claude suggestion
-        contact_margin = max(5.0, 7.0 + spacing_adjust) # changed from 9.0 to 7.0, claude suggestion
+        entry_margin   = max(3.0, 7.0 + spacing_adjust)
+        section_margin = max(4.0, 8.0 + (spacing_adjust * 0.5))
+        contact_margin = max(5.0, 7.0 + spacing_adjust)
         section_pb     = max(0.5, 1.0 + (spacing_adjust * 0.2))
         body_lh        = "1.30"
 
@@ -323,6 +323,11 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     # letter at 96dpi (11in × 96) minus 0.4in top + 0.4in bottom margins
     usable_height = 979
 
+    # Tech resumes (with projects) need a higher expand threshold to stay tight.
+    # Admin/clinical (no projects) expand on smaller gaps to fill the page.
+    has_projects = bool(resume_data.get("projects", []))
+    expand_threshold = 100 if has_projects else 50
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
@@ -346,7 +351,7 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
                 content_height = page.evaluate("document.body.scrollHeight")
                 slack = usable_height - content_height
 
-                if slack > 80 and attempt < 4:
+                if slack > expand_threshold and attempt < 4:
                     # Too much whitespace — expand spacing and retry
                     Path(tmp_path).unlink(missing_ok=True)
                     line_count = page.evaluate(
@@ -363,7 +368,7 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
 
             # More than 1 page — compress and retry
             Path(tmp_path).unlink(missing_ok=True)
-            spacing -= 1.5  # reduce spacing and try again
+            spacing -= 2.0
 
         else:
             # All attempts exhausted — use last render as-is
