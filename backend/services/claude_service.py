@@ -62,6 +62,7 @@ class TailoredResume(BaseModel):
     projects: list[TailoredProject] = []
     skills_to_highlight: list[str]
     skills_to_add: dict[str, list[str]] = {}
+    skills_to_show: list[str] = []
     raw_response: str
 
 
@@ -236,6 +237,7 @@ def tailor_resume(
         "skills_to_add": {
             "category_name": ["new skill 1", "new skill 2", "new skill 3"]
         },
+        "skills_to_show": ["category_key1", "category_key2", "category_key3"],
     }
 
     user_prompt = f"""\
@@ -261,10 +263,11 @@ Rules:
 - Every tailored bullet must start with a strong past-tense action verb.
 - Use exactly 5 bullets for all three experience roles.
 - Keep the same number of bullets per project as in the original — do not add or remove project bullets.
-- Only rewrite project bullets where adding keywords genuinely improves relevance.
+- For project bullets: only append keywords to the END of the original bullet text where natural. Never rewrite, restructure, or remove any part of the original. If a keyword cannot be appended naturally, leave the bullet unchanged.
 - Never use fewer bullets than specified — a short resume wastes space.
-- Keep every bullet to a maximum of 165 characters. Trim or rephrase if needed — never sacrifice accuracy, just cut filler words.
-- If selected_keywords include skills not present in the candidate's skills section, add them to the most relevant skills category in skills_to_add. Only add skills the candidate plausibly has based on their project and experience context — never fabricate.
+- Keep every bullet to a maximum of 165 characters. For project bullets where the original is already near the limit, skip the keyword append rather than truncating.
+- If selected_keywords include skills not present in the candidate's skills section, add them to skills_to_add if they are closely related to existing skills in the profile (e.g. TypeScript if JavaScript is present, Tailwind if CSS is present).
+- Set skills_to_show to the skill category keys most relevant to this JD. For AI/ML roles include ai_ml. For pure backend/fullstack roles omit ai_ml. Always include languages, backend, frontend, databases_cloud, and tools unless irrelevant. Use the exact category key names from the skills object.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=4096)
 
@@ -300,6 +303,7 @@ Rules:
         projects=projects,
         skills_to_highlight=parsed.get("skills_to_highlight", []),
         skills_to_add=parsed.get("skills_to_add", {}),
+        skills_to_show=parsed.get("skills_to_show", []),
         raw_response=raw,
     )
 

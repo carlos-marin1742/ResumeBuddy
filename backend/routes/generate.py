@@ -164,6 +164,17 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
                         existing_lower.add(skill.lower())
         output["skills"] = skills
 
+    # ── Filter skills_order to only show relevant categories ──────────────────
+    if tailored.skills_to_show:
+        current_order = output.get("ats_config", {}).get("skills_order", [])
+        filtered_order = [cat for cat in current_order if cat in tailored.skills_to_show]
+        # Fall back to full order if filtering produces empty list
+        if filtered_order:
+            output["ats_config"] = {
+                **output.get("ats_config", {}),
+                "skills_order": filtered_order,
+            }
+
     output["skills_to_highlight"] = tailored.skills_to_highlight
     return output
 
