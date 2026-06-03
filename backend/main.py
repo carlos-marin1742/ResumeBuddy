@@ -38,7 +38,7 @@ app = FastAPI(
 # ── CORS ───────────────────────────────────────────────────────────────────
 # In dev, allow the React dev server (port 5173 for Vite, 3000 for CRA).
 # In production, replace with your actual frontend domain.
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8000")
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
@@ -61,9 +61,12 @@ _static_dir = Path(__file__).resolve().parent / "static"
 if _static_dir.exists():
     app.mount("/assets", StaticFiles(directory=_static_dir / "assets"), name="assets")
 
-    @app.get("/{full_path:path}", include_in_schema=False)
-    def serve_frontend(full_path: str):
-        return FileResponse(_static_dir / "index.html")
+@app.get("/{full_path:path}", include_in_schema=False)
+def serve_frontend(full_path: str):
+    if full_path.startswith("api/"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404)
+    return FileResponse(_static_dir / "index.html")
 
 # ── Health check ───────────────────────────────────────────────────────────
 BASE_RESUME_PATH = Path(__file__).resolve().parent / "data" / "base_resume.json"
