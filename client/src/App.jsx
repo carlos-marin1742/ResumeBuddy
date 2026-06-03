@@ -4,7 +4,7 @@ import KeywordSelector from "./components/KeywordSelector";
 import ResumePreview from "./components/ResumePreview.jsx";
 import "./App.css";
 
-const API = "http://127.0.0.1:8000";
+const API = import.meta.env.VITE_API_URL || "";
 
 // Steps: 0 = JD input, 1 = keyword selection, 2 = resume preview
 export default function App() {
