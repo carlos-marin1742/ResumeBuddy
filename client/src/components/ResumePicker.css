@@ -1,0 +1,114 @@
+.rp-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 3rem;
+  width: 100%;
+}
+
+.rp-hero {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.rp-title {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+}
+
+.rp-sub {
+  color: var(--ink-soft);
+  font-size: 1rem;
+  max-width: 440px;
+  margin: 0 auto;
+  line-height: 1.65;
+}
+
+.rp-loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem;
+  color: var(--ink-muted);
+}
+
+.rp-error {
+  text-align: center;
+  padding: 2rem;
+  color: var(--error);
+  font-size: 0.9rem;
+}
+
+.rp-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.4rem 1.5rem;
+  text-align: left;
+  cursor: pointer;
+  background: var(--white);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  transition: all 0.15s;
+  position: relative;
+  font-family: var(--font-body);
+}
+
+.rp-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.rp-card-name {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rp-card-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.rp-role-chip {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid #c7d9f0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+}
+
+.rp-card-meta {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.rp-card-arrow {
+  position: absolute;
+  right: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.1rem;
+  color: var(--ink-muted);
+  transition: all 0.15s;
+}
+
+.rp-card:hover .rp-card-arrow {
+  color: var(--accent);
+  transform: translateY(-50%) translateX(3px);
+}

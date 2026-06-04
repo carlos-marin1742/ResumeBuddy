@@ -1,14 +1,18 @@
 import { useState } from "react";
+import ResumePicker from "./components/ResumePicker";
 import JDInput from "./components/JDInput";
 import KeywordSelector from "./components/KeywordSelector";
-import ResumePreview from "./components/ResumePreview.jsx";
+import ResumePreview from "./components/ResumePreview";
 import "./App.css";
 
 const API = import.meta.env.VITE_API_URL || "";
 
-// Steps: 0 = JD input, 1 = keyword selection, 2 = resume preview
+// Steps: 0 = pick resume, 1 = JD input, 2 = keyword selection, 3 = resume preview
 export default function App() {
   const [step, setStep] = useState(0);
+
+  // Selected resume profile
+  const [selectedResume, setSelectedResume] = useState(null);
 
   // JD input
   const [jobDescription, setJobDescription] = useState("");
@@ -24,7 +28,13 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // ── Step 0 → 1: extract keywords ────────────────────────────────────────
+  // ── Step 0 → 1: pick resume profile ─────────────────────────────────────
+  function handleResumeSelect(resume) {
+    setSelectedResume(resume);
+    setStep(1);
+  }
+
+  // ── Step 1 → 2: extract keywords ────────────────────────────────────────
   async function handleExtract(jd) {
     setError(null);
     setLoading(true);
@@ -32,17 +42,19 @@ export default function App() {
       const res = await fetch(`${API}/api/extract-keywords`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_description: jd }),
+        body: JSON.stringify({
+          job_description: jd,
+          resume_id: selectedResume.id,
+        }),
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       setExtractResult(data);
-      // Pre-select all priority keywords (ats_weight === 10)
       const priority = data.keywords
         .filter((k) => k.ats_weight === 10)
         .map((k) => k.keyword);
       setSelectedKeywords(priority);
-      setStep(1);
+      setStep(2);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -50,7 +62,7 @@ export default function App() {
     }
   }
 
-  // ── Step 1 → 2: generate resume ──────────────────────────────────────────
+  // ── Step 2 → 3: generate resume ──────────────────────────────────────────
   async function handleGenerate() {
     setError(null);
     setLoading(true);
@@ -61,12 +73,13 @@ export default function App() {
         body: JSON.stringify({
           job_description: jobDescription,
           selected_keywords: selectedKeywords,
+          resume_id: selectedResume.id,
         }),
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       setGenerateResult(data);
-      setStep(2);
+      setStep(3);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -77,18 +90,22 @@ export default function App() {
   // ── Back navigation ──────────────────────────────────────────────────────
   function handleBack() {
     setError(null);
-    if (step === 2) { setStep(1); return; }
-    if (step === 1) { setStep(0); setExtractResult(null); setSelectedKeywords([]); }
+    if (step === 3) { setStep(2); return; }
+    if (step === 2) { setStep(1); setExtractResult(null); setSelectedKeywords([]); return; }
+    if (step === 1) { setStep(0); setSelectedResume(null); setJobDescription(""); }
   }
 
   function handleReset() {
     setStep(0);
+    setSelectedResume(null);
     setJobDescription("");
     setExtractResult(null);
     setSelectedKeywords([]);
     setGenerateResult(null);
     setError(null);
   }
+
+  const STEP_LABELS = ["Resume", "Job Description", "Keywords", "Result"];
 
   return (
     <div className="app">
@@ -98,7 +115,7 @@ export default function App() {
           ResuméBuddy
         </button>
         <nav className="step-nav">
-          {["Job Description", "Keywords", "Resume"].map((label, i) => (
+          {STEP_LABELS.map((label, i) => (
             <div key={i} className={`step-pill ${i === step ? "active" : ""} ${i < step ? "done" : ""}`}>
               <span className="step-num">{i + 1}</span>
               <span className="step-label">{label}</span>
@@ -118,14 +135,22 @@ export default function App() {
       {/* ── Main content ── */}
       <main className="app-main">
         {step === 0 && (
+          <ResumePicker
+            apiBase={API}
+            onSelect={handleResumeSelect}
+          />
+        )}
+        {step === 1 && (
           <JDInput
             value={jobDescription}
             onChange={setJobDescription}
             onSubmit={handleExtract}
+            onBack={handleBack}
             loading={loading}
+            resumeName={selectedResume?.name}
           />
         )}
-        {step === 1 && extractResult && (
+        {step === 2 && extractResult && (
           <KeywordSelector
             extractResult={extractResult}
             selected={selectedKeywords}
@@ -135,7 +160,7 @@ export default function App() {
             loading={loading}
           />
         )}
-        {step === 2 && generateResult && (
+        {step === 3 && generateResult && (
           <ResumePreview
             result={generateResult}
             apiBase={API}

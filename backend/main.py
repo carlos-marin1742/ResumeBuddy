@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routes.extract import router as extract_router
 from routes.generate import router as generate_router
+from routes.resumes import router as resumes_router
 
 
 
@@ -52,6 +53,7 @@ app.add_middleware(
 # ── Routers ────────────────────────────────────────────────────────────────
 app.include_router(extract_router)
 app.include_router(generate_router)
+app.include_router(resumes_router)
 
 #──Added for Docker ────────────────────────────────────────────────────────────────
 from fastapi.staticfiles import StaticFiles

@@ -261,8 +261,10 @@ Rules:
 - Never add credentials, licenses, or certifications the candidate does not already have in their profile (e.g. do not add RN, MD, PMP, or any license not listed in the certifications section).
 - Preserve the candidate's voice — do not over-polish into generic corporate speak.
 - Every tailored bullet must start with a strong past-tense action verb.
-- Use exactly 5 bullets for all three experience roles.
+- If the resume has projects, use exactly 3 bullets for the experience role. If the resume has no projects, use exactly 5 bullets for the first two roles and exactly 4 bullets for the third (oldest) role.
+- If the resume has projects, use exactly 3 bullets for the experience role and never fabricate bullets to reach a higher count.
 - Keep the same number of bullets per project as in the original — do not add or remove project bullets.
+- Never remove quantified metrics (percentages, numbers, counts) from any bullet regardless of character limit.
 - For project bullets: only append keywords to the END of the original bullet text where natural. Never rewrite, restructure, or remove any part of the original. If a keyword cannot be appended naturally, leave the bullet unchanged.
 - Never use fewer bullets than specified — a short resume wastes space.
 - Keep every bullet to a maximum of 165 characters. For project bullets where the original is already near the limit, skip the keyword append rather than truncating.
