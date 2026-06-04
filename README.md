@@ -7,10 +7,10 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 ---
 
 ## How it works
-
-1. **Paste a job description** — Claude extracts hard skills, tools, soft skills, and role signals, scores each by ATS weight, and flags gaps against your base resume
-2. **Select your keywords** — review what's already in your resume vs. what's missing, then confirm the keywords you want to target
-3. **Generate** — Claude rewrites your bullets to naturally incorporate your selected keywords, injects missing skills into the appropriate skills categories, scores the result for ATS compatibility, and produces a polished single-page PDF
+1. **Select your Resume** - Resumes listed, by type. Select your Resume for custom modification. 
+2. **Paste a job description** — Claude extracts hard skills, tools, soft skills, and role signals, scores each by ATS weight, and flags gaps against your base resume
+3. **Select your keywords** — review what's already in your resume vs. what's missing, then confirm the keywords you want to target
+4. **Generate** — Claude rewrites your bullets to naturally incorporate your selected keywords, injects missing skills into the appropriate skills categories, scores the result for ATS compatibility, and produces a polished single-page PDF
 
 ---
 
@@ -48,6 +48,7 @@ ResumeBuddy/
 │   ├── main.py                   # FastAPI app, CORS, static frontend serving, health check
 │   ├── requirements.txt
 │   ├── routes/
+│   │   └── resumes.py            # GET/ /api/resumes
 │   │   ├── extract.py            # POST /api/extract-keywords
 │   │   └── generate.py           # POST /api/generate-resume, GET /api/download/{file}
 │   ├── services/
@@ -60,9 +61,10 @@ ResumeBuddy/
     └── src/
         ├── App.jsx
         └── components/
-            ├── JDInput.jsx          # Step 1: paste job description
-            ├── KeywordSelector.jsx  # Step 2: review and select keywords
-            └── ResumePreview.jsx    # Step 3: tailored preview + PDF download
+            ├── ResumePreview.jsx    # Step 1: Select your Resume
+            ├── JDInput.jsx          # Step 2: paste job description
+            ├── KeywordSelector.jsx  # Step 3: review and select keywords
+            └── ResumePreview.jsx    # Step 4: tailored preview + PDF download
 ```
 
 ---
