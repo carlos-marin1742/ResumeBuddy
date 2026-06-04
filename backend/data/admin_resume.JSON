@@ -1,0 +1,230 @@
+{
+  "meta": {
+    "version": "1.0",
+    "last_updated": "2026-05-26",
+    "target_roles": ["Senior Administrative Assistant", "Executive Assistant", "Administrative Coordinator", "Operations Coordinator", "Office Manager"]
+  },
+
+  "contact": {
+    "name": "Carlos Marin",
+    "location": "Houston, TX",
+    "phone": "713-791-3494",
+    "email": "carlos_marinjr@yahoo.com",
+    "portfolio": "",
+    "github": "",
+    "linkedin": "https://www.linkedin.com/in/carlos-marin-90482b13b/"
+  },
+
+  "summary": {
+    "default": "Accomplished Administrative Professional with 5+ years of experience managing complex operations within high-pressure healthcare and corporate environments. Expert in coordinating multi-phase projects, optimizing office workflows, and maintaining meticulous regulatory and financial documentation. Proven track record of improving departmental efficiency through advanced tracking systems and proactive stakeholder communication.",
+    "variants": {
+      "senior_admin_focused": "Senior Administrative professional with 5+ years of experience providing high-level operational and executive support in fast-paced healthcare environments. Proven ability to reduce processing time, lead audits with zero findings, and manage complex multi-stakeholder workflows with precision and discretion.",
+      "executive_assistant_focused": "Detail-oriented Executive Assistant with 5+ years supporting leadership in high-volume healthcare and corporate settings. Expert in calendar management, cross-functional stakeholder communication, regulatory documentation QC, and project lifecycle coordination.",
+      "operations_focused": "Operations Coordinator with 5+ years streamlining administrative workflows, managing multi-site logistics, and leading process improvement initiatives. Demonstrated success reducing documentation errors, accelerating project onboarding, and maintaining 100% compliance across all accounts.",
+      "healthcare_admin_focused": "Healthcare Administrative professional with 5+ years of hands-on experience in clinical operations coordination, regulatory file management, and departmental efficiency improvement. Bilingual communicator with a strong track record in audit preparation and executive support."
+    }
+  },
+
+  "skills": {
+    "Administrative Operations": [
+      "Process Optimization",
+      "Workflow Design",
+      "High Volume Calendar Management",
+      "Project Lifecycle Coordination",
+      "Budget Tracking",
+      "Expense Reporting",
+      "Regulatory Documentation QC",
+      "Legal Documentation QC"
+    ],
+    "Software Data": [
+      "Microsoft Excel (Advanced — Pivots/Macros)",
+      "Salesforce",
+      "CRM Data Entry",
+      "Digital Documentation Management",
+      "eTMF",
+      "Veeva",
+      "Microsoft Word",
+      "Microsoft PowerPoint",
+      "Outlook",
+      "SharePoint"
+    ],
+    "Communication Leadership": [
+      "Bilingual Executive Correspondence",
+      "Cross-Functional Stakeholder Relations",
+      "Staff Training & Onboarding",
+      "Technical Writing",
+      "SOP Development"
+    ]
+  },
+
+  "projects": [],
+
+  "experience": [
+    {
+      "id": "houston-methodist-admin",
+      "company": "Houston Methodist Hospital",
+      "location": "Houston, TX",
+      "title": "Clinical Operations Coordinator",
+      "start_date": "2023-04",
+      "end_date": "2025-09",
+      "bullets": [
+        {
+          "id": "hm-1",
+          "text": "Led administrative and operational oversight for a high-volume department managing 8+ concurrent projects.",
+          "metrics": { "impact": "8+ concurrent projects" },
+          "keywords": ["administrative oversight", "operations coordination", "project management", "high-volume", "departmental management"],
+          "strength": "high"
+        },
+        {
+          "id": "hm-2",
+          "text": "Reduced administrative processing time by 30% through the design of new internal digital tracking logs.",
+          "metrics": { "impact": "30% reduction in processing time" },
+          "keywords": ["process improvement", "tracking systems", "workflow design", "efficiency", "digital documentation"],
+          "strength": "high"
+        },
+        {
+          "id": "hm-3",
+          "text": "Facilitated 15+ external audits with zero critical findings by maintaining organized physical and digital files.",
+          "metrics": { "impact": "15+ audits, zero critical findings" },
+          "keywords": ["audit preparation", "file management", "compliance", "documentation", "regulatory", "records management"],
+          "strength": "high"
+        },
+        {
+          "id": "hm-4",
+          "text": "Accelerated project onboarding by 20% by restructuring pre-screening and intake workflows for the executive team.",
+          "metrics": { "impact": "20% faster onboarding" },
+          "keywords": ["onboarding", "intake workflows", "executive support", "process redesign", "project coordination"],
+          "strength": "high"
+        },
+        {
+          "id": "hm-5",
+          "text": "Managed complex scheduling and stakeholder communications to ensure 100% adherence to deadlines.",
+          "metrics": { "impact": "100% on-time deadline adherence" },
+          "keywords": ["calendar management", "scheduling", "stakeholder communication", "deadline management", "executive support"],
+          "strength": "medium"
+        },
+        {
+          "id": "hm-6",
+          "text": "Orchestrated the successful completion of two major departmental initiatives by resolving all action items ahead of schedule.",
+          "keywords": ["project closeout", "action items", "initiative management", "cross-functional coordination", "leadership"],
+          "strength": "medium"
+        }
+      ]
+    },
+    {
+      "id": "dm-clinical-admin",
+      "company": "DM Clinical Research",
+      "location": "Houston, TX",
+      "title": "Administrative Coordinator",
+      "start_date": "2021-09",
+      "end_date": "2023-03",
+      "bullets": [
+        {
+          "id": "dm-1",
+          "text": "Oversaw daily business operations for 12 active accounts while consistently exceeding internal performance targets.",
+          "metrics": { "impact": "12 active accounts" },
+          "keywords": ["business operations", "account management", "performance targets", "daily operations", "multi-account"],
+          "strength": "high"
+        },
+        {
+          "id": "dm-2",
+          "text": "Decreased documentation errors by 15% through the development of standardized administrative templates and checklists.",
+          "metrics": { "impact": "15% reduction in documentation errors" },
+          "keywords": ["documentation", "standardization", "templates", "checklists", "quality control", "SOP development"],
+          "strength": "high"
+        },
+        {
+          "id": "dm-3",
+          "text": "Completed 100% of data management and reporting tasks within mandated 24-hour windows for all corporate partners.",
+          "metrics": { "impact": "100% on-time data reporting" },
+          "keywords": ["data management", "reporting", "corporate partners", "timeliness", "data entry", "compliance"],
+          "strength": "high"
+        },
+        {
+          "id": "dm-4",
+          "text": "Led the office through successful mock audits by identifying and correcting gaps in the central filing system.",
+          "keywords": ["mock audit", "filing system", "audit preparation", "documentation gaps", "compliance", "records management"],
+          "strength": "medium"
+        },
+        {
+          "id": "dm-5",
+          "text": "Maintained 100% compliance with record-keeping regulations for high-volume logistics and inventory management.",
+          "metrics": { "impact": "100% compliance" },
+          "keywords": ["record-keeping", "compliance", "logistics", "inventory management", "regulatory"],
+          "strength": "medium"
+        },
+        {
+          "id": "dm-6",
+          "text": "Collaborated with regional managers to resolve 200+ historical administrative queries and improve data quality.",
+          "metrics": { "impact": "200+ queries resolved" },
+          "keywords": ["cross-functional collaboration", "query resolution", "data quality", "stakeholder relations", "regional management"],
+          "strength": "high"
+        }
+      ]
+    },
+    {
+      "id": "amarex-admin",
+      "company": "Amarex Clinical Research",
+      "location": "Houston, TX",
+      "title": "Operations Assistant",
+      "start_date": "2020-01",
+      "end_date": "2021-08",
+      "bullets": [
+        {
+          "id": "am-1",
+          "text": "Streamlined department start-up timelines by 14 days through aggressive tracking of essential legal and onboarding packets.",
+          "metrics": { "impact": "14-day reduction in start-up timelines" },
+          "keywords": ["start-up", "onboarding", "timeline management", "legal documentation", "tracking", "process improvement"],
+          "strength": "high"
+        },
+        {
+          "id": "am-2",
+          "text": "Audited 500+ sensitive regulatory files for accuracy and completeness prior to submission to senior leadership.",
+          "metrics": { "impact": "500+ files audited" },
+          "keywords": ["regulatory files", "audit", "accuracy", "senior leadership", "file review", "compliance", "documentation"],
+          "strength": "high"
+        },
+        {
+          "id": "am-3",
+          "text": "Supported the launch of 5 regional initiatives by coordinating large-scale meetings and staff training sessions.",
+          "metrics": { "impact": "5 regional initiative launches" },
+          "keywords": ["meeting coordination", "staff training", "initiative launch", "event coordination", "regional operations"],
+          "strength": "high"
+        },
+        {
+          "id": "am-4",
+          "text": "Maintained the electronic filing system with a 98% accuracy rate by identifying missing records ahead of quarterly reviews.",
+          "metrics": { "impact": "98% filing accuracy rate" },
+          "keywords": ["electronic filing", "records management", "accuracy", "document management", "quarterly review"],
+          "strength": "medium"
+        },
+        {
+          "id": "am-5",
+          "text": "Tracked supply chain logistics for 10 active sites to ensure zero instances of inventory shortages or shipping delays.",
+          "metrics": { "impact": "10 sites, zero shortages or delays" },
+          "keywords": ["supply chain", "logistics", "inventory management", "multi-site", "shipping", "tracking"],
+          "strength": "medium"
+        }
+      ]
+    }
+  ],
+
+  "education": [
+    {
+      "institution": "University of Houston — Downtown",
+      "degree": "BS",
+      "field": "Biological and Physical Sciences",
+      "graduation_date": "2017-05"
+    }
+  ],
+
+  "certifications": [],
+
+  "ats_config": {
+    "keyword_injection_targets": ["summary", "skills", "bullets"],
+    "max_bullets_per_project": 3,
+    "max_bullets_per_role": 4,
+    "preferred_bullet_strength": "high",
+    "skills_order": ["Administrative Operations", "Software Data", "Communication Leadership"]
+  }
+}

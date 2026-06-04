@@ -28,14 +28,16 @@ router = APIRouter()
 OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
 OUTPUTS_DIR.mkdir(exist_ok=True)
 
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+
 
 # ── Request / Response Models ─────────────────────────────────────────────────
 
 class GenerateRequest(BaseModel):
     job_description: str
     selected_keywords: list[str] = Field(default_factory=list)
+    resume_id: str = "base_resume"        # filename without .json e.g. base_resume, base_resume_clinical
     summary_variant: str | None = None
-    profile: str = "tech"
 
 
 class BulletPreview(BaseModel):
@@ -75,27 +77,17 @@ class GenerateResponse(BaseModel):
     resume_id: str
 
 
-# ── Resume profile paths ──────────────────────────────────────────────────────
-
-RESUME_PATHS = {
-    "tech":     Path(__file__).resolve().parents[1] / "data" / "base_resume.json",
-    "clinical": Path(__file__).resolve().parents[1] / "data" / "base_resume_clinical.json",
-    "admin":    Path(__file__).resolve().parents[1] / "data" / "base_resume_admin.json",
-}
-
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _load_base_resume(profile: str = "tech") -> dict:
-    path = RESUME_PATHS.get(profile)
-    if not path:
-        raise HTTPException(status_code=422, detail=f"Unknown profile '{profile}'.")
+def _load_resume(resume_id: str) -> dict:
+    """Load a resume JSON by filename (without .json extension)."""
+    path = DATA_DIR / f"{resume_id}.json"
     if not path.exists():
-        raise HTTPException(status_code=500, detail=f"{path.name} not found.")
+        raise HTTPException(status_code=404, detail=f"Resume '{resume_id}' not found.")
     try:
         return json.loads(path.read_text())
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=500, detail=f"{path.name} is malformed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Resume file is malformed: {exc}")
 
 
 def _apply_summary_variant(base_resume: dict, variant_key: str | None) -> dict:
@@ -158,17 +150,32 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
         for category, new_skills in tailored.skills_to_add.items():
             if category in skills:
                 existing_lower = {s.lower() for s in skills[category]}
+                added_count = 0
                 for skill in new_skills:
+                    if added_count >= 3:  # max 3 new skills per category
+                        break
                     if skill.lower() not in existing_lower:
                         skills[category].append(skill)
                         existing_lower.add(skill.lower())
+                        added_count += 1
+        output["skills"] = skills
+
+    # ── Filter skills within categories to JD-relevant subset ─────────────────
+    if tailored.skills_to_filter:
+        skills = {k: list(v) for k, v in output.get("skills", {}).items()}
+        for category, keep_skills in tailored.skills_to_filter.items():
+            if category in skills and keep_skills:
+                keep_lower = {s.lower() for s in keep_skills}
+                filtered = [s for s in skills[category] if s.lower() in keep_lower]
+                # Only apply filter if it keeps at least 3 skills — safety net
+                if len(filtered) >= 3:
+                    skills[category] = filtered
         output["skills"] = skills
 
     # ── Filter skills_order to only show relevant categories ──────────────────
     if tailored.skills_to_show:
         current_order = output.get("ats_config", {}).get("skills_order", [])
         filtered_order = [cat for cat in current_order if cat in tailored.skills_to_show]
-        # Fall back to full order if filtering produces empty list
         if filtered_order:
             output["ats_config"] = {
                 **output.get("ats_config", {}),
@@ -196,8 +203,8 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
     if len(jd) > 20_000:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
-    # Step 1: Load base resume
-    base_resume = _load_base_resume(request.profile)
+    # Step 1: Load base resume by filename
+    base_resume = _load_resume(request.resume_id)
     base_resume = _apply_summary_variant(base_resume, request.summary_variant)
 
     # Step 2: Tailor via Claude
@@ -297,11 +304,10 @@ def download_resume(filename: str) -> FileResponse:
         ".pdf":  "application/pdf",
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }
-    media_type = media_type_map.get(suffix, "application/octet-stream")
 
     return FileResponse(
         path=file_path,
-        media_type=media_type,
+        media_type=media_type_map.get(suffix, "application/octet-stream"),
         filename=filename,
         headers={"Cache-Control": "no-store"},
     )

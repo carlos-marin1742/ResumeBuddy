@@ -18,12 +18,8 @@ from services.claude_service import extract_keywords as claude_extract_keywords
 router = APIRouter()
 
 # ── Resume profile paths ─────────────────────────────────────────────────────
-RESUME_PATHS = {
-    "tech":     Path(__file__).resolve().parents[1] / "data" / "base_resume.json",
-    "clinical": Path(__file__).resolve().parents[1] / "data" / "base_resume_clinical.json",
-    "admin":    Path(__file__).resolve().parents[1] / "data" / "base_resume_admin.json",
-}
 
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 # ── Request / Response Models ────────────────────────────────────────────────
 
@@ -49,17 +45,14 @@ class ExtractResponse(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def load_base_resume(path: Path) -> dict:
-    """Load a resume JSON file. Raises 500 if missing or malformed."""
+def load_resume(resume_id: str) -> dict:
+    path = DATA_DIR / f"{resume_id}.json"
     if not path.exists():
-        raise HTTPException(
-            status_code=500,
-            detail=f"Resume file not found: {path.name}"
-        )
+        raise HTTPException(status_code=404, detail=f"Resume '{resume_id}' not found.")
     try:
         return json.loads(path.read_text())
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"{path.name} is malformed: {e}")
+        raise HTTPException(status_code=500, detail=f"Resume file is malformed: {e}")
 
 
 def flatten_resume_keywords(resume: dict) -> set[str]:
