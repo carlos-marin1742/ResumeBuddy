@@ -4,10 +4,11 @@ main.py
 FastAPI application entry point for the ATS Resume Builder.
 
 Registers:
-  POST /api/extract-keywords  → routes/extract.py
-  POST /api/generate-resume   → routes/generate.py
-  GET  /api/download/{file}   → routes/generate.py
-  GET  /health                → inline health check
+  GET  /api/resumes            → routes/resumes.py
+  POST /api/extract-keywords   → routes/extract.py
+  POST /api/generate-resume    → routes/generate.py
+  GET  /api/download/{file}    → routes/generate.py
+  GET  /health                 → inline health check
 
 Run locally:
   uvicorn main:app --reload --port 8000
@@ -20,12 +21,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from routes.extract import router as extract_router
 from routes.generate import router as generate_router
 from routes.resumes import router as resumes_router
-
-
 
 load_dotenv()
 
@@ -37,9 +38,10 @@ app = FastAPI(
 )
 
 # ── CORS ───────────────────────────────────────────────────────────────────
-# In dev, allow the React dev server (port 5173 for Vite, 3000 for CRA).
-# In production, replace with your actual frontend domain.
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8000")
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://localhost:8000"
+)
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
@@ -51,24 +53,9 @@ app.add_middleware(
 )
 
 # ── Routers ────────────────────────────────────────────────────────────────
+app.include_router(resumes_router)
 app.include_router(extract_router)
 app.include_router(generate_router)
-app.include_router(resumes_router)
-
-#──Added for Docker ────────────────────────────────────────────────────────────────
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-
-_static_dir = Path(__file__).resolve().parent / "static"
-if _static_dir.exists():
-    app.mount("/assets", StaticFiles(directory=_static_dir / "assets"), name="assets")
-
-@app.get("/{full_path:path}", include_in_schema=False)
-def serve_frontend(full_path: str):
-    if full_path.startswith("api/"):
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404)
-    return FileResponse(_static_dir / "index.html")
 
 # ── Health check ───────────────────────────────────────────────────────────
 BASE_RESUME_PATH = Path(__file__).resolve().parent / "data" / "base_resume.json"
@@ -102,3 +89,22 @@ def health():
 
     overall = all(v is True for v in checks.values())
     return {"status": "ok" if overall else "degraded", "checks": checks}
+
+
+# ── Static frontend (production/Docker) — MUST be last ────────────────────
+_static_dir = Path(__file__).resolve().parent / "static"
+
+if _static_dir.exists():
+    app.mount("/assets", StaticFiles(directory=_static_dir / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        # Only serve index.html for non-API, non-asset paths
+        if full_path.startswith("api/") or full_path.startswith("assets/"):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404)
+        index = _static_dir / "index.html"
+        if not index.exists():
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404)
+        return FileResponse(index)
