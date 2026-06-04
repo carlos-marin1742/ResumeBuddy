@@ -198,7 +198,7 @@ def _unique_filename(prefix: str, extension: str) -> str:
 
 @router.post("/api/generate-resume", response_model=GenerateResponse)
 def generate_resume(request: GenerateRequest) -> GenerateResponse:
-    print(f"=== DEBUG: Incoming profile string is: '{request.profile}' ===")
+    print(f"=== DEBUG: Incoming resume_id: '{request.resume_id}', profile: '{request.profile}' ===")
 
     jd = request.job_description.strip()
     if not jd:
@@ -207,7 +207,10 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
     # Step 1: Load base resume by filename
-    base_resume = _load_resume(request.profile)
+    resume_id_to_load = request.resume_id
+    if resume_id_to_load == "base_resume" and request.profile != "base_resume":
+        resume_id_to_load = request.profile
+    base_resume = _load_resume(resume_id_to_load)
     base_resume = _apply_summary_variant(base_resume, request.summary_variant)
 
     # Step 2: Tailor via Claude
