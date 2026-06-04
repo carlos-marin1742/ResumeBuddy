@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from services.claude_service import tailor_resume, score_resume, TailoredResume, ATSScoreResult
 from services.build_resume_pdf import build_pdf
+import traceback
 
 router = APIRouter()
 
@@ -34,6 +35,7 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 # ── Request / Response Models ─────────────────────────────────────────────────
 
 class GenerateRequest(BaseModel):
+    profile: str = "base_resume"        # filename without .json e.g. base_resume, base_resume_clinical
     job_description: str
     selected_keywords: list[str] = Field(default_factory=list)
     resume_id: str = "base_resume"        # filename without .json e.g. base_resume, base_resume_clinical
@@ -64,6 +66,9 @@ class ATSPreview(BaseModel):
     missing_keywords: list[str]
     suggestions: list[str]
 
+class ExtractRequest(BaseModel):
+    job_description: str
+    resume_id: str = "base_resume"        # filename without .json e.g. base_resume, base_resume_clinical
 
 class GenerateResponse(BaseModel):
     summary: str
@@ -161,15 +166,12 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
         output["skills"] = skills
 
     # ── Filter skills within categories to JD-relevant subset ─────────────────
-    if tailored.skills_to_filter:
+    if tailored.skills_to_show:
         skills = {k: list(v) for k, v in output.get("skills", {}).items()}
-        for category, keep_skills in tailored.skills_to_filter.items():
-            if category in skills and keep_skills:
-                keep_lower = {s.lower() for s in keep_skills}
-                filtered = [s for s in skills[category] if s.lower() in keep_lower]
-                # Only apply filter if it keeps at least 3 skills — safety net
-                if len(filtered) >= 3:
-                    skills[category] = filtered
+        for category in list(skills.keys()):
+            # If Claude didn't include this category in skills_to_show, drop it entirely
+            if category not in tailored.skills_to_show:
+                del skills[category]
         output["skills"] = skills
 
     # ── Filter skills_order to only show relevant categories ──────────────────
@@ -196,6 +198,7 @@ def _unique_filename(prefix: str, extension: str) -> str:
 
 @router.post("/api/generate-resume", response_model=GenerateResponse)
 def generate_resume(request: GenerateRequest) -> GenerateResponse:
+    print(f"=== DEBUG: Incoming profile string is: '{request.profile}' ===")
 
     jd = request.job_description.strip()
     if not jd:
@@ -204,7 +207,7 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
     # Step 1: Load base resume by filename
-    base_resume = _load_resume(request.resume_id)
+    base_resume = _load_resume(request.profile)
     base_resume = _apply_summary_variant(base_resume, request.summary_variant)
 
     # Step 2: Tailor via Claude
@@ -215,6 +218,8 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
             selected_keywords=request.selected_keywords,
         )
     except ValueError as exc:
+        print("\n!!! CRITICAL ROUTE ERROR !!!")
+        print(f"Error details: {exc}\n")
         raise HTTPException(status_code=502, detail=f"Tailoring failed: {exc}")
 
     # Step 3: Merge tailored content + new skills into full resume dict
@@ -237,7 +242,12 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
     try:
         build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
+        #raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
+        #implemented for testing
+        print("!!! CRITICAL ROUTE ERROR !!!")
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Tailoring failed: {exc}")
+        #Delete after testing
 
     # Step 6: Assemble response
     experience_preview = [
@@ -276,7 +286,7 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         experiences=experience_preview,
         projects=project_preview,
         skills_to_highlight=tailored.skills_to_highlight,
-        skills_added=tailored.skills_to_add,
+        skills_added=tailored.skills_to_add if tailored.skills_to_add else {}, # Safe fallback
         ats=ATSPreview(
             overall_score=ats_result.overall_score,
             keyword_coverage=ats_result.keyword_coverage,

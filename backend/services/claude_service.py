@@ -42,7 +42,7 @@ class KeywordExtractionResult(BaseModel):
 class TailoredBullet(BaseModel):
     original: str
     tailored: str
-    keywords_injected: list[str]
+    keywords_injected: list[str] = []
 
 
 class TailoredExperience(BaseModel):
@@ -63,6 +63,7 @@ class TailoredResume(BaseModel):
     skills_to_highlight: list[str]
     skills_to_add: dict[str, list[str]] = {}
     skills_to_show: list[str] = []
+    skills_to_filter: dict[str, list[str]] = {}
     raw_response: str
 
 
