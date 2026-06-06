@@ -1,16 +1,16 @@
-.rp-page {
+.rpicker-page {
   max-width: 720px;
   margin: 0 auto;
   padding: 4rem 1.5rem 3rem;
   width: 100%;
 }
 
-.rp-hero {
+.rpicker-hero {
   text-align: center;
   margin-bottom: 2.5rem;
 }
 
-.rp-title {
+.rpicker-title {
   font-family: var(--font-display);
   font-size: 2.4rem;
   font-weight: 600;

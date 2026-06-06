@@ -19,9 +19,9 @@ export default function ResumePicker({ apiBase, onSelect }) {
 
   if (loading) {
     return (
-      <div className="rp-page fade-up">
+      <div className="rpicker-page fade-up">
         <div className="rp-hero">
-          <h1 className="rp-title">ResuméBuddy</h1>
+          <h1 className="rpicker-title">ResuméBuddy</h1>
           <p className="rp-sub">Loading your resume profiles…</p>
         </div>
         <div className="rp-loading"><span className="spinner" /></div>
@@ -42,8 +42,8 @@ export default function ResumePicker({ apiBase, onSelect }) {
 
   return (
     <div className="rp-page fade-up">
-      <div className="rp-hero">
-        <h1 className="rp-title">ResuméBuddy</h1>
+      <div className="rpicker-hero">
+        <h1 className="rpicker-title">ResuméBuddy</h1>
         <p className="rp-sub">
           Choose the resume profile you want to tailor for this application.
         </p>
