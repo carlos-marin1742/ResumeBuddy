@@ -327,6 +327,8 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     # Admin/clinical (no projects) expand on smaller gaps to fill the page.
     has_projects = bool(resume_data.get("projects", []))
     has_certs = bool(resume_data.get("certifications", []))
+    
+    spacing = -1.5 if has_projects else 0.0  # pre-compress tech resumes
 
     if has_projects:
         expand_threshold = 160
