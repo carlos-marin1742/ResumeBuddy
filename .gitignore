@@ -66,4 +66,5 @@ desktop.ini
 .pytest_cache/
 .coverage
 htmlcov/
-.mypy_cache/
+.mypy_cache/backend/data/*.json
+backend/data/*.JSON
