@@ -233,6 +233,7 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         ats_result: ATSScoreResult = score_resume(
             tailored_resume=full_tailored_dict,
             job_description=jd,
+            selected_keywords = request.selected_keywords
         )
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"ATS scoring failed: {exc}")

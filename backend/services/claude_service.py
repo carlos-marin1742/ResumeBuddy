@@ -1,17 +1,17 @@
 """
 claude_service.py
 -----------------
-Core Anthropic API integration for the ATS resume builder.
+AI service layer for the ATS resume builder.
 
 Responsibilities:
   1. extract_keywords(job_description: str) -> KeywordExtractionResult
-     Pulls structured keywords (hard skills, soft skills, titles, etc.) from a JD.
+     Pulls structured keywords from a JD using Groq (free tier, fast).
 
   2. tailor_resume(base_resume: dict, job_description: str, selected_keywords: list[str]) -> TailoredResume
-     Rewrites bullets and generates a targeted summary against a specific JD.
+     Rewrites bullets and generates a targeted summary using Claude Haiku.
 
-  3. score_resume(tailored_resume: dict, job_description: str) -> ATSScoreResult
-     Evaluates keyword coverage and ATS compatibility of the tailored output.
+  3. score_resume(tailored_resume: dict, job_description: str, selected_keywords: list[str]) -> ATSScoreResult
+     Heuristic ATS scoring — no API call, fast and deterministic.
 """
 from dotenv import load_dotenv
 load_dotenv()
@@ -19,9 +19,11 @@ load_dotenv()
 import json
 import os
 import re
+import string
 from typing import Any
 
 import anthropic
+from groq import Groq
 from pydantic import BaseModel
 
 
@@ -80,7 +82,7 @@ class ATSScoreResult(BaseModel):
 # Client setup
 # ---------------------------------------------------------------------------
 
-def _get_client() -> anthropic.Anthropic:
+def _get_anthropic_client() -> anthropic.Anthropic:
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise EnvironmentError(
@@ -90,18 +92,30 @@ def _get_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=api_key)
 
 
-MODEL = "claude-haiku-4-5-20251001"
-MAX_TOKENS = 2048
+def _get_groq_client() -> Groq:
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise EnvironmentError(
+            "GROQ_API_KEY is not set. "
+            "Add it to your .env file or export it in your shell."
+        )
+    return Groq(api_key=api_key)
+
+
+CLAUDE_MODEL      = "claude-haiku-4-5-20251001"
+GROQ_MODEL        = "llama-3.3-70b-versatile"
+CLAUDE_MAX_TOKENS = 4096
+GROQ_MAX_TOKENS   = 2048
 
 
 # ---------------------------------------------------------------------------
-# Helper: call the API and return the text content
+# Helpers
 # ---------------------------------------------------------------------------
 
-def _call_claude(system: str, user: str, max_tokens: int = MAX_TOKENS) -> str:
-    client = _get_client()
+def _call_claude(system: str, user: str, max_tokens: int = CLAUDE_MAX_TOKENS) -> str:
+    client = _get_anthropic_client()
     message = client.messages.create(
-        model=MODEL,
+        model=CLAUDE_MODEL,
         max_tokens=max_tokens,
         system=system,
         messages=[{"role": "user", "content": user}],
@@ -109,13 +123,32 @@ def _call_claude(system: str, user: str, max_tokens: int = MAX_TOKENS) -> str:
     return message.content[0].text
 
 
+def _call_groq(system: str, user: str, max_tokens: int = GROQ_MAX_TOKENS) -> str:
+    client = _get_groq_client()
+    response = client.chat.completions.create(
+        model=GROQ_MODEL,
+        max_tokens=max_tokens,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.1,
+    )
+    return response.choices[0].message.content
+
+
 def _extract_json(text: str) -> Any:
     cleaned = re.sub(r"```(?:json)?\s*", "", text).replace("```", "").strip()
     return json.loads(cleaned)
 
 
+def _normalize(text: str) -> str:
+    """Lowercase and strip punctuation for fuzzy keyword matching."""
+    return text.lower().translate(str.maketrans("", "", string.punctuation))
+
+
 # ---------------------------------------------------------------------------
-# 1. Keyword extraction
+# 1. Keyword extraction — Groq (free tier)
 # ---------------------------------------------------------------------------
 
 _KEYWORD_EXTRACTION_SYSTEM = """\
@@ -146,12 +179,12 @@ Return a JSON object that matches this schema exactly:
 JOB DESCRIPTION:
 {job_description}
 """
-    raw = _call_claude(_KEYWORD_EXTRACTION_SYSTEM, user_prompt)
+    raw = _call_groq(_KEYWORD_EXTRACTION_SYSTEM, user_prompt)
 
     try:
         parsed = _extract_json(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Claude returned non-JSON for keyword extraction: {exc}\n\nRaw:\n{raw}") from exc
+        raise ValueError(f"Groq returned non-JSON for keyword extraction: {exc}\n\nRaw:\n{raw}") from exc
 
     return KeywordExtractionResult(
         hard_skills=parsed.get("hard_skills", []),
@@ -165,7 +198,7 @@ JOB DESCRIPTION:
 
 
 # ---------------------------------------------------------------------------
-# 2. Resume tailoring
+# 2. Resume tailoring — Claude Haiku
 # ---------------------------------------------------------------------------
 
 _TAILORING_SYSTEM = """\
@@ -186,7 +219,6 @@ def tailor_resume(
     job_description: str,
     selected_keywords: list[str],
 ) -> TailoredResume:
-    # Slim the payload — send only the fields Claude needs
     resume_payload = {
         "summary": base_resume.get("summary", ""),
         "skills": base_resume.get("skills", {}),
@@ -272,7 +304,7 @@ Rules:
 - If selected_keywords include skills not present in the candidate's skills section, add them to skills_to_add if they are closely related to existing skills in the profile (e.g. TypeScript if JavaScript is present, Tailwind if CSS is present).
 - Set skills_to_show to the skill category keys most relevant to this JD. For AI/ML roles include ai_ml. For pure backend/fullstack roles omit ai_ml. Always include languages, backend, frontend, databases_cloud, and tools unless irrelevant. Use the exact category key names from the skills object.
 """
-    raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=4096)
+    raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=CLAUDE_MAX_TOKENS)
 
     try:
         parsed = _extract_json(raw)
@@ -312,53 +344,137 @@ Rules:
 
 
 # ---------------------------------------------------------------------------
-# 3. ATS scoring
+# 3. ATS scoring — heuristic (no API call)
 # ---------------------------------------------------------------------------
 
-_SCORING_SYSTEM = """\
-You are an ATS (Applicant Tracking System) simulation engine.
-Evaluate how well a resume matches a job description from an ATS perspective.
-Be honest and critical — this feedback helps the candidate improve.
+def score_resume(
+    tailored_resume: dict,
+    job_description: str,
+    selected_keywords: list[str] | None = None,
+) -> ATSScoreResult:
+    """
+    Heuristic ATS scoring — fast, free, deterministic.
 
-Always respond with ONLY valid JSON — no preamble, no markdown fences, no explanation.
-"""
+    Strategy:
+    - Flatten all resume text into a searchable corpus
+    - Check each selected keyword against the corpus
+    - Score = matched / total * 100
+    - Generate actionable suggestions based on gap patterns
+    """
+    selected_keywords = selected_keywords or []
 
-_SCORING_SCHEMA = {
-    "overall_score": "integer 0–100 representing overall ATS match quality",
-    "keyword_coverage": "float 0.0–1.0 representing fraction of priority keywords present",
-    "matched_keywords": ["keywords from the JD found in the resume"],
-    "missing_keywords": ["important keywords from the JD absent from the resume"],
-    "suggestions": ["2–5 specific, actionable improvements"],
-}
+    # ── Build resume text corpus ──────────────────────────────────────────
+    corpus_parts = []
 
+    # Summary
+    corpus_parts.append(tailored_resume.get("tailored_summary", ""))
 
-def score_resume(tailored_resume: dict, job_description: str) -> ATSScoreResult:
-    user_prompt = f"""\
-Score the following resume against the job description for ATS compatibility.
+    # Skills
+    for skill_list in tailored_resume.get("skills", {}).values():
+        if isinstance(skill_list, list):
+            corpus_parts.extend(skill_list)
 
-RESUME:
-{json.dumps(tailored_resume, indent=2)}
+    # Experience bullets
+    for exp in tailored_resume.get("experience", []):
+        corpus_parts.append(exp.get("title", ""))
+        for bullet in exp.get("bullets", []):
+            if isinstance(bullet, dict):
+                corpus_parts.append(bullet.get("text", ""))
+            else:
+                corpus_parts.append(str(bullet))
 
-JOB DESCRIPTION:
-{job_description}
+    # Projects
+    for proj in tailored_resume.get("projects", []):
+        corpus_parts.append(proj.get("name", ""))
+        for bullet in proj.get("bullets", []):
+            if isinstance(bullet, dict):
+                corpus_parts.append(bullet.get("text", ""))
+            else:
+                corpus_parts.append(str(bullet))
 
-Return a JSON object matching this schema exactly:
-{json.dumps(_SCORING_SCHEMA, indent=2)}
-"""
-    raw = _call_claude(_SCORING_SYSTEM, user_prompt)
+    # Certifications
+    for cert in tailored_resume.get("certifications", []):
+        corpus_parts.append(cert.get("name", ""))
+        corpus_parts.append(cert.get("issuer", ""))
 
-    try:
-        parsed = _extract_json(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Claude returned non-JSON for ATS scoring: {exc}\n\nRaw:\n{raw}") from exc
+    corpus = _normalize(" ".join(corpus_parts))
+
+    # ── Match keywords ────────────────────────────────────────────────────
+    matched = []
+    missing = []
+
+    for kw in selected_keywords:
+        kw_normalized = _normalize(kw)
+        # Check if all words in the keyword appear in the corpus
+        kw_words = kw_normalized.split()
+        if all(word in corpus for word in kw_words):
+            matched.append(kw)
+        else:
+            missing.append(kw)
+
+    total = len(selected_keywords)
+    coverage = len(matched) / total if total > 0 else 0.0
+
+    # ── Score calculation ─────────────────────────────────────────────────
+    # Base score from keyword coverage (70% weight)
+    # Bonus points for having summary, multiple experiences, certifications (30% weight)
+    base_score = coverage * 70
+
+    bonus = 0
+    if tailored_resume.get("tailored_summary"):
+        bonus += 10
+    if len(tailored_resume.get("experience", [])) >= 2:
+        bonus += 10
+    if tailored_resume.get("certifications"):
+        bonus += 10
+
+    overall_score = min(100, int(base_score + bonus))
+
+    # ── Generate suggestions ──────────────────────────────────────────────
+    suggestions = []
+
+    if missing:
+        top_missing = missing[:3]
+        suggestions.append(
+            f"Add these missing keywords to your resume: {', '.join(top_missing)}."
+        )
+
+    if coverage < 0.6:
+        suggestions.append(
+            "Keyword coverage is below 60%. Select more relevant keywords and regenerate."
+        )
+
+    if not tailored_resume.get("tailored_summary"):
+        suggestions.append("Add a targeted summary section to improve ATS matching.")
+
+    skill_count = sum(
+        len(v) for v in tailored_resume.get("skills", {}).values()
+        if isinstance(v, list)
+    )
+    if skill_count < 10:
+        suggestions.append(
+            "Expand your skills section — more relevant skills improve ATS keyword density."
+        )
+
+    if len(missing) > len(matched):
+        suggestions.append(
+            "More than half your target keywords are missing. Consider selecting fewer, "
+            "more relevant keywords or tailoring to a closer-match role."
+        )
+
+    # Always give at least one suggestion
+    if not suggestions:
+        suggestions.append(
+            "Strong keyword match. Review the missing keywords above and add any you genuinely have."
+        )
 
     return ATSScoreResult(
-        overall_score=parsed.get("overall_score", 0),
-        keyword_coverage=parsed.get("keyword_coverage", 0.0),
-        matched_keywords=parsed.get("matched_keywords", []),
-        missing_keywords=parsed.get("missing_keywords", []),
-        suggestions=parsed.get("suggestions", []),
-        raw_response=raw,
+        overall_score=overall_score,
+        keyword_coverage=round(coverage, 2),
+        matched_keywords=matched,
+        missing_keywords=missing,
+        suggestions=suggestions[:5],
+        raw_response="heuristic",
     )
 
 
@@ -374,11 +490,11 @@ if __name__ == "__main__":
     Strong communication skills and the ability to lead cross-functional initiatives required.
     """
 
-    print("--- Keyword Extraction ---")
+    print("--- Keyword Extraction (Groq) ---")
     kw_result = extract_keywords(sample_jd)
     print(json.dumps(kw_result.model_dump(exclude={"raw_response"}), indent=2))
 
-    print("\n--- Resume Tailoring (stub) ---")
+    print("\n--- Resume Tailoring (Claude Haiku) ---")
     stub_resume = {
         "summary": "Software engineer with 5 years of experience in ML systems.",
         "skills": {"languages": ["Python", "SQL"], "ai_ml": ["PyTorch", "scikit-learn"]},
@@ -397,6 +513,10 @@ if __name__ == "__main__":
     tailored = tailor_resume(stub_resume, sample_jd, kw_result.priority_keywords)
     print(json.dumps(tailored.model_dump(exclude={"raw_response"}), indent=2))
 
-    print("\n--- ATS Score ---")
-    score = score_resume(tailored.model_dump(exclude={"raw_response"}), sample_jd)
+    print("\n--- ATS Score (Heuristic) ---")
+    score = score_resume(
+        tailored.model_dump(exclude={"raw_response"}),
+        sample_jd,
+        kw_result.priority_keywords,
+    )
     print(json.dumps(score.model_dump(exclude={"raw_response"}), indent=2))
