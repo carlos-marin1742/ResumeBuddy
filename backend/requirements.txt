@@ -4,6 +4,7 @@ uvicorn[standard]
 
 # AI
 anthropic
+groq
 
 # PDF generation
 playwright
