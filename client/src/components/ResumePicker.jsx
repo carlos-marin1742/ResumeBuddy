@@ -20,54 +20,54 @@ export default function ResumePicker({ apiBase, onSelect }) {
   if (loading) {
     return (
       <div className="rpicker-page fade-up">
-        <div className="rp-hero">
+        <div className="rpicker-hero">
           <h1 className="rpicker-title">ResuméBuddy</h1>
-          <p className="rp-sub">Loading your resume profiles…</p>
+          <p className="rpicker-sub">Loading your resume profiles…</p>
         </div>
-        <div className="rp-loading"><span className="spinner" /></div>
+        <div className="rpicker-loading"><span className="spinner" /></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rp-page fade-up">
-        <div className="rp-hero">
-          <h1 className="rp-title">ResuméBuddy</h1>
+      <div className="rpicker-page fade-up">
+        <div className="rpicker-hero">
+          <h1 className="rpicker-title">ResuméBuddy</h1>
         </div>
-        <div className="rp-error">⚠ {error}</div>
+        <div className="rpicker-error">⚠ {error}</div>
       </div>
     );
   }
 
   return (
-    <div className="rp-page fade-up">
+    <div className="rpicker-page fade-up">
       <div className="rpicker-hero">
         <h1 className="rpicker-title">ResuméBuddy</h1>
-        <p className="rp-sub">
+        <p className="rpicker-sub">
           Choose the resume profile you want to tailor for this application.
         </p>
       </div>
 
-      <div className="rp-grid">
+      <div className="rpicker-grid">
         {resumes.map((resume) => (
           <button
             key={resume.id}
-            className="rp-card card"
+            className="rpicker-card card"
             onClick={() => onSelect(resume)}
           >
-            <div className="rp-card-name">{resume.name}</div>
+            <div className="rpicker-card-name">{resume.name}</div>
             {resume.target_roles.length > 0 && (
-              <div className="rp-card-roles">
+              <div className="rpicker-card-roles">
                 {resume.target_roles.slice(0, 3).map((role) => (
-                  <span key={role} className="rp-role-chip">{role}</span>
+                  <span key={role} className="rpicker-role-chip">{role}</span>
                 ))}
               </div>
             )}
             {resume.last_updated && (
-              <div className="rp-card-meta">Updated {resume.last_updated}</div>
+              <div className="rpicker-card-meta">Updated {resume.last_updated}</div>
             )}
-            <div className="rp-card-arrow">→</div>
+            <div className="rpicker-card-arrow">→</div>
           </button>
         ))}
       </div>

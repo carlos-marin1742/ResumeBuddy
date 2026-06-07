@@ -1,10 +1,12 @@
+/* ── Page layout ─────────────────────────────────────────────────────────── */
 .rpicker-page {
-  max-width: 720px;
+  max-width: 480px;       /* narrower — was 720px */
   margin: 0 auto;
   padding: 4rem 1.5rem 3rem;
   width: 100%;
 }
 
+/* ── Hero ────────────────────────────────────────────────────────────────── */
 .rpicker-hero {
   text-align: center;
   margin-bottom: 2.5rem;
@@ -12,7 +14,7 @@
 
 .rpicker-title {
   font-family: var(--font-display);
-  font-size: 2.4rem;
+  font-size: 2.6rem;      /* slightly larger */
   font-weight: 600;
   color: var(--ink);
   letter-spacing: -0.02em;
@@ -20,35 +22,37 @@
   margin-bottom: 0.75rem;
 }
 
-.rp-sub {
+.rpicker-sub {
   color: var(--ink-soft);
-  font-size: 1rem;
-  max-width: 440px;
+  font-size: 1.05rem;     /* slightly larger */
+  max-width: 380px;
   margin: 0 auto;
   line-height: 1.65;
 }
 
-.rp-loading {
+/* ── Loading / error ─────────────────────────────────────────────────────── */
+.rpicker-loading {
   display: flex;
   justify-content: center;
   padding: 3rem;
   color: var(--ink-muted);
 }
 
-.rp-error {
+.rpicker-error {
   text-align: center;
   padding: 2rem;
   color: var(--error);
   font-size: 0.9rem;
 }
 
-.rp-grid {
+/* ── Card grid ───────────────────────────────────────────────────────────── */
+.rpicker-grid {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.rp-card {
+.rpicker-card {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -62,43 +66,44 @@
   transition: all 0.15s;
   position: relative;
   font-family: var(--font-body);
+  width: 100%;
 }
 
-.rp-card:hover {
+.rpicker-card:hover {
   border-color: var(--accent);
   box-shadow: var(--shadow-lg);
   transform: translateY(-1px);
 }
 
-.rp-card-name {
+.rpicker-card-name {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: 1.15rem;     /* slightly larger */
   font-weight: 600;
   color: var(--ink);
 }
 
-.rp-card-roles {
+.rpicker-card-roles {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
 }
 
-.rp-role-chip {
+.rpicker-role-chip {
   background: var(--accent-bg);
   color: var(--accent);
   border: 1px solid #c7d9f0;
-  font-size: 0.75rem;
+  font-size: 0.78rem;     /* slightly larger */
   font-weight: 500;
   padding: 0.2rem 0.6rem;
   border-radius: 99px;
 }
 
-.rp-card-meta {
-  font-size: 0.75rem;
+.rpicker-card-meta {
+  font-size: 0.78rem;
   color: var(--ink-muted);
 }
 
-.rp-card-arrow {
+.rpicker-card-arrow {
   position: absolute;
   right: 1.5rem;
   top: 50%;
@@ -108,7 +113,7 @@
   transition: all 0.15s;
 }
 
-.rp-card:hover .rp-card-arrow {
+.rpicker-card:hover .rpicker-card-arrow {
   color: var(--accent);
   transform: translateY(-50%) translateX(3px);
 }

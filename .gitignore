@@ -47,11 +47,9 @@ backend/outputs/
 
 # ── Data — keep schema, ignore personal resume data ──────────
 backend/data/base_resume.json
-backend/data/base_resume_clinical.json
-backend/data/base_resume_admin.json
-backend/data/base_resume_tech.json
+backend/data/clinical_resume.json
+backend/data/admin_resume.json
 !backend/data/base_resume_schema.md
-!backend/data/base_resume.example.json
 
 # ── OS ───────────────────────────────────────────────────────
 .DS_Store
