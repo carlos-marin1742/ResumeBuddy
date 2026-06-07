@@ -328,20 +328,20 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     has_projects = bool(resume_data.get("projects", []))
     has_certs = bool(resume_data.get("certifications", []))
     
-    spacing = -1.5 if has_projects else 0.0  # pre-compress tech resumes
 
     if has_projects:
+        spacing = -1.5  #pre compress tech resumes
         expand_threshold = 160
     elif has_certs:
-        expand_threshold = 60
+        spacing = -0.5
+        expand_threshold = 70
     else:
+        spacing = 0.0
         expand_threshold = 50
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
-
-        spacing = 0.0
 
         for attempt in range(5):
             page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
