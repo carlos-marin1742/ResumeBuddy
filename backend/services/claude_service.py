@@ -147,6 +147,430 @@ def _normalize(text: str) -> str:
     return text.lower().translate(str.maketrans("", "", string.punctuation))
 
 
+def limit_character_count(text: str) -> str:
+    """Limits the character count of a bullet to less than 165 characters (maximum 164)."""
+    if len(text) >= 165:
+        return text[:164]
+    return text
+
+
+def validate_keywords_in_text(text: str, keywords: list[str]) -> list[str]:
+    """
+    Returns the subset of keywords that actually appear in text,
+    using normalized (case-insensitive, punctuation-stripped) word matching.
+    """
+    normalized_text = _normalize(text)
+    return [
+        kw for kw in keywords
+        if all(word in normalized_text for word in _normalize(kw).split())
+    ]
+
+
+SKILL_TO_CATEGORY = {
+    # languages
+    "python": "languages",
+    "typescript": "languages",
+    "javascript": "languages",
+    "js": "languages",
+    "ts": "languages",
+    "html5": "languages",
+    "html": "languages",
+    "css3": "languages",
+    "css": "languages",
+    "sql": "languages",
+    "go": "languages",
+    "golang": "languages",
+    "c++": "languages",
+    "c#": "languages",
+    "java": "languages",
+    "ruby": "languages",
+    "rust": "languages",
+    "php": "languages",
+    "swift": "languages",
+    "kotlin": "languages",
+    "scala": "languages",
+    "r": "languages",
+    "shell": "languages",
+    "bash": "languages",
+
+    # ai_ml
+    "llms": "ai_ml",
+    "large language models": "ai_ml",
+    "gemini": "ai_ml",
+    "gpt": "ai_ml",
+    "llama": "ai_ml",
+    "claude": "ai_ml",
+    "langchain": "ai_ml",
+    "llamaindex": "ai_ml",
+    "crewai": "ai_ml",
+    "autogen": "ai_ml",
+    "rag": "ai_ml",
+    "retrieval-augmented generation": "ai_ml",
+    "prompt engineering": "ai_ml",
+    "computer vision": "ai_ml",
+    "nlp": "ai_ml",
+    "natural language processing": "ai_ml",
+    "pytorch": "ai_ml",
+    "tensorflow": "ai_ml",
+    "scikit-learn": "ai_ml",
+    "sklearn": "ai_ml",
+    "keras": "ai_ml",
+    "pandas": "ai_ml",
+    "numpy": "ai_ml",
+    "opencv": "ai_ml",
+    "yolo": "ai_ml",
+    "yolov8": "ai_ml",
+    "huggingface": "ai_ml",
+    "transformers": "ai_ml",
+    "deep learning": "ai_ml",
+    "machine learning": "ai_ml",
+    "ml": "ai_ml",
+    "generative ai": "ai_ml",
+    "vertex ai": "ai_ml",
+    "spacy": "ai_ml",
+    "nltk": "ai_ml",
+
+    # backend
+    "fastapi": "backend",
+    "flask": "backend",
+    "django": "backend",
+    "node.js": "backend",
+    "nodejs": "backend",
+    "express": "backend",
+    "express.js": "backend",
+    "nestjs": "backend",
+    "spring": "backend",
+    "spring boot": "backend",
+    "ruby on rails": "backend",
+    "rails": "backend",
+    "asp.net": "backend",
+    "graphql": "backend",
+    "rest apis": "backend",
+    "rest api": "backend",
+    "grpc": "backend",
+    "microservices": "backend",
+    "apis": "backend",
+    "api": "backend",
+
+    # frontend
+    "react": "frontend",
+    "react.js": "frontend",
+    "reactjs": "frontend",
+    "angular": "frontend",
+    "vue": "frontend",
+    "vue.js": "frontend",
+    "vuejs": "frontend",
+    "next.js": "frontend",
+    "nextjs": "frontend",
+    "svelte": "frontend",
+    "tailwind": "frontend",
+    "tailwindcss": "frontend",
+    "bootstrap": "frontend",
+    "jquery": "frontend",
+    "sass": "frontend",
+    "streamlit": "frontend",
+    "vite": "frontend",
+    "webpack": "frontend",
+
+    # databases_cloud
+    "postgresql": "databases_cloud",
+    "postgres": "databases_cloud",
+    "mysql": "databases_cloud",
+    "mongodb": "databases_cloud",
+    "redis": "databases_cloud",
+    "dynamodb": "databases_cloud",
+    "sqlite": "databases_cloud",
+    "cassandra": "databases_cloud",
+    "elasticsearch": "databases_cloud",
+    "aws": "databases_cloud",
+    "gcp": "databases_cloud",
+    "azure": "databases_cloud",
+    "google cloud": "databases_cloud",
+    "google cloud platform": "databases_cloud",
+    "amazon web services": "databases_cloud",
+    "kubernetes": "databases_cloud",
+    "k8s": "databases_cloud",
+    "docker": "databases_cloud",
+    "terraform": "databases_cloud",
+    "ansible": "databases_cloud",
+    "jenkins": "databases_cloud",
+    "github actions": "databases_cloud",
+    "pyspark": "databases_cloud",
+    "spark": "databases_cloud",
+    "hadoop": "databases_cloud",
+    "pinecone": "databases_cloud",
+    "chroma": "databases_cloud",
+    "chromadb": "databases_cloud",
+    "vector databases": "databases_cloud",
+    "vector database": "databases_cloud",
+    "cloud deployment": "databases_cloud",
+
+    # tools
+    "git": "tools",
+    "github": "tools",
+    "gitlab": "tools",
+    "jira": "tools",
+    "confluence": "tools",
+    "cursor": "tools",
+    "vscode": "tools",
+    "vs code": "tools",
+    "pydantic": "tools",
+    "postman": "tools",
+    "npm": "tools",
+    "pip": "tools",
+    "poetry": "tools",
+    "eslint": "tools",
+}
+
+PREFERRED_SKILL_CASING = {
+    "python": "Python",
+    "typescript": "TypeScript",
+    "javascript": "JavaScript",
+    "js": "JavaScript",
+    "ts": "TypeScript",
+    "html5": "HTML5",
+    "html": "HTML5",
+    "css3": "CSS3",
+    "css": "CSS3",
+    "sql": "SQL",
+    "go": "Go",
+    "golang": "Go",
+    "c++": "C++",
+    "c#": "C#",
+    "java": "Java",
+    "ruby": "Ruby",
+    "rust": "Rust",
+    "php": "PHP",
+    "swift": "Swift",
+    "kotlin": "Kotlin",
+    "scala": "Scala",
+    "r": "R",
+    "bash": "Bash",
+    "shell": "Shell Scripting",
+
+    "llms": "LLMs",
+    "large language models": "LLMs",
+    "gemini": "Gemini",
+    "gpt": "GPT",
+    "llama": "Llama",
+    "claude": "Claude",
+    "langchain": "LangChain",
+    "llamaindex": "LlamaIndex",
+    "crewai": "CrewAI",
+    "autogen": "AutoGen",
+    "rag": "RAG",
+    "retrieval-augmented generation": "RAG",
+    "prompt engineering": "Prompt Engineering",
+    "computer vision": "Computer Vision",
+    "nlp": "NLP",
+    "natural language processing": "NLP",
+    "pytorch": "PyTorch",
+    "tensorflow": "TensorFlow",
+    "scikit-learn": "Scikit-learn",
+    "sklearn": "Scikit-learn",
+    "keras": "Keras",
+    "pandas": "Pandas",
+    "numpy": "NumPy",
+    "opencv": "OpenCV",
+    "yolo": "YOLO",
+    "yolov8": "YOLOv8",
+    "huggingface": "HuggingFace",
+    "transformers": "Transformers",
+    "deep learning": "Deep Learning",
+    "machine learning": "Machine Learning",
+    "ml": "Machine Learning",
+    "generative ai": "Generative AI",
+    "vertex ai": "Vertex AI",
+    "spacy": "spaCy",
+    "nltk": "NLTK",
+
+    "fastapi": "FastAPI",
+    "flask": "Flask",
+    "django": "Django",
+    "node.js": "Node.js",
+    "nodejs": "Node.js",
+    "express": "Express.js",
+    "express.js": "Express.js",
+    "nestjs": "NestJS",
+    "spring": "Spring",
+    "spring boot": "Spring Boot",
+    "ruby on rails": "Ruby on Rails",
+    "rails": "Ruby on Rails",
+    "asp.net": "ASP.NET",
+    "graphql": "GraphQL",
+    "rest apis": "REST APIs",
+    "rest api": "REST APIs",
+    "grpc": "gRPC",
+    "microservices": "Microservices",
+
+    "react": "React",
+    "react.js": "React",
+    "reactjs": "React",
+    "angular": "Angular",
+    "vue": "Vue",
+    "vue.js": "Vue",
+    "vuejs": "Vue",
+    "next.js": "Next.js",
+    "nextjs": "Next.js",
+    "svelte": "Svelte",
+    "tailwind": "Tailwind",
+    "tailwindcss": "Tailwind CSS",
+    "bootstrap": "Bootstrap",
+    "jquery": "jQuery",
+    "sass": "Sass",
+    "streamlit": "Streamlit",
+    "vite": "Vite",
+    "webpack": "Webpack",
+
+    "postgresql": "PostgreSQL",
+    "postgres": "PostgreSQL",
+    "mysql": "MySQL",
+    "mongodb": "MongoDB",
+    "redis": "Redis",
+    "dynamodb": "DynamoDB",
+    "sqlite": "SQLite",
+    "cassandra": "Cassandra",
+    "elasticsearch": "Elasticsearch",
+    "aws": "AWS",
+    "gcp": "GCP",
+    "azure": "Azure",
+    "google cloud": "GCP",
+    "google cloud platform": "GCP",
+    "amazon web services": "AWS",
+    "kubernetes": "Kubernetes",
+    "k8s": "Kubernetes",
+    "docker": "Docker",
+    "terraform": "Terraform",
+    "ansible": "Ansible",
+    "jenkins": "Jenkins",
+    "github actions": "GitHub Actions",
+    "pyspark": "PySpark",
+    "spark": "Spark",
+    "hadoop": "Hadoop",
+    "pinecone": "Pinecone",
+    "chroma": "ChromaDB",
+    "chromadb": "ChromaDB",
+    "vector databases": "Vector Databases",
+    "vector database": "Vector Databases",
+    "cloud deployment": "Cloud Deployment",
+
+    "git": "Git",
+    "github": "GitHub",
+    "gitlab": "GitLab",
+    "jira": "Jira",
+    "confluence": "Confluence",
+    "cursor": "Cursor",
+    "vscode": "VS Code",
+    "vs code": "VS Code",
+    "pydantic": "Pydantic",
+    "postman": "Postman",
+    "npm": "npm",
+    "pip": "pip",
+    "poetry": "Poetry",
+    "eslint": "ESLint",
+}
+
+
+def determine_skills_to_add(
+    base_skills: dict[str, list[str]],
+    selected_keywords: list[str]
+) -> dict[str, list[str]]:
+    """
+    Identifies selected keywords that are not present in the candidate's base skills
+    but map to known categories, and returns them structured by category.
+    """
+    existing_skills_lower = set()
+    for skill_list in base_skills.values():
+        for skill in skill_list:
+            existing_skills_lower.add(skill.lower())
+
+    skills_to_add = {}
+
+    for kw in selected_keywords:
+        kw_clean = kw.strip()
+        kw_lower = kw_clean.lower()
+
+        if kw_lower in SKILL_TO_CATEGORY and kw_lower not in existing_skills_lower:
+            category = SKILL_TO_CATEGORY[kw_lower]
+            presentation_name = PREFERRED_SKILL_CASING.get(kw_lower, kw_clean)
+
+            if category not in skills_to_add:
+                skills_to_add[category] = []
+            
+            if presentation_name not in skills_to_add[category]:
+                skills_to_add[category].append(presentation_name)
+
+    return skills_to_add
+
+
+CATEGORY_KEYWORDS = {
+    "languages": [
+        "python", "typescript", "javascript", "js", "ts", "html5", "html", "css3", "css", "sql",
+        "go", "golang", "c++", "c#", "java", "ruby", "rust", "php", "swift", "kotlin", "scala", "r", "bash", "shell"
+    ],
+    "ai_ml": [
+        "llm", "large language model", "gemini", "gpt", "llama", "claude", "langchain", "llamaindex", "crewai", "autogen",
+        "rag", "retrieval-augmented generation", "prompt engineering", "computer vision", "nlp", "natural language processing",
+        "pytorch", "tensorflow", "scikit-learn", "sklearn", "keras", "pandas", "numpy", "opencv", "yolo", "yolov8",
+        "huggingface", "transformers", "deep learning", "machine learning", "ml", "generative ai", "vertex ai", "spacy", "nltk",
+        "artificial intelligence", "neural network", "agent"
+    ],
+    "backend": [
+        "fastapi", "flask", "django", "node.js", "nodejs", "express", "express.js", "nestjs", "spring", "spring boot",
+        "ruby on rails", "rails", "asp.net", "graphql", "rest apis", "rest api", "grpc", "microservices", "api", "apis", "backend"
+    ],
+    "frontend": [
+        "react", "react.js", "reactjs", "angular", "vue", "vue.js", "vuejs", "next.js", "nextjs", "svelte", "tailwind",
+        "tailwindcss", "bootstrap", "jquery", "sass", "streamlit", "vite", "webpack", "frontend", "ui", "ux", "html", "css"
+    ],
+    "databases_cloud": [
+        "postgresql", "postgres", "mysql", "mongodb", "redis", "dynamodb", "sqlite", "cassandra", "elasticsearch", "aws", "gcp",
+        "azure", "google cloud", "google cloud platform", "amazon web services", "kubernetes", "k8s", "docker", "terraform",
+        "ansible", "jenkins", "github actions", "pyspark", "spark", "hadoop", "pinecone", "chroma", "chromadb", "vector databases",
+        "vector database", "cloud deployment", "database", "databases", "cloud"
+    ],
+    "tools": [
+        "git", "github", "gitlab", "jira", "confluence", "cursor", "vscode", "vs code", "pydantic", "postman", "npm", "pip",
+        "poetry", "eslint", "tool", "tools"
+    ]
+}
+
+
+def determine_skills_to_show(job_description: str, selected_keywords: list[str]) -> list[str]:
+    """
+    Determines which skill categories should be shown on the resume based on the
+    job description text and selected keywords.
+    """
+    jd_lower = job_description.lower()
+    skills_to_show = ["languages"]
+    categories_to_check = ["ai_ml", "backend", "frontend", "databases_cloud", "tools"]
+    
+    for category in categories_to_check:
+        # Check if any selected keyword maps to this category
+        has_keyword_match = False
+        for kw in selected_keywords:
+            if SKILL_TO_CATEGORY.get(kw.lower()) == category:
+                has_keyword_match = True
+                break
+                
+        if has_keyword_match:
+            skills_to_show.append(category)
+            continue
+            
+        # Check if the job description mentions any keyword from this category
+        has_jd_match = False
+        for term in CATEGORY_KEYWORDS.get(category, []):
+            pattern = rf"\b{re.escape(term)}\b"
+            if re.search(pattern, jd_lower):
+                has_jd_match = True
+                break
+                
+        if has_jd_match:
+            skills_to_show.append(category)
+            
+    return skills_to_show
+
+
 # ---------------------------------------------------------------------------
 # 1. Keyword extraction — Groq (free tier)
 # ---------------------------------------------------------------------------
@@ -267,9 +691,6 @@ def tailor_resume(
             }
         ],
         "skills_to_highlight": ["skills from the candidate's profile most relevant to this JD"],
-        "skills_to_add": {
-            "category_name": ["new skill 1", "new skill 2", "new skill 3"]
-        },
         "skills_to_show": ["category_key1", "category_key2", "category_key3"],
     }
 
@@ -297,11 +718,9 @@ Rules:
 - If the resume has projects, use exactly 3 bullets for the experience role. If the resume has no projects, use exactly 5 bullets for the first two roles and exactly 4 bullets for the third (oldest) role.
 - If the resume has projects, use exactly 3 bullets for the experience role and never fabricate bullets to reach a higher count.
 - Keep the same number of bullets per project as in the original — do not add or remove project bullets.
-- Never remove quantified metrics (percentages, numbers, counts) from any bullet regardless of character limit.
+- Never remove quantified metrics (percentages, numbers, counts) from any bullet.
 - For project bullets: only append keywords to the END of the original bullet text where natural. Never rewrite, restructure, or remove any part of the original. If a keyword cannot be appended naturally, leave the bullet unchanged.
 - Never use fewer bullets than specified — a short resume wastes space.
-- Keep every bullet to a maximum of 165 characters. For project bullets where the original is already near the limit, skip the keyword append rather than truncating.
-- If selected_keywords include skills not present in the candidate's skills section, add them to skills_to_add if they are closely related to existing skills in the profile (e.g. TypeScript if JavaScript is present, Tailwind if CSS is present).
 - Set skills_to_show to the skill category keys most relevant to this JD. For AI/ML roles include ai_ml. For pure backend/fullstack roles omit ai_ml. Always include languages, backend, frontend, databases_cloud, and tools unless irrelevant. Use the exact category key names from the skills object.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=CLAUDE_MAX_TOKENS)
@@ -316,7 +735,14 @@ Rules:
             company=exp["company"],
             title=exp["title"],
             tailored_bullets=[
-                TailoredBullet(**b) for b in exp.get("tailored_bullets", [])
+                TailoredBullet(
+                    original=b.get("original", ""),
+                    tailored=limit_character_count(b.get("tailored", "")),
+                    keywords_injected=validate_keywords_in_text(
+                        b.get("tailored", ""), selected_keywords
+                    ),
+                )
+                for b in exp.get("tailored_bullets", [])
             ],
         )
         for exp in parsed.get("experiences", [])
@@ -326,7 +752,14 @@ Rules:
         TailoredProject(
             name=proj["name"],
             tailored_bullets=[
-                TailoredBullet(**b) for b in proj.get("tailored_bullets", [])
+                TailoredBullet(
+                    original=b.get("original", ""),
+                    tailored=limit_character_count(b.get("tailored", "")),
+                    keywords_injected=validate_keywords_in_text(
+                        b.get("tailored", ""), selected_keywords
+                    ),
+                )
+                for b in proj.get("tailored_bullets", [])
             ],
         )
         for proj in parsed.get("projects", [])
@@ -337,7 +770,7 @@ Rules:
         experiences=experiences,
         projects=projects,
         skills_to_highlight=parsed.get("skills_to_highlight", []),
-        skills_to_add=parsed.get("skills_to_add", {}),
+        skills_to_add=determine_skills_to_add(base_resume.get("skills", {}), selected_keywords),
         skills_to_show=parsed.get("skills_to_show", []),
         raw_response=raw,
     )

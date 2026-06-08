@@ -2,7 +2,7 @@
 test_claude_service.py
 ----------------------
 Unit tests for claude_service.py.
-All Anthropic API calls are mocked — no tokens consumed, no network required.
+All Anthropic/Groq API calls are mocked — no tokens consumed, no network required.
 
 Run:
     pytest test_claude_service.py -v
@@ -19,11 +19,14 @@ from claude_service import (
     KeywordExtractionResult,
     TailoredResume,
     _extract_json,
+    limit_character_count,
+    determine_skills_to_add,
+    validate_keywords_in_text,
 )
 
 
 # ---------------------------------------------------------------------------
-# Fixtures: canned Claude responses
+# Fixtures: canned Claude / Groq responses
 # ---------------------------------------------------------------------------
 
 KEYWORD_RESPONSE = {
@@ -58,15 +61,23 @@ TAILORING_RESPONSE = {
     "skills_to_highlight": ["Python", "PyTorch", "Kubernetes", "MLflow"],
 }
 
-SCORING_RESPONSE = {
-    "overall_score": 82,
-    "keyword_coverage": 0.76,
-    "matched_keywords": ["Python", "PyTorch", "Kubernetes", "MLflow"],
-    "missing_keywords": ["AWS SageMaker", "dbt"],
-    "suggestions": [
-        "Add AWS SageMaker to your skills section.",
-        "Mention dbt in a relevant bullet if applicable.",
+SAMPLE_TAILORED_RESUME_DICT = {
+    "tailored_summary": "ML Engineer with 5 years of experience building scalable PyTorch pipelines on Kubernetes.",
+    "skills": {"languages": ["Python"], "ai_ml": ["PyTorch"]},
+    "experience": [
+        {
+            "company": "Acme Corp",
+            "title": "ML Engineer",
+            "bullets": [
+                {
+                    "original": "Built training pipelines that reduced model iteration time by 40%.",
+                    "text": "Engineered PyTorch training pipelines on Kubernetes, reducing model iteration time by 40%.",
+                    "keywords_injected": ["PyTorch", "Kubernetes"],
+                }
+            ],
+        }
     ],
+    "certifications": [{"name": "AWS Certified Machine Learning", "issuer": "AWS"}]
 }
 
 SAMPLE_JD = "We need a Senior ML Engineer with Python, PyTorch, and Kubernetes experience."
@@ -88,7 +99,7 @@ SAMPLE_RESUME = {
 
 
 # ---------------------------------------------------------------------------
-# Helper: build a mock Anthropic message response
+# Helpers: build mock response structures
 # ---------------------------------------------------------------------------
 
 def _mock_message(response_dict: dict) -> MagicMock:
@@ -97,6 +108,109 @@ def _mock_message(response_dict: dict) -> MagicMock:
     msg.content = [MagicMock()]
     msg.content[0].text = json.dumps(response_dict)
     return msg
+
+
+def _mock_groq_response(response_dict: dict) -> MagicMock:
+    """Return a MagicMock shaped like groq chat completion response."""
+    msg = MagicMock()
+    msg.choices = [MagicMock()]
+    msg.choices[0].message.content = json.dumps(response_dict)
+    return msg
+
+
+# ---------------------------------------------------------------------------
+# validate_keywords_in_text
+# ---------------------------------------------------------------------------
+
+class TestValidateKeywordsInText:
+    def test_returns_present_keywords(self):
+        text = "Engineered PyTorch pipelines on Kubernetes reducing iteration time by 40%."
+        result = validate_keywords_in_text(text, ["PyTorch", "Kubernetes", "React"])
+        assert "PyTorch" in result
+        assert "Kubernetes" in result
+        assert "React" not in result
+
+    def test_case_insensitive_matching(self):
+        text = "Built scalable REST APIs using FastAPI."
+        result = validate_keywords_in_text(text, ["rest apis", "FASTAPI", "Django"])
+        assert "rest apis" in result
+        assert "FASTAPI" in result
+        assert "Django" not in result
+
+    def test_multi_word_keyword_requires_all_words(self):
+        text = "Used machine learning models for predictions."
+        result = validate_keywords_in_text(text, ["machine learning", "deep learning"])
+        assert "machine learning" in result
+        assert "deep learning" not in result
+
+    def test_empty_keywords_returns_empty(self):
+        assert validate_keywords_in_text("some text", []) == []
+
+    def test_empty_text_returns_empty(self):
+        assert validate_keywords_in_text("", ["Python", "Docker"]) == []
+
+    def test_punctuation_stripped_before_matching(self):
+        text = "Experience with Python, Docker, and Kubernetes."
+        result = validate_keywords_in_text(text, ["Python", "Docker", "Kubernetes"])
+        assert result == ["Python", "Docker", "Kubernetes"]
+
+
+# ---------------------------------------------------------------------------
+# limit_character_count
+# ---------------------------------------------------------------------------
+
+class TestLimitCharacterCount:
+    def test_no_truncation_when_under_limit(self):
+        text = "This is a short bullet."
+        assert limit_character_count(text) == text
+        assert len(limit_character_count(text)) < 165
+
+    def test_truncates_when_at_or_over_limit(self):
+        # Exactly 165 characters
+        text_165 = "a" * 165
+        result_165 = limit_character_count(text_165)
+        assert len(result_165) == 164
+        assert result_165 == "a" * 164
+
+        # 200 characters
+        text_200 = "b" * 200
+        result_200 = limit_character_count(text_200)
+        assert len(result_200) == 164
+        assert result_200 == "b" * 164
+
+
+# ---------------------------------------------------------------------------
+# determine_skills_to_add
+# ---------------------------------------------------------------------------
+
+class TestDetermineSkillsToAdd:
+    def test_adds_new_mapped_skills(self):
+        base_skills = {"languages": ["Python"]}
+        selected_keywords = ["Tailwind", "Python"]  # Tailwind is not in base, Python is
+        result = determine_skills_to_add(base_skills, selected_keywords)
+        # Tailwind is frontend, Python should not be added since it is already in base
+        assert "frontend" in result
+        assert result["frontend"] == ["Tailwind"]
+        assert "languages" not in result
+
+    def test_case_insensitive_duplicate_check(self):
+        base_skills = {"languages": ["Python"]}
+        selected_keywords = ["python", "PYTHON"]
+        result = determine_skills_to_add(base_skills, selected_keywords)
+        assert result == {}
+
+    def test_ignores_unmapped_skills(self):
+        base_skills = {}
+        selected_keywords = ["ArbitrarySkill123"]
+        result = determine_skills_to_add(base_skills, selected_keywords)
+        assert result == {}
+
+    def test_applies_preferred_casing(self):
+        base_skills = {}
+        # test that 'fastapi' becomes 'FastAPI', 'postgresql' becomes 'PostgreSQL'
+        result = determine_skills_to_add(base_skills, ["fastapi", "postgresql"])
+        assert result["backend"] == ["FastAPI"]
+        assert result["databases_cloud"] == ["PostgreSQL"]
 
 
 # ---------------------------------------------------------------------------
@@ -130,78 +244,77 @@ class TestExtractJson:
 # ---------------------------------------------------------------------------
 
 class TestExtractKeywords:
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_groq_client")
     def test_returns_keyword_extraction_result(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(KEYWORD_RESPONSE)
+        mock_get_client.return_value.chat.completions.create.return_value = _mock_groq_response(KEYWORD_RESPONSE)
 
         result = svc.extract_keywords(SAMPLE_JD)
 
         assert isinstance(result, KeywordExtractionResult)
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_groq_client")
     def test_hard_skills_populated(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(KEYWORD_RESPONSE)
+        mock_get_client.return_value.chat.completions.create.return_value = _mock_groq_response(KEYWORD_RESPONSE)
 
         result = svc.extract_keywords(SAMPLE_JD)
 
         assert result.hard_skills == ["Python", "PyTorch", "SQL"]
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_groq_client")
     def test_priority_keywords_populated(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(KEYWORD_RESPONSE)
+        mock_get_client.return_value.chat.completions.create.return_value = _mock_groq_response(KEYWORD_RESPONSE)
 
         result = svc.extract_keywords(SAMPLE_JD)
 
         assert "Python" in result.priority_keywords
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_groq_client")
     def test_raw_response_preserved(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(KEYWORD_RESPONSE)
+        mock_get_client.return_value.chat.completions.create.return_value = _mock_groq_response(KEYWORD_RESPONSE)
 
         result = svc.extract_keywords(SAMPLE_JD)
 
         assert result.raw_response  # non-empty
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_groq_client")
     def test_missing_fields_default_to_empty_list(self, mock_get_client):
-        # Claude returns a response with some fields missing
         partial = {"hard_skills": ["Python"]}
-        mock_get_client.return_value.messages.create.return_value = _mock_message(partial)
+        mock_get_client.return_value.chat.completions.create.return_value = _mock_groq_response(partial)
 
         result = svc.extract_keywords(SAMPLE_JD)
 
         assert result.soft_skills == []
         assert result.certifications == []
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_groq_client")
     def test_raises_on_invalid_json_response(self, mock_get_client):
         msg = MagicMock()
-        msg.content = [MagicMock()]
-        msg.content[0].text = "Sorry, I cannot process that request."
-        mock_get_client.return_value.messages.create.return_value = msg
+        msg.choices = [MagicMock()]
+        msg.choices[0].message.content = "Sorry, I cannot process that request."
+        mock_get_client.return_value.chat.completions.create.return_value = msg
 
         with pytest.raises(ValueError, match="non-JSON"):
             svc.extract_keywords(SAMPLE_JD)
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_groq_client")
     def test_api_called_with_correct_model(self, mock_get_client):
-        mock_create = mock_get_client.return_value.messages.create
-        mock_create.return_value = _mock_message(KEYWORD_RESPONSE)
+        mock_create = mock_get_client.return_value.chat.completions.create
+        mock_create.return_value = _mock_groq_response(KEYWORD_RESPONSE)
 
         svc.extract_keywords(SAMPLE_JD)
 
         call_kwargs = mock_create.call_args.kwargs
-        assert call_kwargs["model"] == svc.MODEL
+        assert call_kwargs["model"] == svc.GROQ_MODEL
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_groq_client")
     def test_jd_text_appears_in_prompt(self, mock_get_client):
-        mock_create = mock_get_client.return_value.messages.create
-        mock_create.return_value = _mock_message(KEYWORD_RESPONSE)
+        mock_create = mock_get_client.return_value.chat.completions.create
+        mock_create.return_value = _mock_groq_response(KEYWORD_RESPONSE)
 
         svc.extract_keywords(SAMPLE_JD)
 
         call_kwargs = mock_create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
+        user_content = call_kwargs["messages"][1]["content"]
         assert SAMPLE_JD in user_content
 
 
@@ -210,7 +323,7 @@ class TestExtractKeywords:
 # ---------------------------------------------------------------------------
 
 class TestTailorResume:
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_anthropic_client")
     def test_returns_tailored_resume(self, mock_get_client):
         mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)
 
@@ -218,7 +331,7 @@ class TestTailorResume:
 
         assert isinstance(result, TailoredResume)
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_anthropic_client")
     def test_summary_populated(self, mock_get_client):
         mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)
 
@@ -226,7 +339,7 @@ class TestTailorResume:
 
         assert "PyTorch" in result.summary
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_anthropic_client")
     def test_experience_count_matches(self, mock_get_client):
         mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)
 
@@ -234,7 +347,7 @@ class TestTailorResume:
 
         assert len(result.experiences) == 1
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_anthropic_client")
     def test_bullets_have_original_and_tailored(self, mock_get_client):
         mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)
 
@@ -245,7 +358,7 @@ class TestTailorResume:
         assert bullet.tailored
         assert bullet.original != bullet.tailored
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_anthropic_client")
     def test_keywords_injected_field_present(self, mock_get_client):
         mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)
 
@@ -255,7 +368,7 @@ class TestTailorResume:
         assert isinstance(bullet.keywords_injected, list)
         assert "PyTorch" in bullet.keywords_injected
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_anthropic_client")
     def test_skills_to_highlight_populated(self, mock_get_client):
         mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)
 
@@ -263,7 +376,7 @@ class TestTailorResume:
 
         assert len(result.skills_to_highlight) > 0
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_anthropic_client")
     def test_raises_on_invalid_json_response(self, mock_get_client):
         msg = MagicMock()
         msg.content = [MagicMock()]
@@ -273,7 +386,7 @@ class TestTailorResume:
         with pytest.raises(ValueError, match="non-JSON"):
             svc.tailor_resume(SAMPLE_RESUME, SAMPLE_JD, [])
 
-    @patch("claude_service._get_client")
+    @patch("claude_service._get_anthropic_client")
     def test_selected_keywords_appear_in_prompt(self, mock_get_client):
         mock_create = mock_get_client.return_value.messages.create
         mock_create.return_value = _mock_message(TAILORING_RESPONSE)
@@ -285,71 +398,77 @@ class TestTailorResume:
         assert "PyTorch" in user_content
         assert "Kubernetes" in user_content
 
+    @patch("claude_service._get_anthropic_client")
+    def test_bullets_are_truncated(self, mock_get_client):
+        # Create a response where a tailored bullet is very long (180 chars)
+        long_bullet = "A" * 180
+        response = {
+            "summary": "Summary",
+            "experiences": [
+                {
+                    "company": "Acme Corp",
+                    "title": "ML Engineer",
+                    "tailored_bullets": [
+                        {
+                            "original": "Orig",
+                            "tailored": long_bullet,
+                            "keywords_injected": ["A"],
+                        }
+                    ],
+                }
+            ],
+            "skills_to_highlight": ["A"],
+        }
+        mock_get_client.return_value.messages.create.return_value = _mock_message(response)
+        result = svc.tailor_resume(SAMPLE_RESUME, SAMPLE_JD, [])
+        bullet = result.experiences[0].tailored_bullets[0]
+        assert len(bullet.tailored) == 164
+        assert bullet.tailored == "A" * 164
+
+    @patch("claude_service._get_anthropic_client")
+    def test_skills_to_add_populated_from_keywords(self, mock_get_client):
+        mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)
+        result = svc.tailor_resume(SAMPLE_RESUME, SAMPLE_JD, ["fastapi", "tailwind"])
+        assert "backend" in result.skills_to_add
+        assert "FastAPI" in result.skills_to_add["backend"]
+        assert "Tailwind" in result.skills_to_add["frontend"]
+
 
 # ---------------------------------------------------------------------------
 # score_resume
 # ---------------------------------------------------------------------------
 
 class TestScoreResume:
-    @patch("claude_service._get_client")
-    def test_returns_ats_score_result(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(SCORING_RESPONSE)
-
-        result = svc.score_resume(TAILORING_RESPONSE, SAMPLE_JD)
-
+    def test_returns_ats_score_result(self):
+        result = svc.score_resume(SAMPLE_TAILORED_RESUME_DICT, SAMPLE_JD)
         assert isinstance(result, ATSScoreResult)
 
-    @patch("claude_service._get_client")
-    def test_overall_score_in_range(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(SCORING_RESPONSE)
-
-        result = svc.score_resume(TAILORING_RESPONSE, SAMPLE_JD)
-
+    def test_overall_score_in_range(self):
+        result = svc.score_resume(SAMPLE_TAILORED_RESUME_DICT, SAMPLE_JD)
         assert 0 <= result.overall_score <= 100
 
-    @patch("claude_service._get_client")
-    def test_keyword_coverage_is_float(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(SCORING_RESPONSE)
-
-        result = svc.score_resume(TAILORING_RESPONSE, SAMPLE_JD)
-
+    def test_keyword_coverage_is_float(self):
+        result = svc.score_resume(SAMPLE_TAILORED_RESUME_DICT, SAMPLE_JD)
         assert isinstance(result.keyword_coverage, float)
         assert 0.0 <= result.keyword_coverage <= 1.0
 
-    @patch("claude_service._get_client")
-    def test_matched_and_missing_keywords_populated(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(SCORING_RESPONSE)
-
-        result = svc.score_resume(TAILORING_RESPONSE, SAMPLE_JD)
-
+    def test_matched_and_missing_keywords_populated(self):
+        # We need to supply selected_keywords as keyword_coverage check uses them
+        result = svc.score_resume(
+            SAMPLE_TAILORED_RESUME_DICT,
+            SAMPLE_JD,
+            selected_keywords=["Python", "AWS SageMaker"]
+        )
         assert "Python" in result.matched_keywords
         assert "AWS SageMaker" in result.missing_keywords
 
-    @patch("claude_service._get_client")
-    def test_suggestions_is_list(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message(SCORING_RESPONSE)
-
-        result = svc.score_resume(TAILORING_RESPONSE, SAMPLE_JD)
-
+    def test_suggestions_is_list(self):
+        result = svc.score_resume(SAMPLE_TAILORED_RESUME_DICT, SAMPLE_JD)
         assert isinstance(result.suggestions, list)
         assert len(result.suggestions) > 0
 
-    @patch("claude_service._get_client")
-    def test_raises_on_invalid_json_response(self, mock_get_client):
-        msg = MagicMock()
-        msg.content = [MagicMock()]
-        msg.content[0].text = "Your resume scores well overall."
-        mock_get_client.return_value.messages.create.return_value = msg
-
-        with pytest.raises(ValueError, match="non-JSON"):
-            svc.score_resume(TAILORING_RESPONSE, SAMPLE_JD)
-
-    @patch("claude_service._get_client")
-    def test_defaults_on_missing_score_fields(self, mock_get_client):
-        mock_get_client.return_value.messages.create.return_value = _mock_message({})
-
-        result = svc.score_resume(TAILORING_RESPONSE, SAMPLE_JD)
-
+    def test_defaults_on_missing_score_fields(self):
+        result = svc.score_resume({}, SAMPLE_JD)
         assert result.overall_score == 0
         assert result.keyword_coverage == 0.0
         assert result.matched_keywords == []
