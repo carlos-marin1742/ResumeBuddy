@@ -163,6 +163,9 @@ def validate_keywords_in_text(text: str, keywords: list[str]) -> list[str]:
 # Skill category mapping helpers
 # ---------------------------------------------------------------------------
 
+# Standard tech category keys — used to detect non-tech (admin/clinical) resumes
+STANDARD_TECH_CATEGORIES = {"languages", "ai_ml", "backend", "frontend", "databases_cloud", "tools"}
+
 SKILL_TO_CATEGORY = {
     # languages
     "python": "languages", "typescript": "languages", "javascript": "languages",
@@ -348,44 +351,43 @@ PREFERRED_SKILL_CASING = {
     "npm": "npm", "pip": "pip", "poetry": "Poetry", "eslint": "ESLint",
     # clinical_research
     "clinical trials": "Clinical Trials", "clinical trial": "Clinical Trials",
-    "good clinical practice": "GCP (Good Clinical Practice)", "gcp guidelines": "GCP (Good Clinical Practice)",
-    "ich guidelines": "ICH Guidelines", "ich e6": "ICH E6",
-    "irb": "IRB", "institutional review board": "IRB",
+    "good clinical practice": "GCP (Good Clinical Practice)",
+    "gcp guidelines": "GCP (Good Clinical Practice)", "ich guidelines": "ICH Guidelines",
+    "ich e6": "ICH E6", "irb": "IRB", "institutional review board": "IRB",
     "fda regulations": "FDA Regulations", "21 cfr": "21 CFR",
-    "21 cfr part 11": "21 CFR Part 11", "ind": "IND",
-    "nda": "NDA", "bla": "BLA",
+    "21 cfr part 11": "21 CFR Part 11", "ind": "IND", "nda": "NDA", "bla": "BLA",
     "protocol development": "Protocol Development", "protocol deviation": "Protocol Deviation",
-    "crf": "CRF", "case report form": "CRF",
-    "edc": "EDC", "electronic data capture": "EDC",
-    "adverse event reporting": "Adverse Event Reporting", "adverse events": "Adverse Events",
-    "pharmacovigilance": "Pharmacovigilance", "drug safety": "Drug Safety",
-    "informed consent": "Informed Consent", "econsent": "eConsent",
-    "clinical monitoring": "Clinical Monitoring", "source data verification": "SDV",
-    "sdv": "SDV", "risk-based monitoring": "Risk-Based Monitoring",
-    "ctms": "CTMS", "clinical trial management system": "CTMS",
-    "cdisc": "CDISC", "cdash": "CDASH", "sdtm": "SDTM",
-    "adam": "ADaM", "clinical data management": "Clinical Data Management",
-    "redcap": "REDCap", "medidata rave": "Medidata Rave",
-    "medidata": "Medidata", "rave": "Medidata Rave",
-    "veeva vault": "Veeva Vault", "oracle clinical": "Oracle Clinical",
-    "openclinica": "OpenClinica",
+    "crf": "CRF", "case report form": "CRF", "edc": "EDC",
+    "electronic data capture": "EDC", "adverse event reporting": "Adverse Event Reporting",
+    "adverse events": "Adverse Events", "pharmacovigilance": "Pharmacovigilance",
+    "drug safety": "Drug Safety", "informed consent": "Informed Consent",
+    "econsent": "eConsent", "clinical monitoring": "Clinical Monitoring",
+    "source data verification": "SDV", "sdv": "SDV",
+    "risk-based monitoring": "Risk-Based Monitoring", "ctms": "CTMS",
+    "clinical trial management system": "CTMS", "cdisc": "CDISC", "cdash": "CDASH",
+    "sdtm": "SDTM", "adam": "ADaM", "clinical data management": "Clinical Data Management",
+    "redcap": "REDCap", "medidata rave": "Medidata Rave", "medidata": "Medidata",
+    "rave": "Medidata Rave", "veeva vault": "Veeva Vault",
+    "oracle clinical": "Oracle Clinical", "openclinica": "OpenClinica",
     "medical writing": "Medical Writing", "clinical study report": "Clinical Study Report",
-    "regulatory submissions": "Regulatory Submissions", "regulatory affairs": "Regulatory Affairs",
-    "gmp": "GMP", "good manufacturing practice": "GMP",
-    "glp": "GLP", "good laboratory practice": "GLP",
-    "sops": "SOPs", "standard operating procedures": "SOPs",
-    "clinical operations": "Clinical Operations", "site management": "Site Management",
-    "patient recruitment": "Patient Recruitment", "subject recruitment": "Subject Recruitment",
-    "tmf": "TMF", "trial master file": "TMF",
-    "dsmb": "DSMB", "data safety monitoring": "Data Safety Monitoring",
-    "biostatistics": "Biostatistics", "clinical research associate": "CRA",
-    "cra": "CRA", "clinical research coordinator": "CRC",
-    "crc": "CRC", "phase i": "Phase I", "phase ii": "Phase II",
-    "phase iii": "Phase III", "phase iv": "Phase IV",
-    "cro": "CRO", "contract research organization": "CRO",
-    "data integrity": "Data Integrity", "post-market surveillance": "Post-Market Surveillance",
+    "regulatory submissions": "Regulatory Submissions",
+    "regulatory affairs": "Regulatory Affairs", "gmp": "GMP",
+    "good manufacturing practice": "GMP", "glp": "GLP",
+    "good laboratory practice": "GLP", "sops": "SOPs",
+    "standard operating procedures": "SOPs", "clinical operations": "Clinical Operations",
+    "site management": "Site Management", "patient recruitment": "Patient Recruitment",
+    "subject recruitment": "Subject Recruitment", "tmf": "TMF",
+    "trial master file": "TMF", "dsmb": "DSMB",
+    "data safety monitoring": "Data Safety Monitoring", "biostatistics": "Biostatistics",
+    "clinical research associate": "CRA", "cra": "CRA",
+    "clinical research coordinator": "CRC", "crc": "CRC",
+    "phase i": "Phase I", "phase ii": "Phase II", "phase iii": "Phase III",
+    "phase iv": "Phase IV", "cro": "CRO",
+    "contract research organization": "CRO", "data integrity": "Data Integrity",
+    "post-market surveillance": "Post-Market Surveillance",
     # administrative
-    "microsoft office": "Microsoft Office Suite", "microsoft office suite": "Microsoft Office Suite",
+    "microsoft office": "Microsoft Office Suite",
+    "microsoft office suite": "Microsoft Office Suite",
     "ms office": "Microsoft Office Suite", "word": "Microsoft Word",
     "microsoft word": "Microsoft Word", "excel": "Microsoft Excel",
     "microsoft excel": "Microsoft Excel", "powerpoint": "PowerPoint",
@@ -397,7 +399,8 @@ PREFERRED_SKILL_CASING = {
     "google sheets": "Google Sheets", "google slides": "Google Slides",
     "google drive": "Google Drive", "google calendar": "Google Calendar",
     "calendar management": "Calendar Management", "scheduling": "Scheduling",
-    "travel coordination": "Travel Coordination", "travel arrangements": "Travel Arrangements",
+    "travel coordination": "Travel Coordination",
+    "travel arrangements": "Travel Arrangements",
     "expense reporting": "Expense Reporting", "expense management": "Expense Management",
     "concur": "Concur", "quickbooks": "QuickBooks",
     "accounts payable": "Accounts Payable", "accounts receivable": "Accounts Receivable",
@@ -414,7 +417,8 @@ PREFERRED_SKILL_CASING = {
     "data entry": "Data Entry", "records management": "Records Management",
     "document management": "Document Management", "filing systems": "Filing Systems",
     "office management": "Office Management", "executive support": "Executive Support",
-    "administrative support": "Administrative Support", "executive assistant": "Executive Assistant",
+    "administrative support": "Administrative Support",
+    "executive assistant": "Executive Assistant",
     "meeting coordination": "Meeting Coordination", "meeting minutes": "Meeting Minutes",
     "correspondence management": "Correspondence Management", "reception": "Reception",
     "front desk": "Front Desk", "multi-line phone systems": "Multi-Line Phone Systems",
@@ -525,17 +529,32 @@ def determine_skills_to_add(
     return skills_to_add
 
 
-def determine_skills_to_show(job_description: str, selected_keywords: list[str]) -> list[str]:
+def determine_skills_to_show(
+    job_description: str,
+    selected_keywords: list[str],
+    base_skills: dict | None = None,
+) -> list[str]:
     """
-    Determines which skill categories should be shown on the resume based on the
-    job description text and selected keywords.
+    Determines which skill categories should be shown on the resume.
+
+    For admin/clinical resumes (non-standard category keys), returns all
+    existing categories unchanged. For tech resumes, filters by JD relevance.
     """
+    # ── Non-tech resume detection ─────────────────────────────────────────
+    # If the resume uses categories outside the standard tech set (e.g.
+    # "Administrative Operations", "Software Data", "Communication Leadership"),
+    # return all of them as-is — the tech filter logic doesn't apply.
+    if base_skills:
+        resume_cats = set(base_skills.keys())
+        if not resume_cats.intersection(STANDARD_TECH_CATEGORIES):
+            return list(resume_cats)
+
+    # ── Tech resume logic ─────────────────────────────────────────────────
     jd_lower = job_description.lower()
     skills_to_show = ["languages"]
     categories_to_check = ["ai_ml", "backend", "frontend", "databases_cloud", "tools"]
 
     for category in categories_to_check:
-        # Check if any selected keyword maps to this category
         has_keyword_match = any(
             SKILL_TO_CATEGORY.get(kw.lower()) == category
             for kw in selected_keywords
@@ -544,7 +563,6 @@ def determine_skills_to_show(job_description: str, selected_keywords: list[str])
             skills_to_show.append(category)
             continue
 
-        # Check if the JD mentions any keyword from this category
         has_jd_match = any(
             re.search(rf"\b{re.escape(term)}\b", jd_lower)
             for term in CATEGORY_KEYWORDS.get(category, [])
@@ -754,7 +772,9 @@ Rules:
         projects=projects,
         skills_to_highlight=parsed.get("skills_to_highlight", []),
         skills_to_add=determine_skills_to_add(base_resume.get("skills", {}), selected_keywords),
-        skills_to_show=determine_skills_to_show(job_description, selected_keywords),
+        skills_to_show=determine_skills_to_show(
+            job_description, selected_keywords, base_resume.get("skills", {})
+        ),
         raw_response=raw,
     )
 
@@ -773,7 +793,6 @@ def score_resume(
     """
     selected_keywords = selected_keywords or []
 
-    # ── Build resume text corpus ──────────────────────────────────────────
     corpus_parts = []
     corpus_parts.append(tailored_resume.get("tailored_summary", ""))
 
@@ -803,7 +822,6 @@ def score_resume(
 
     corpus = _normalize(" ".join(corpus_parts))
 
-    # ── Match keywords ────────────────────────────────────────────────────
     matched = []
     missing = []
 
@@ -817,7 +835,6 @@ def score_resume(
     total = len(selected_keywords)
     coverage = len(matched) / total if total > 0 else 0.0
 
-    # ── Score calculation ─────────────────────────────────────────────────
     base_score = coverage * 70
     bonus = 0
     if tailored_resume.get("tailored_summary"):
@@ -829,9 +846,7 @@ def score_resume(
 
     overall_score = min(100, int(base_score + bonus))
 
-    # ── Generate suggestions ──────────────────────────────────────────────
     suggestions = []
-
     if missing:
         suggestions.append(
             f"Add these missing keywords to your resume: {', '.join(missing[:3])}."
