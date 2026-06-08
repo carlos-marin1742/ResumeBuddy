@@ -147,13 +147,6 @@ def _normalize(text: str) -> str:
     return text.lower().translate(str.maketrans("", "", string.punctuation))
 
 
-def limit_character_count(text: str) -> str:
-    """Limits the character count of a bullet to less than 165 characters (maximum 164)."""
-    if len(text) >= 165:
-        return text[:164]
-    return text
-
-
 def validate_keywords_in_text(text: str, keywords: list[str]) -> list[str]:
     """
     Returns the subset of keywords that actually appear in text,
@@ -166,342 +159,115 @@ def validate_keywords_in_text(text: str, keywords: list[str]) -> list[str]:
     ]
 
 
+# ---------------------------------------------------------------------------
+# Skill category mapping helpers
+# ---------------------------------------------------------------------------
+
 SKILL_TO_CATEGORY = {
     # languages
-    "python": "languages",
-    "typescript": "languages",
-    "javascript": "languages",
-    "js": "languages",
-    "ts": "languages",
-    "html5": "languages",
-    "html": "languages",
-    "css3": "languages",
-    "css": "languages",
-    "sql": "languages",
-    "go": "languages",
-    "golang": "languages",
-    "c++": "languages",
-    "c#": "languages",
-    "java": "languages",
-    "ruby": "languages",
-    "rust": "languages",
-    "php": "languages",
-    "swift": "languages",
-    "kotlin": "languages",
-    "scala": "languages",
-    "r": "languages",
-    "shell": "languages",
+    "python": "languages", "typescript": "languages", "javascript": "languages",
+    "js": "languages", "ts": "languages", "html5": "languages", "html": "languages",
+    "css3": "languages", "css": "languages", "sql": "languages", "go": "languages",
+    "golang": "languages", "c++": "languages", "c#": "languages", "java": "languages",
+    "ruby": "languages", "rust": "languages", "php": "languages", "swift": "languages",
+    "kotlin": "languages", "scala": "languages", "r": "languages", "shell": "languages",
     "bash": "languages",
 
     # ai_ml
-    "llms": "ai_ml",
-    "large language models": "ai_ml",
-    "gemini": "ai_ml",
-    "gpt": "ai_ml",
-    "llama": "ai_ml",
-    "claude": "ai_ml",
-    "langchain": "ai_ml",
-    "llamaindex": "ai_ml",
-    "crewai": "ai_ml",
-    "autogen": "ai_ml",
-    "rag": "ai_ml",
-    "retrieval-augmented generation": "ai_ml",
-    "prompt engineering": "ai_ml",
-    "computer vision": "ai_ml",
-    "nlp": "ai_ml",
-    "natural language processing": "ai_ml",
-    "pytorch": "ai_ml",
-    "tensorflow": "ai_ml",
-    "scikit-learn": "ai_ml",
-    "sklearn": "ai_ml",
-    "keras": "ai_ml",
-    "pandas": "ai_ml",
-    "numpy": "ai_ml",
-    "opencv": "ai_ml",
-    "yolo": "ai_ml",
-    "yolov8": "ai_ml",
-    "huggingface": "ai_ml",
-    "transformers": "ai_ml",
-    "deep learning": "ai_ml",
-    "machine learning": "ai_ml",
-    "ml": "ai_ml",
-    "generative ai": "ai_ml",
-    "vertex ai": "ai_ml",
-    "spacy": "ai_ml",
-    "nltk": "ai_ml",
+    "llms": "ai_ml", "large language models": "ai_ml", "gemini": "ai_ml", "gpt": "ai_ml",
+    "llama": "ai_ml", "claude": "ai_ml", "langchain": "ai_ml", "llamaindex": "ai_ml",
+    "crewai": "ai_ml", "autogen": "ai_ml", "rag": "ai_ml",
+    "retrieval-augmented generation": "ai_ml", "prompt engineering": "ai_ml",
+    "computer vision": "ai_ml", "nlp": "ai_ml", "natural language processing": "ai_ml",
+    "pytorch": "ai_ml", "tensorflow": "ai_ml", "scikit-learn": "ai_ml", "sklearn": "ai_ml",
+    "keras": "ai_ml", "pandas": "ai_ml", "numpy": "ai_ml", "opencv": "ai_ml",
+    "yolo": "ai_ml", "yolov8": "ai_ml", "huggingface": "ai_ml", "transformers": "ai_ml",
+    "deep learning": "ai_ml", "machine learning": "ai_ml", "ml": "ai_ml",
+    "generative ai": "ai_ml", "vertex ai": "ai_ml", "spacy": "ai_ml", "nltk": "ai_ml",
 
     # backend
-    "fastapi": "backend",
-    "flask": "backend",
-    "django": "backend",
-    "node.js": "backend",
-    "nodejs": "backend",
-    "express": "backend",
-    "express.js": "backend",
-    "nestjs": "backend",
-    "spring": "backend",
-    "spring boot": "backend",
-    "ruby on rails": "backend",
-    "rails": "backend",
-    "asp.net": "backend",
-    "graphql": "backend",
-    "rest apis": "backend",
-    "rest api": "backend",
-    "grpc": "backend",
-    "microservices": "backend",
-    "apis": "backend",
-    "api": "backend",
+    "fastapi": "backend", "flask": "backend", "django": "backend", "node.js": "backend",
+    "nodejs": "backend", "express": "backend", "express.js": "backend", "nestjs": "backend",
+    "spring": "backend", "spring boot": "backend", "ruby on rails": "backend",
+    "rails": "backend", "asp.net": "backend", "graphql": "backend",
+    "rest apis": "backend", "rest api": "backend", "grpc": "backend",
+    "microservices": "backend", "apis": "backend", "api": "backend",
 
     # frontend
-    "react": "frontend",
-    "react.js": "frontend",
-    "reactjs": "frontend",
-    "angular": "frontend",
-    "vue": "frontend",
-    "vue.js": "frontend",
-    "vuejs": "frontend",
-    "next.js": "frontend",
-    "nextjs": "frontend",
-    "svelte": "frontend",
-    "tailwind": "frontend",
-    "tailwindcss": "frontend",
-    "bootstrap": "frontend",
-    "jquery": "frontend",
-    "sass": "frontend",
-    "streamlit": "frontend",
-    "vite": "frontend",
-    "webpack": "frontend",
+    "react": "frontend", "react.js": "frontend", "reactjs": "frontend",
+    "angular": "frontend", "vue": "frontend", "vue.js": "frontend", "vuejs": "frontend",
+    "next.js": "frontend", "nextjs": "frontend", "svelte": "frontend",
+    "tailwind": "frontend", "tailwindcss": "frontend", "bootstrap": "frontend",
+    "jquery": "frontend", "sass": "frontend", "streamlit": "frontend",
+    "vite": "frontend", "webpack": "frontend",
 
     # databases_cloud
-    "postgresql": "databases_cloud",
-    "postgres": "databases_cloud",
-    "mysql": "databases_cloud",
-    "mongodb": "databases_cloud",
-    "redis": "databases_cloud",
-    "dynamodb": "databases_cloud",
-    "sqlite": "databases_cloud",
-    "cassandra": "databases_cloud",
-    "elasticsearch": "databases_cloud",
-    "aws": "databases_cloud",
-    "gcp": "databases_cloud",
-    "azure": "databases_cloud",
-    "google cloud": "databases_cloud",
-    "google cloud platform": "databases_cloud",
-    "amazon web services": "databases_cloud",
-    "kubernetes": "databases_cloud",
-    "k8s": "databases_cloud",
-    "docker": "databases_cloud",
-    "terraform": "databases_cloud",
-    "ansible": "databases_cloud",
-    "jenkins": "databases_cloud",
-    "github actions": "databases_cloud",
-    "pyspark": "databases_cloud",
-    "spark": "databases_cloud",
-    "hadoop": "databases_cloud",
-    "pinecone": "databases_cloud",
-    "chroma": "databases_cloud",
-    "chromadb": "databases_cloud",
-    "vector databases": "databases_cloud",
-    "vector database": "databases_cloud",
-    "cloud deployment": "databases_cloud",
+    "postgresql": "databases_cloud", "postgres": "databases_cloud", "mysql": "databases_cloud",
+    "mongodb": "databases_cloud", "redis": "databases_cloud", "dynamodb": "databases_cloud",
+    "sqlite": "databases_cloud", "cassandra": "databases_cloud",
+    "elasticsearch": "databases_cloud", "aws": "databases_cloud", "gcp": "databases_cloud",
+    "azure": "databases_cloud", "google cloud": "databases_cloud",
+    "google cloud platform": "databases_cloud", "amazon web services": "databases_cloud",
+    "kubernetes": "databases_cloud", "k8s": "databases_cloud", "docker": "databases_cloud",
+    "terraform": "databases_cloud", "ansible": "databases_cloud", "jenkins": "databases_cloud",
+    "github actions": "databases_cloud", "pyspark": "databases_cloud", "spark": "databases_cloud",
+    "hadoop": "databases_cloud", "pinecone": "databases_cloud", "chroma": "databases_cloud",
+    "chromadb": "databases_cloud", "vector databases": "databases_cloud",
+    "vector database": "databases_cloud", "cloud deployment": "databases_cloud",
 
     # tools
-    "git": "tools",
-    "github": "tools",
-    "gitlab": "tools",
-    "jira": "tools",
-    "confluence": "tools",
-    "cursor": "tools",
-    "vscode": "tools",
-    "vs code": "tools",
-    "pydantic": "tools",
-    "postman": "tools",
-    "npm": "tools",
-    "pip": "tools",
-    "poetry": "tools",
-    "eslint": "tools",
+    "git": "tools", "github": "tools", "gitlab": "tools", "jira": "tools",
+    "confluence": "tools", "cursor": "tools", "vscode": "tools", "vs code": "tools",
+    "pydantic": "tools", "postman": "tools", "npm": "tools", "pip": "tools",
+    "poetry": "tools", "eslint": "tools",
 }
 
 PREFERRED_SKILL_CASING = {
-    "python": "Python",
-    "typescript": "TypeScript",
-    "javascript": "JavaScript",
-    "js": "JavaScript",
-    "ts": "TypeScript",
-    "html5": "HTML5",
-    "html": "HTML5",
-    "css3": "CSS3",
-    "css": "CSS3",
-    "sql": "SQL",
-    "go": "Go",
-    "golang": "Go",
-    "c++": "C++",
-    "c#": "C#",
-    "java": "Java",
-    "ruby": "Ruby",
-    "rust": "Rust",
-    "php": "PHP",
-    "swift": "Swift",
-    "kotlin": "Kotlin",
-    "scala": "Scala",
-    "r": "R",
-    "bash": "Bash",
-    "shell": "Shell Scripting",
-
-    "llms": "LLMs",
-    "large language models": "LLMs",
-    "gemini": "Gemini",
-    "gpt": "GPT",
-    "llama": "Llama",
-    "claude": "Claude",
-    "langchain": "LangChain",
-    "llamaindex": "LlamaIndex",
-    "crewai": "CrewAI",
-    "autogen": "AutoGen",
-    "rag": "RAG",
-    "retrieval-augmented generation": "RAG",
-    "prompt engineering": "Prompt Engineering",
-    "computer vision": "Computer Vision",
-    "nlp": "NLP",
-    "natural language processing": "NLP",
-    "pytorch": "PyTorch",
-    "tensorflow": "TensorFlow",
-    "scikit-learn": "Scikit-learn",
-    "sklearn": "Scikit-learn",
-    "keras": "Keras",
-    "pandas": "Pandas",
-    "numpy": "NumPy",
-    "opencv": "OpenCV",
-    "yolo": "YOLO",
-    "yolov8": "YOLOv8",
-    "huggingface": "HuggingFace",
-    "transformers": "Transformers",
-    "deep learning": "Deep Learning",
-    "machine learning": "Machine Learning",
-    "ml": "Machine Learning",
-    "generative ai": "Generative AI",
-    "vertex ai": "Vertex AI",
-    "spacy": "spaCy",
-    "nltk": "NLTK",
-
-    "fastapi": "FastAPI",
-    "flask": "Flask",
-    "django": "Django",
-    "node.js": "Node.js",
-    "nodejs": "Node.js",
-    "express": "Express.js",
-    "express.js": "Express.js",
-    "nestjs": "NestJS",
-    "spring": "Spring",
-    "spring boot": "Spring Boot",
-    "ruby on rails": "Ruby on Rails",
-    "rails": "Ruby on Rails",
-    "asp.net": "ASP.NET",
-    "graphql": "GraphQL",
-    "rest apis": "REST APIs",
-    "rest api": "REST APIs",
-    "grpc": "gRPC",
-    "microservices": "Microservices",
-
-    "react": "React",
-    "react.js": "React",
-    "reactjs": "React",
-    "angular": "Angular",
-    "vue": "Vue",
-    "vue.js": "Vue",
-    "vuejs": "Vue",
-    "next.js": "Next.js",
-    "nextjs": "Next.js",
-    "svelte": "Svelte",
-    "tailwind": "Tailwind",
-    "tailwindcss": "Tailwind CSS",
-    "bootstrap": "Bootstrap",
-    "jquery": "jQuery",
-    "sass": "Sass",
-    "streamlit": "Streamlit",
-    "vite": "Vite",
-    "webpack": "Webpack",
-
-    "postgresql": "PostgreSQL",
-    "postgres": "PostgreSQL",
-    "mysql": "MySQL",
-    "mongodb": "MongoDB",
-    "redis": "Redis",
-    "dynamodb": "DynamoDB",
-    "sqlite": "SQLite",
-    "cassandra": "Cassandra",
-    "elasticsearch": "Elasticsearch",
-    "aws": "AWS",
-    "gcp": "GCP",
-    "azure": "Azure",
-    "google cloud": "GCP",
-    "google cloud platform": "GCP",
-    "amazon web services": "AWS",
-    "kubernetes": "Kubernetes",
-    "k8s": "Kubernetes",
-    "docker": "Docker",
-    "terraform": "Terraform",
-    "ansible": "Ansible",
-    "jenkins": "Jenkins",
-    "github actions": "GitHub Actions",
-    "pyspark": "PySpark",
-    "spark": "Spark",
-    "hadoop": "Hadoop",
-    "pinecone": "Pinecone",
-    "chroma": "ChromaDB",
-    "chromadb": "ChromaDB",
-    "vector databases": "Vector Databases",
-    "vector database": "Vector Databases",
-    "cloud deployment": "Cloud Deployment",
-
-    "git": "Git",
-    "github": "GitHub",
-    "gitlab": "GitLab",
-    "jira": "Jira",
-    "confluence": "Confluence",
-    "cursor": "Cursor",
-    "vscode": "VS Code",
-    "vs code": "VS Code",
-    "pydantic": "Pydantic",
-    "postman": "Postman",
-    "npm": "npm",
-    "pip": "pip",
-    "poetry": "Poetry",
-    "eslint": "ESLint",
+    "python": "Python", "typescript": "TypeScript", "javascript": "JavaScript",
+    "js": "JavaScript", "ts": "TypeScript", "html5": "HTML5", "html": "HTML5",
+    "css3": "CSS3", "css": "CSS3", "sql": "SQL", "go": "Go", "golang": "Go",
+    "c++": "C++", "c#": "C#", "java": "Java", "ruby": "Ruby", "rust": "Rust",
+    "php": "PHP", "swift": "Swift", "kotlin": "Kotlin", "scala": "Scala",
+    "r": "R", "bash": "Bash", "shell": "Shell Scripting",
+    "llms": "LLMs", "large language models": "LLMs", "gemini": "Gemini", "gpt": "GPT",
+    "llama": "Llama", "claude": "Claude", "langchain": "LangChain",
+    "llamaindex": "LlamaIndex", "crewai": "CrewAI", "autogen": "AutoGen", "rag": "RAG",
+    "retrieval-augmented generation": "RAG", "prompt engineering": "Prompt Engineering",
+    "computer vision": "Computer Vision", "nlp": "NLP",
+    "natural language processing": "NLP", "pytorch": "PyTorch",
+    "tensorflow": "TensorFlow", "scikit-learn": "Scikit-learn", "sklearn": "Scikit-learn",
+    "keras": "Keras", "pandas": "Pandas", "numpy": "NumPy", "opencv": "OpenCV",
+    "yolo": "YOLO", "yolov8": "YOLOv8", "huggingface": "HuggingFace",
+    "transformers": "Transformers", "deep learning": "Deep Learning",
+    "machine learning": "Machine Learning", "ml": "Machine Learning",
+    "generative ai": "Generative AI", "vertex ai": "Vertex AI", "spacy": "spaCy",
+    "nltk": "NLTK", "fastapi": "FastAPI", "flask": "Flask", "django": "Django",
+    "node.js": "Node.js", "nodejs": "Node.js", "express": "Express.js",
+    "express.js": "Express.js", "nestjs": "NestJS", "spring": "Spring",
+    "spring boot": "Spring Boot", "ruby on rails": "Ruby on Rails", "rails": "Ruby on Rails",
+    "asp.net": "ASP.NET", "graphql": "GraphQL", "rest apis": "REST APIs",
+    "rest api": "REST APIs", "grpc": "gRPC", "microservices": "Microservices",
+    "react": "React", "react.js": "React", "reactjs": "React", "angular": "Angular",
+    "vue": "Vue", "vue.js": "Vue", "vuejs": "Vue", "next.js": "Next.js",
+    "nextjs": "Next.js", "svelte": "Svelte", "tailwind": "Tailwind",
+    "tailwindcss": "Tailwind CSS", "bootstrap": "Bootstrap", "jquery": "jQuery",
+    "sass": "Sass", "streamlit": "Streamlit", "vite": "Vite", "webpack": "Webpack",
+    "postgresql": "PostgreSQL", "postgres": "PostgreSQL", "mysql": "MySQL",
+    "mongodb": "MongoDB", "redis": "Redis", "dynamodb": "DynamoDB", "sqlite": "SQLite",
+    "cassandra": "Cassandra", "elasticsearch": "Elasticsearch", "aws": "AWS",
+    "gcp": "GCP", "azure": "Azure", "google cloud": "GCP",
+    "google cloud platform": "GCP", "amazon web services": "AWS",
+    "kubernetes": "Kubernetes", "k8s": "Kubernetes", "docker": "Docker",
+    "terraform": "Terraform", "ansible": "Ansible", "jenkins": "Jenkins",
+    "github actions": "GitHub Actions", "pyspark": "PySpark", "spark": "Spark",
+    "hadoop": "Hadoop", "pinecone": "Pinecone", "chroma": "ChromaDB",
+    "chromadb": "ChromaDB", "vector databases": "Vector Databases",
+    "vector database": "Vector Databases", "cloud deployment": "Cloud Deployment",
+    "git": "Git", "github": "GitHub", "gitlab": "GitLab", "jira": "Jira",
+    "confluence": "Confluence", "cursor": "Cursor", "vscode": "VS Code",
+    "vs code": "VS Code", "pydantic": "Pydantic", "postman": "Postman",
+    "npm": "npm", "pip": "pip", "poetry": "Poetry", "eslint": "ESLint",
 }
-
-
-def determine_skills_to_add(
-    base_skills: dict[str, list[str]],
-    selected_keywords: list[str]
-) -> dict[str, list[str]]:
-    """
-    Identifies selected keywords that are not present in the candidate's base skills
-    but map to known categories, and returns them structured by category.
-    """
-    existing_skills_lower = set()
-    for skill_list in base_skills.values():
-        for skill in skill_list:
-            existing_skills_lower.add(skill.lower())
-
-    skills_to_add = {}
-
-    for kw in selected_keywords:
-        kw_clean = kw.strip()
-        kw_lower = kw_clean.lower()
-
-        if kw_lower in SKILL_TO_CATEGORY and kw_lower not in existing_skills_lower:
-            category = SKILL_TO_CATEGORY[kw_lower]
-            presentation_name = PREFERRED_SKILL_CASING.get(kw_lower, kw_clean)
-
-            if category not in skills_to_add:
-                skills_to_add[category] = []
-            
-            if presentation_name not in skills_to_add[category]:
-                skills_to_add[category].append(presentation_name)
-
-    return skills_to_add
-
 
 CATEGORY_KEYWORDS = {
     "languages": [
@@ -536,6 +302,38 @@ CATEGORY_KEYWORDS = {
 }
 
 
+def determine_skills_to_add(
+    base_skills: dict[str, list[str]],
+    selected_keywords: list[str]
+) -> dict[str, list[str]]:
+    """
+    Identifies selected keywords not present in base skills that map to known
+    categories, and returns them structured by category.
+    """
+    existing_skills_lower = set()
+    for skill_list in base_skills.values():
+        for skill in skill_list:
+            existing_skills_lower.add(skill.lower())
+
+    skills_to_add: dict[str, list[str]] = {}
+
+    for kw in selected_keywords:
+        kw_clean = kw.strip()
+        kw_lower = kw_clean.lower()
+
+        if kw_lower in SKILL_TO_CATEGORY and kw_lower not in existing_skills_lower:
+            category = SKILL_TO_CATEGORY[kw_lower]
+            presentation_name = PREFERRED_SKILL_CASING.get(kw_lower, kw_clean)
+
+            if category not in skills_to_add:
+                skills_to_add[category] = []
+
+            if presentation_name not in skills_to_add[category]:
+                skills_to_add[category].append(presentation_name)
+
+    return skills_to_add
+
+
 def determine_skills_to_show(job_description: str, selected_keywords: list[str]) -> list[str]:
     """
     Determines which skill categories should be shown on the resume based on the
@@ -544,30 +342,25 @@ def determine_skills_to_show(job_description: str, selected_keywords: list[str])
     jd_lower = job_description.lower()
     skills_to_show = ["languages"]
     categories_to_check = ["ai_ml", "backend", "frontend", "databases_cloud", "tools"]
-    
+
     for category in categories_to_check:
         # Check if any selected keyword maps to this category
-        has_keyword_match = False
-        for kw in selected_keywords:
-            if SKILL_TO_CATEGORY.get(kw.lower()) == category:
-                has_keyword_match = True
-                break
-                
+        has_keyword_match = any(
+            SKILL_TO_CATEGORY.get(kw.lower()) == category
+            for kw in selected_keywords
+        )
         if has_keyword_match:
             skills_to_show.append(category)
             continue
-            
-        # Check if the job description mentions any keyword from this category
-        has_jd_match = False
-        for term in CATEGORY_KEYWORDS.get(category, []):
-            pattern = rf"\b{re.escape(term)}\b"
-            if re.search(pattern, jd_lower):
-                has_jd_match = True
-                break
-                
+
+        # Check if the JD mentions any keyword from this category
+        has_jd_match = any(
+            re.search(rf"\b{re.escape(term)}\b", jd_lower)
+            for term in CATEGORY_KEYWORDS.get(category, [])
+        )
         if has_jd_match:
             skills_to_show.append(category)
-            
+
     return skills_to_show
 
 
@@ -720,6 +513,7 @@ Rules:
 - Never remove quantified metrics (percentages, numbers, counts) from any bullet.
 - For project bullets: only append keywords to the END of the original bullet text where natural. Never rewrite, restructure, or remove any part of the original. If a keyword cannot be appended naturally, leave the bullet unchanged.
 - Never use fewer bullets than specified — a short resume wastes space.
+- Keep every bullet to a maximum of 165 characters. For project bullets where the original is already near the limit, skip the keyword append rather than truncating.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=CLAUDE_MAX_TOKENS)
 
@@ -735,7 +529,7 @@ Rules:
             tailored_bullets=[
                 TailoredBullet(
                     original=b.get("original", ""),
-                    tailored=limit_character_count(b.get("tailored", "")),
+                    tailored=b.get("tailored", ""),
                     keywords_injected=validate_keywords_in_text(
                         b.get("tailored", ""), selected_keywords
                     ),
@@ -752,7 +546,7 @@ Rules:
             tailored_bullets=[
                 TailoredBullet(
                     original=b.get("original", ""),
-                    tailored=limit_character_count(b.get("tailored", "")),
+                    tailored=b.get("tailored", ""),
                     keywords_injected=validate_keywords_in_text(
                         b.get("tailored", ""), selected_keywords
                     ),
@@ -785,27 +579,17 @@ def score_resume(
 ) -> ATSScoreResult:
     """
     Heuristic ATS scoring — fast, free, deterministic.
-
-    Strategy:
-    - Flatten all resume text into a searchable corpus
-    - Check each selected keyword against the corpus
-    - Score = matched / total * 100
-    - Generate actionable suggestions based on gap patterns
     """
     selected_keywords = selected_keywords or []
 
     # ── Build resume text corpus ──────────────────────────────────────────
     corpus_parts = []
-
-    # Summary
     corpus_parts.append(tailored_resume.get("tailored_summary", ""))
 
-    # Skills
     for skill_list in tailored_resume.get("skills", {}).values():
         if isinstance(skill_list, list):
             corpus_parts.extend(skill_list)
 
-    # Experience bullets
     for exp in tailored_resume.get("experience", []):
         corpus_parts.append(exp.get("title", ""))
         for bullet in exp.get("bullets", []):
@@ -814,7 +598,6 @@ def score_resume(
             else:
                 corpus_parts.append(str(bullet))
 
-    # Projects
     for proj in tailored_resume.get("projects", []):
         corpus_parts.append(proj.get("name", ""))
         for bullet in proj.get("bullets", []):
@@ -823,7 +606,6 @@ def score_resume(
             else:
                 corpus_parts.append(str(bullet))
 
-    # Certifications
     for cert in tailored_resume.get("certifications", []):
         corpus_parts.append(cert.get("name", ""))
         corpus_parts.append(cert.get("issuer", ""))
@@ -835,9 +617,7 @@ def score_resume(
     missing = []
 
     for kw in selected_keywords:
-        kw_normalized = _normalize(kw)
-        # Check if all words in the keyword appear in the corpus
-        kw_words = kw_normalized.split()
+        kw_words = _normalize(kw).split()
         if all(word in corpus for word in kw_words):
             matched.append(kw)
         else:
@@ -847,10 +627,7 @@ def score_resume(
     coverage = len(matched) / total if total > 0 else 0.0
 
     # ── Score calculation ─────────────────────────────────────────────────
-    # Base score from keyword coverage (70% weight)
-    # Bonus points for having summary, multiple experiences, certifications (30% weight)
     base_score = coverage * 70
-
     bonus = 0
     if tailored_resume.get("tailored_summary"):
         bonus += 10
@@ -865,16 +642,13 @@ def score_resume(
     suggestions = []
 
     if missing:
-        top_missing = missing[:3]
         suggestions.append(
-            f"Add these missing keywords to your resume: {', '.join(top_missing)}."
+            f"Add these missing keywords to your resume: {', '.join(missing[:3])}."
         )
-
     if coverage < 0.6:
         suggestions.append(
             "Keyword coverage is below 60%. Select more relevant keywords and regenerate."
         )
-
     if not tailored_resume.get("tailored_summary"):
         suggestions.append("Add a targeted summary section to improve ATS matching.")
 
@@ -886,14 +660,11 @@ def score_resume(
         suggestions.append(
             "Expand your skills section — more relevant skills improve ATS keyword density."
         )
-
     if len(missing) > len(matched):
         suggestions.append(
             "More than half your target keywords are missing. Consider selecting fewer, "
             "more relevant keywords or tailoring to a closer-match role."
         )
-
-    # Always give at least one suggestion
     if not suggestions:
         suggestions.append(
             "Strong keyword match. Review the missing keywords above and add any you genuinely have."
