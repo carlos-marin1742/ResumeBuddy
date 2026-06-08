@@ -1,6 +1,6 @@
 import "./ResumePreview.css";
 
-export default function ResumePreview({ result, apiBase, onBack, onReset }) {
+export default function ResumePreview({ result, apiBase, onBack, onReset, onPreviewPDF }) {
   const { summary, experiences, projects = [], skills_to_highlight, ats, pdf_url, generated_at } = result;
 
   const scoreColor =
@@ -28,8 +28,11 @@ export default function ResumePreview({ result, apiBase, onBack, onReset }) {
             <button className="btn btn-secondary btn-sm" onClick={onReset}>
               Start over
             </button>
-            <button className="btn btn-primary" onClick={handleDownload}>
+            <button className="btn btn-secondary" onClick={handleDownload}>
               ↓ Download PDF
+            </button>
+            <button className="btn btn-primary" onClick={onPreviewPDF}>
+              Preview &amp; Adjust →
             </button>
           </div>
         </div>
@@ -102,9 +105,7 @@ export default function ResumePreview({ result, apiBase, onBack, onReset }) {
           {/* Project bullets */}
           {projects.length > 0 && (
             <>
-              <div className="rp-section-divider">
-                <span>Projects</span>
-              </div>
+              <div className="rp-section-divider"><span>Projects</span></div>
               {projects.map((proj) => (
                 <section key={proj.name} className="rp-section card">
                   <div className="rp-section-header">
@@ -201,8 +202,11 @@ export default function ResumePreview({ result, apiBase, onBack, onReset }) {
             </div>
           )}
 
-          {/* Download */}
-          <button className="btn btn-primary rp-download-btn" onClick={handleDownload}>
+          {/* Preview & Download */}
+          <button className="btn btn-primary rp-download-btn" onClick={onPreviewPDF}>
+            Preview &amp; Adjust →
+          </button>
+          <button className="btn btn-secondary rp-download-btn" onClick={handleDownload}>
             ↓ Download PDF
           </button>
         </aside>

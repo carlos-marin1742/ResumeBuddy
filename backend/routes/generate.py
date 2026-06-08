@@ -24,6 +24,20 @@ OUTPUTS_DIR.mkdir(exist_ok=True)
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
+# ── In-memory store for tailored resume dicts (keyed by session_id) ───────────
+# Allows preview and custom download endpoints to access the last generated resume
+# without re-running Claude. Capped at 50 entries to avoid unbounded growth.
+RESUME_STORE: dict[str, dict] = {}
+RESUME_STORE_MAX = 50
+
+
+def _store_resume(session_id: str, resume_data: dict) -> None:
+    if len(RESUME_STORE) >= RESUME_STORE_MAX:
+        # Evict oldest entry
+        oldest = next(iter(RESUME_STORE))
+        del RESUME_STORE[oldest]
+    RESUME_STORE[session_id] = resume_data
+
 
 # ── Request / Response Models ─────────────────────────────────────────────────
 
@@ -67,6 +81,7 @@ class GenerateResponse(BaseModel):
     skills_added: dict[str, list[str]]
     ats: ATSPreview
     pdf_url: str
+    session_id: str        # used by preview and custom download endpoints
     generated_at: str
     resume_id: str
 
@@ -137,7 +152,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
                 updated_projects.append(proj)
         output["projects"] = updated_projects
 
-    # ── Merge new skills suggested by Python helper ────────────────────────────
+    # ── Merge new skills ──────────────────────────────────────────────────────
     if tailored.skills_to_add:
         skills = {k: list(v) for k, v in output.get("skills", {}).items()}
         for category, new_skills in tailored.skills_to_add.items():
@@ -153,7 +168,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
                         added_count += 1
         output["skills"] = skills
 
-    # ── Filter skills within categories to JD-relevant subset ─────────────────
+    # ── Filter skills within categories ───────────────────────────────────────
     if tailored.skills_to_filter:
         skills = {k: list(v) for k, v in output.get("skills", {}).items()}
         for category, keep_skills in tailored.skills_to_filter.items():
@@ -164,9 +179,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
                     skills[category] = filtered
         output["skills"] = skills
 
-    # ── Filter skills_order to only show relevant categories ──────────────────
-    # skills_to_show is computed by determine_skills_to_show which already
-    # handles admin/clinical (returns all categories) vs tech (filters by JD).
+    # ── Filter skills_order to relevant categories ────────────────────────────
     if tailored.skills_to_show:
         current_order = output.get("ats_config", {}).get("skills_order", [])
         filtered_order = [cat for cat in current_order if cat in tailored.skills_to_show]
@@ -197,11 +210,9 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
     if len(jd) > 20_000:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
-    # Step 1: Load base resume
     base_resume = _load_resume(request.resume_id)
     base_resume = _apply_summary_variant(base_resume, request.summary_variant)
 
-    # Step 2: Tailor via Claude
     try:
         tailored: TailoredResume = tailor_resume(
             base_resume=base_resume,
@@ -211,10 +222,8 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"Tailoring failed: {exc}")
 
-    # Step 3: Merge tailored content + new skills into full resume dict
     full_tailored_dict = _build_tailored_resume_dict(base_resume, tailored)
 
-    # Step 4: ATS scoring (heuristic)
     try:
         ats_result: ATSScoreResult = score_resume(
             tailored_resume=full_tailored_dict,
@@ -224,8 +233,10 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"ATS scoring failed: {exc}")
 
-    # Step 5: Build PDF
-    resume_id = uuid.uuid4().hex[:8]
+    # Store resume dict for preview/custom download
+    session_id = uuid.uuid4().hex
+    _store_resume(session_id, full_tailored_dict)
+
     pdf_filename = _unique_filename("resume", "pdf")
     pdf_path = OUTPUTS_DIR / pdf_filename
 
@@ -234,7 +245,6 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
 
-    # Step 6: Assemble response
     experience_preview = [
         ExperiencePreview(
             company=exp.company,
@@ -266,6 +276,8 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         for proj in tailored.projects
     ]
 
+    resume_id = uuid.uuid4().hex[:8]
+
     return GenerateResponse(
         summary=tailored.summary,
         experiences=experience_preview,
@@ -280,6 +292,7 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
             suggestions=ats_result.suggestions,
         ),
         pdf_url=f"/api/download/{pdf_filename}",
+        session_id=session_id,
         generated_at=datetime.utcnow().isoformat() + "Z",
         resume_id=resume_id,
     )
