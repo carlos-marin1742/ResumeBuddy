@@ -691,7 +691,6 @@ def tailor_resume(
             }
         ],
         "skills_to_highlight": ["skills from the candidate's profile most relevant to this JD"],
-        "skills_to_show": ["category_key1", "category_key2", "category_key3"],
     }
 
     user_prompt = f"""\
@@ -721,7 +720,6 @@ Rules:
 - Never remove quantified metrics (percentages, numbers, counts) from any bullet.
 - For project bullets: only append keywords to the END of the original bullet text where natural. Never rewrite, restructure, or remove any part of the original. If a keyword cannot be appended naturally, leave the bullet unchanged.
 - Never use fewer bullets than specified — a short resume wastes space.
-- Set skills_to_show to the skill category keys most relevant to this JD. For AI/ML roles include ai_ml. For pure backend/fullstack roles omit ai_ml. Always include languages, backend, frontend, databases_cloud, and tools unless irrelevant. Use the exact category key names from the skills object.
 """
     raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=CLAUDE_MAX_TOKENS)
 
@@ -771,7 +769,7 @@ Rules:
         projects=projects,
         skills_to_highlight=parsed.get("skills_to_highlight", []),
         skills_to_add=determine_skills_to_add(base_resume.get("skills", {}), selected_keywords),
-        skills_to_show=parsed.get("skills_to_show", []),
+        skills_to_show=determine_skills_to_show(job_description, selected_keywords),
         raw_response=raw,
     )
 
