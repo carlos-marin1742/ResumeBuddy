@@ -8,7 +8,9 @@ Usage (standalone):
     python build_resume_pdf.py resume.json output.pdf
 
 Public API:
-    build_pdf(resume_data: dict, output_path: Path | str) -> Path
+    build_pdf(resume_data, output_path) -> Path
+    build_pdf_with_overrides(resume_data, output_path, overrides) -> Path
+    _render_html(resume, spacing_adjust, overrides) -> str
 """
 
 import concurrent.futures
@@ -19,7 +21,16 @@ import tempfile
 from pathlib import Path
 
 
-def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
+def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None = None) -> str:
+    """
+    Render resume dict to HTML string.
+
+    overrides (optional): dict with keys:
+        font_size       (float, pt)  — default 8.5
+        margin          (float, in)  — default 0.4
+        entry_spacing   (float, pt)  — overrides entry_margin
+        section_spacing (float, pt)  — overrides section_margin
+    """
     contact    = resume.get("contact", {})
     skills     = resume.get("skills", {})
     experience = resume.get("experience", [])
@@ -99,8 +110,8 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     # Projects
     proj_html = ""
     for proj in projects:
-        tech   = " · ".join(proj.get("tech_stack", []))
-        name   = proj.get("name", "Project")
+        tech    = " · ".join(proj.get("tech_stack", []))
+        name    = proj.get("name", "Project")
         github  = proj.get("links", {}).get("github")
         preview = proj.get("links", {}).get("preview")
         name_html    = f'<a href="{github}">{name}</a>' if github else name
@@ -130,7 +141,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     # Certifications
     cert_html = ""
     for cert in certs:
-        year  = fmt_date(cert.get("date","")) if cert.get("date") else ""
+        year   = fmt_date(cert.get("date","")) if cert.get("date") else ""
         issuer = cert.get("issuer","")
         ctype  = cert.get("type","")
         sub    = f"{issuer} — {ctype}" if ctype else issuer
@@ -153,35 +164,48 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
     if edu_html:     sections += section("EDUCATION",      edu_html)
     if cert_html:    sections += section("CERTIFICATIONS", cert_html)
 
-    # Profile-aware spacing:
-    # Tech: has projects — tight base
-    # Admin/clinical with dense injected skills (4+ rows) — medium base
-    # Admin/clinical with normal skills — comfortable base
-    has_projects = bool(projects)
-    skill_row_count = sum(1 for cat in skills_order if skills.get(cat))
+    # ── Spacing ───────────────────────────────────────────────────────────────
+    has_projects     = bool(projects)
+    skill_row_count  = sum(1 for cat in skills_order if skills.get(cat))
     has_dense_skills = skill_row_count >= 4 and not has_projects
 
-    if has_projects:
-        li_margin      = max(0.5, 1.0 + spacing_adjust)
-        entry_margin   = max(2.0, 5.0 + spacing_adjust)
-        section_margin = max(3.0, 6.0 + (spacing_adjust * 0.5))
-        contact_margin = max(4.0, 6.0 + spacing_adjust)
-        section_pb     = max(0.3, 0.5 + (spacing_adjust * 0.2))
-        body_lh        = "1.25"
-    elif has_dense_skills:
-        li_margin      = max(0.5, 1.5 + spacing_adjust)
-        entry_margin   = max(2.0, 6.0 + spacing_adjust)
-        section_margin = max(3.0, 7.0 + (spacing_adjust * 0.5))
-        contact_margin = max(4.0, 7.0 + spacing_adjust)
-        section_pb     = max(0.3, 0.5 + (spacing_adjust * 0.2))
-        body_lh        = "1.25"
+    if overrides:
+        # User-controlled override mode
+        font_size_pt    = overrides.get("font_size", 8.5)
+        margin_in       = overrides.get("margin", 0.4)
+        entry_margin    = overrides.get("entry_spacing", 5.0)
+        section_margin  = overrides.get("section_spacing", 6.0)
+        li_margin       = 1.5
+        contact_margin  = 6.0
+        section_pb      = 0.5
+        body_lh         = "1.28"
+        page_margin_css = f"{margin_in}in 0.5in {margin_in}in 0.5in"
     else:
-        li_margin      = max(0.5, 2.5 + spacing_adjust)
-        entry_margin   = max(3.0, 7.0 + spacing_adjust)
-        section_margin = max(4.0, 8.0 + (spacing_adjust * 0.5))
-        contact_margin = max(5.0, 7.0 + spacing_adjust)
-        section_pb     = max(0.5, 1.0 + (spacing_adjust * 0.2))
-        body_lh        = "1.30"
+        # Auto-fit mode
+        font_size_pt    = 8.5
+        page_margin_css = "0.4in 0.5in 0.4in 0.5in"
+
+        if has_projects:
+            li_margin      = max(0.5, 1.0 + spacing_adjust)
+            entry_margin   = max(2.0, 5.0 + spacing_adjust)
+            section_margin = max(3.0, 6.0 + (spacing_adjust * 0.5))
+            contact_margin = max(4.0, 6.0 + spacing_adjust)
+            section_pb     = max(0.3, 0.5 + (spacing_adjust * 0.2))
+            body_lh        = "1.25"
+        elif has_dense_skills:
+            li_margin      = max(0.5, 1.5 + spacing_adjust)
+            entry_margin   = max(2.0, 6.0 + spacing_adjust)
+            section_margin = max(3.0, 7.0 + (spacing_adjust * 0.5))
+            contact_margin = max(4.0, 7.0 + spacing_adjust)
+            section_pb     = max(0.3, 0.5 + (spacing_adjust * 0.2))
+            body_lh        = "1.25"
+        else:
+            li_margin      = max(0.5, 2.5 + spacing_adjust)
+            entry_margin   = max(3.0, 7.0 + spacing_adjust)
+            section_margin = max(4.0, 8.0 + (spacing_adjust * 0.5))
+            contact_margin = max(5.0, 7.0 + spacing_adjust)
+            section_pb     = max(0.5, 1.0 + (spacing_adjust * 0.2))
+            body_lh        = "1.30"
 
     return f"""<!DOCTYPE html>
 <html>
@@ -190,14 +214,14 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
 <style>
   @page {{
     size: letter;
-    margin: 0.4in 0.5in 0.4in 0.5in;
+    margin: {page_margin_css};
   }}
 
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
   body {{
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 8.5pt;
+    font-size: {font_size_pt}pt;
     line-height: {body_lh};
     color: #000;
     width: 100%;
@@ -313,55 +337,46 @@ def _render_html(resume: dict, spacing_adjust: float = 0) -> str:
 
 
 def _build_pdf_worker(resume_data: dict, output_path) -> Path:
-    """Runs Playwright in a clean thread — isolates it from FastAPI's event loop on Windows."""
+    """Auto-fit PDF — runs spacing feedback loop."""
     from playwright.sync_api import sync_playwright
     from pypdf import PdfReader
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # letter at 96dpi (11in × 96) minus 0.4in top + 0.4in bottom margins
     usable_height = 979
-
-    # Tech resumes (with projects) need a higher expand threshold to stay tight.
-    # Admin/clinical (no projects) expand on smaller gaps to fill the page.
-    has_projects = bool(resume_data.get("projects", []))
-    has_certs = bool(resume_data.get("certifications", []))
-    
+    has_projects  = bool(resume_data.get("projects", []))
+    has_certs     = bool(resume_data.get("certifications", []))
 
     if has_projects:
-        spacing = -1.5  #pre compress tech resumes
+        spacing          = -1.5
         expand_threshold = 160
     elif has_certs:
-        spacing = -0.5
+        spacing          = -0.5
         expand_threshold = 70
     else:
-        spacing = -1.0  #further precompress for admin resumes
-        expand_threshold = 50
+        spacing          = -0.5
+        expand_threshold = 40
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page()
+        page    = browser.new_page()
 
         for attempt in range(5):
             page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
 
-            # Render to temp file and check actual PDF page count
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp_path = tmp.name
 
             page.pdf(path=tmp_path, format="Letter", print_background=True)
-
-            reader = PdfReader(tmp_path)
+            reader     = PdfReader(tmp_path)
             page_count = len(reader.pages)
 
             if page_count == 1:
-                # Check for whitespace using scroll height
                 content_height = page.evaluate("document.body.scrollHeight")
                 slack = usable_height - content_height
 
                 if slack > expand_threshold and attempt < 4:
-                    # Too much whitespace — expand spacing and retry
                     Path(tmp_path).unlink(missing_ok=True)
                     line_count = page.evaluate(
                         "document.querySelectorAll('li, .entry, .skill-row, .section').length"
@@ -370,17 +385,14 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
                         spacing += min(1.0, slack / line_count)
                     continue
 
-                # Good fit — use this render
                 shutil.copy(tmp_path, output_path)
                 Path(tmp_path).unlink(missing_ok=True)
                 break
 
-            # More than 1 page — compress and retry
             Path(tmp_path).unlink(missing_ok=True)
             spacing -= 2.0
 
         else:
-            # All attempts exhausted — use last render as-is
             page.pdf(path=str(output_path), format="Letter", print_background=True)
 
         browser.close()
@@ -388,14 +400,45 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
     return output_path
 
 
+def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict) -> Path:
+    """Custom PDF — uses exact override values, no auto-fit loop."""
+    from playwright.sync_api import sync_playwright
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    margin_in = overrides.get("margin", 0.4)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page    = browser.new_page()
+        page.set_content(_render_html(resume_data, overrides=overrides), wait_until="networkidle")
+        page.pdf(
+            path=str(output_path),
+            format="Letter",
+            margin={
+                "top":    f"{margin_in}in",
+                "bottom": f"{margin_in}in",
+                "left":   "0.5in",
+                "right":  "0.5in",
+            },
+            print_background=True,
+        )
+        browser.close()
+
+    return output_path
+
+
 def build_pdf(resume_data: dict, output_path) -> Path:
-    """
-    Render a resume dict to a single-page PDF using Playwright (headless Chromium).
-    Runs Playwright in a ThreadPoolExecutor to avoid Windows asyncio event loop conflicts.
-    Works on macOS, Windows, and Linux.
-    """
+    """Auto-fit single-page PDF."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(_build_pdf_worker, resume_data, output_path)
+        return future.result()
+
+
+def build_pdf_with_overrides(resume_data: dict, output_path, overrides: dict) -> Path:
+    """Custom PDF with user-specified spacing overrides."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_build_pdf_overrides_worker, resume_data, output_path, overrides)
         return future.result()
 
 
