@@ -21,6 +21,7 @@ from claude_service import (
     _extract_json,
     limit_character_count,
     determine_skills_to_add,
+    determine_skills_to_show,
     validate_keywords_in_text,
 )
 
@@ -116,6 +117,44 @@ def _mock_groq_response(response_dict: dict) -> MagicMock:
     msg.choices = [MagicMock()]
     msg.choices[0].message.content = json.dumps(response_dict)
     return msg
+
+
+# ---------------------------------------------------------------------------
+# determine_skills_to_show
+# ---------------------------------------------------------------------------
+
+class TestDetermineSkillsToShow:
+    def test_languages_always_included(self):
+        result = determine_skills_to_show("We need a great communicator.", [])
+        assert "languages" in result
+
+    def test_ai_ml_included_when_keyword_maps_to_it(self):
+        result = determine_skills_to_show("Generic job description.", ["pytorch"])
+        assert "ai_ml" in result
+
+    def test_ai_ml_included_when_jd_mentions_it(self):
+        result = determine_skills_to_show("Must have machine learning experience.", [])
+        assert "ai_ml" in result
+
+    def test_category_excluded_when_no_match(self):
+        result = determine_skills_to_show("We need a project manager.", [])
+        assert "ai_ml" not in result
+
+    def test_multiple_categories_from_keywords(self):
+        result = determine_skills_to_show("Build great products.", ["react", "fastapi", "postgresql"])
+        assert "frontend" in result
+        assert "backend" in result
+        assert "databases_cloud" in result
+
+    def test_keyword_match_takes_priority_over_jd_scan(self):
+        # Even with an empty JD, a keyword match should include the category
+        result = determine_skills_to_show("", ["docker"])
+        assert "databases_cloud" in result
+
+    def test_returns_list_of_strings(self):
+        result = determine_skills_to_show(SAMPLE_JD, ["Python", "PyTorch"])
+        assert isinstance(result, list)
+        assert all(isinstance(s, str) for s in result)
 
 
 # ---------------------------------------------------------------------------
