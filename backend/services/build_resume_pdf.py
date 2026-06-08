@@ -336,7 +336,7 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
         spacing = -0.5
         expand_threshold = 70
     else:
-        spacing = 0.0
+        spacing = -0.3
         expand_threshold = 50
 
     with sync_playwright() as p:
