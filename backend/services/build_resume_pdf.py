@@ -10,7 +10,7 @@ Usage (standalone):
 Public API:
     build_pdf(resume_data, output_path) -> Path
     build_pdf_with_overrides(resume_data, output_path, overrides) -> Path
-    _render_html(resume, spacing_adjust, overrides) -> str
+    _render_html(resume, spacing_adjust, overrides, show_boundary) -> str
 """
 
 import concurrent.futures
@@ -21,7 +21,12 @@ import tempfile
 from pathlib import Path
 
 
-def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None = None) -> str:
+def _render_html(
+    resume: dict,
+    spacing_adjust: float = 0,
+    overrides: dict | None = None,
+    show_boundary: bool = False,
+) -> str:
     """
     Render resume dict to HTML string.
 
@@ -32,11 +37,9 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
         entry_spacing   (float, pt)  — overrides entry_margin
         section_spacing (float, pt)  — overrides section_margin
 
-    Font sizes use em units relative to body font-size so all text scales
-    correctly when the user adjusts font_size via the preview sliders.
-
-    In override mode a red page boundary line is injected at the exact
-    letter page height so the user can see overflow before downloading.
+    show_boundary: if True, injects a red page-break indicator line at the
+        exact letter page height. Only used for iframe preview — never for
+        PDF rendering.
     """
     contact    = resume.get("contact", {})
     skills     = resume.get("skills", {})
@@ -188,32 +191,11 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
         body_lh         = "1.28"
         page_margin_css = f"{margin_in}in {side_margin_in}in {margin_in}in {side_margin_in}in"
         body_padding    = f"{margin_in}in {side_margin_in}in"
-
-        # Red page boundary line at exact letter page height minus margins
-        page_height_px  = (11 - margin_in * 2) * 96
-        page_boundary_css = f"""
-    body {{ position: relative; }}
-    body::after {{
-      content: 'PAGE BREAK';
-      display: block;
-      position: absolute;
-      top: {page_height_px:.0f}px;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: #e53e3e;
-      z-index: 999;
-      font-size: 9px;
-      color: #e53e3e;
-      text-align: right;
-      padding-right: 4px;
-      line-height: 0;
-    }}"""
     else:
-        font_size_pt      = 8.5
-        page_margin_css   = "0.4in 0.5in 0.4in 0.5in"
-        body_padding      = "0"
-        page_boundary_css = ""
+        font_size_pt    = 8.5
+        page_margin_css = "0.4in 0.5in 0.4in 0.5in"
+        body_padding    = "0"
+        margin_in       = 0.4
 
         if has_projects:
             li_margin      = max(0.5, 1.0 + spacing_adjust)
@@ -236,6 +218,32 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
             contact_margin = max(5.0, 7.0 + spacing_adjust)
             section_pb     = max(0.5, 1.0 + (spacing_adjust * 0.2))
             body_lh        = "1.30"
+
+    # ── Page boundary indicator (preview only) ────────────────────────────────
+    # Only injected when show_boundary=True (iframe preview).
+    # Never included in PDF rendering.
+    if show_boundary:
+        page_height_px = (11 - margin_in * 2) * 96
+        page_boundary_css = f"""
+  body {{ position: relative; }}
+  body::after {{
+    content: 'PAGE BREAK';
+    display: block;
+    position: absolute;
+    top: {page_height_px:.0f}px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #e53e3e;
+    z-index: 999;
+    font-size: 9px;
+    color: #e53e3e;
+    text-align: right;
+    padding-right: 4px;
+    line-height: 0;
+  }}"""
+    else:
+        page_boundary_css = ""
 
     return f"""<!DOCTYPE html>
 <html>
@@ -396,6 +404,7 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
         page    = browser.new_page()
 
         for attempt in range(5):
+            # show_boundary=False — never inject red line into actual PDF
             page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
 
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -436,11 +445,12 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
 def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict) -> Path:
     """Custom PDF — uses exact override values, no auto-fit loop.
     If content overflows to 2 pages, reduces font size by 0.5pt and retries.
+    show_boundary is always False here — red line must never appear in PDF.
     """
     from playwright.sync_api import sync_playwright
     from pypdf import PdfReader
 
-    output_path      = Path(output_path)
+    output_path       = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     current_overrides = dict(overrides)
 
@@ -452,8 +462,9 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
             margin_in      = current_overrides.get("margin", 0.4)
             side_margin_in = current_overrides.get("side_margin", 0.5)
 
+            # show_boundary=False — never inject red line into PDF
             page.set_content(
-                _render_html(resume_data, overrides=current_overrides),
+                _render_html(resume_data, overrides=current_overrides, show_boundary=False),
                 wait_until="networkidle"
             )
 
@@ -479,12 +490,10 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
                 break
 
             Path(tmp_path).unlink(missing_ok=True)
-            # Reduce font size by 0.5pt and retry
             current_font = current_overrides.get("font_size", 8.5)
             current_overrides["font_size"] = max(7.5, current_font - 0.5)
 
         else:
-            # All attempts exhausted — save last render as-is
             page.pdf(path=str(output_path), format="Letter", print_background=True)
 
         browser.close()
