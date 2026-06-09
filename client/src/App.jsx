@@ -17,6 +17,11 @@ export default function App() {
   const [extractResult, setExtractResult] = useState(null);
   const [selectedKeywords, setSelectedKeywords] = useState([]);
   const [generateResult, setGenerateResult] = useState(null);
+
+  // Stores user edits to the generated resume (summary + bullets).
+  // Null until the user makes their first edit — falls back to session store.
+  const [editedResumeData, setEditedResumeData] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -66,6 +71,7 @@ export default function App() {
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       setGenerateResult(data);
+      setEditedResumeData(null); // reset edits on new generation
       setStep(3);
     } catch (e) {
       setError(e.message);
@@ -77,6 +83,11 @@ export default function App() {
   // ── Step 3 → 4 ───────────────────────────────────────────────────────────
   function handlePreviewPDF() {
     setStep(4);
+  }
+
+  // ── Edit handler (called from ResumePreview) ──────────────────────────────
+  function handleEdit(updatedResumeData) {
+    setEditedResumeData(updatedResumeData);
   }
 
   // ── Back navigation ───────────────────────────────────────────────────────
@@ -95,6 +106,7 @@ export default function App() {
     setExtractResult(null);
     setSelectedKeywords([]);
     setGenerateResult(null);
+    setEditedResumeData(null);
     setError(null);
   }
 
@@ -152,11 +164,14 @@ export default function App() {
             onBack={handleBack}
             onReset={handleReset}
             onPreviewPDF={handlePreviewPDF}
+            onEdit={handleEdit}
+            editedResumeData={editedResumeData}
           />
         )}
         {step === 4 && generateResult && (
           <PDFPreview
             sessionId={generateResult.session_id}
+            resumeData={editedResumeData}
             apiBase={API}
             onBack={handleBack}
             onReset={handleReset}

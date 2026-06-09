@@ -1,13 +1,96 @@
+import { useState, useEffect } from "react";
 import "./ResumePreview.css";
 
-export default function ResumePreview({ result, apiBase, onBack, onReset, onPreviewPDF }) {
+// Deep clone helper
+function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+export default function ResumePreview({ result, apiBase, onBack, onReset, onPreviewPDF, onEdit, editedResumeData }) {
   const { summary, experiences, projects = [], skills_to_highlight, ats, pdf_url, generated_at } = result;
+
+  // ── Local editable state ──────────────────────────────────────────────────
+  const [editSummary, setEditSummary] = useState(summary);
+  const [editExperiences, setEditExperiences] = useState(() => deepClone(experiences));
+  const [editProjects, setEditProjects] = useState(() => deepClone(projects));
+
+  // Editing mode flags
+  const [summaryEditing, setSummaryEditing] = useState(false);
+  const [editingBullet, setEditingBullet] = useState(null); // { type: "exp"|"proj", company/name, index }
 
   const scoreColor =
     ats.overall_score >= 80 ? "score-high" :
     ats.overall_score >= 60 ? "score-mid"  : "score-low";
 
   const coveragePct = Math.round(ats.keyword_coverage * 100);
+
+  // Sync edits upward to App whenever anything changes
+  useEffect(() => {
+    // Build a minimal resume data patch with edited text
+    // Backend uses tailored_summary, experience[].bullets[].text
+    const patch = {
+      tailored_summary: editSummary,
+      experience: editExperiences.map((exp) => ({
+        company: exp.company,
+        title: exp.title,
+        bullets: exp.bullets.map((b) => ({
+          text: b.tailored,
+          original: b.original,
+          keywords_injected: b.keywords_injected,
+        })),
+      })),
+      projects: editProjects.map((proj) => ({
+        name: proj.name,
+        bullets: proj.bullets.map((b) => ({
+          text: b.tailored,
+          original: b.original,
+          keywords_injected: b.keywords_injected,
+        })),
+      })),
+    };
+    onEdit(patch);
+  }, [editSummary, editExperiences, editProjects]);
+
+  // ── Summary edit ──────────────────────────────────────────────────────────
+  function handleSummaryClick() {
+    setSummaryEditing(true);
+  }
+  function handleSummaryBlur() {
+    setSummaryEditing(false);
+  }
+
+  // ── Bullet edit ───────────────────────────────────────────────────────────
+  function handleBulletClick(type, key, index) {
+    setEditingBullet({ type, key, index });
+  }
+
+  function handleBulletChange(type, key, index, value) {
+    if (type === "exp") {
+      setEditExperiences((prev) => {
+        const next = deepClone(prev);
+        const exp = next.find((e) => e.company === key);
+        if (exp) exp.bullets[index].tailored = value;
+        return next;
+      });
+    } else {
+      setEditProjects((prev) => {
+        const next = deepClone(prev);
+        const proj = next.find((p) => p.name === key);
+        if (proj) proj.bullets[index].tailored = value;
+        return next;
+      });
+    }
+  }
+
+  function handleBulletBlur() {
+    setEditingBullet(null);
+  }
+
+  function isEditingBullet(type, key, index) {
+    return editingBullet?.type === type &&
+           editingBullet?.key === key &&
+           editingBullet?.index === index;
+  }
 
   function handleDownload() {
     window.open(`${apiBase}${pdf_url}`, "_blank");
@@ -46,9 +129,37 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
           <section className="rp-section card">
             <div className="rp-section-header">
               <span className="rp-section-title">Summary</span>
-              <span className="rp-badge tailored">Tailored</span>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                {!summaryEditing && (
+                  <button
+                    className="btn btn-ghost btn-sm rp-edit-btn"
+                    onClick={handleSummaryClick}
+                    title="Edit summary"
+                  >
+                    ✎ Edit
+                  </button>
+                )}
+                <span className="rp-badge tailored">Tailored</span>
+              </div>
             </div>
-            <p className="rp-summary-text">{summary}</p>
+            {summaryEditing ? (
+              <textarea
+                className="rp-edit-textarea"
+                value={editSummary}
+                onChange={(e) => setEditSummary(e.target.value)}
+                onBlur={handleSummaryBlur}
+                autoFocus
+                rows={4}
+              />
+            ) : (
+              <p
+                className="rp-summary-text rp-editable"
+                onClick={handleSummaryClick}
+                title="Click to edit"
+              >
+                {editSummary}
+              </p>
+            )}
           </section>
 
           {/* Skills */}
@@ -67,7 +178,7 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
           )}
 
           {/* Experience bullets */}
-          {experiences.map((exp) => (
+          {editExperiences.map((exp) => (
             <section key={exp.company} className="rp-section card">
               <div className="rp-section-header">
                 <div>
@@ -81,7 +192,24 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
                   <div key={i} className="rp-bullet">
                     <div className="rp-bullet-new">
                       <span className="rp-bullet-label">After</span>
-                      <p>{b.tailored}</p>
+                      {isEditingBullet("exp", exp.company, i) ? (
+                        <textarea
+                          className="rp-edit-textarea"
+                          value={b.tailored}
+                          onChange={(e) => handleBulletChange("exp", exp.company, i, e.target.value)}
+                          onBlur={handleBulletBlur}
+                          autoFocus
+                          rows={2}
+                        />
+                      ) : (
+                        <p
+                          className="rp-editable"
+                          onClick={() => handleBulletClick("exp", exp.company, i)}
+                          title="Click to edit"
+                        >
+                          {b.tailored}
+                        </p>
+                      )}
                       {b.keywords_injected.length > 0 && (
                         <div className="rp-injected">
                           {b.keywords_injected.map((kw) => (
@@ -103,10 +231,10 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
           ))}
 
           {/* Project bullets */}
-          {projects.length > 0 && (
+          {editProjects.length > 0 && (
             <>
               <div className="rp-section-divider"><span>Projects</span></div>
-              {projects.map((proj) => (
+              {editProjects.map((proj) => (
                 <section key={proj.name} className="rp-section card">
                   <div className="rp-section-header">
                     <div>
@@ -119,7 +247,24 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
                       <div key={i} className="rp-bullet">
                         <div className="rp-bullet-new">
                           <span className="rp-bullet-label">After</span>
-                          <p>{b.tailored}</p>
+                          {isEditingBullet("proj", proj.name, i) ? (
+                            <textarea
+                              className="rp-edit-textarea"
+                              value={b.tailored}
+                              onChange={(e) => handleBulletChange("proj", proj.name, i, e.target.value)}
+                              onBlur={handleBulletBlur}
+                              autoFocus
+                              rows={2}
+                            />
+                          ) : (
+                            <p
+                              className="rp-editable"
+                              onClick={() => handleBulletClick("proj", proj.name, i)}
+                              title="Click to edit"
+                            >
+                              {b.tailored}
+                            </p>
+                          )}
                           {b.keywords_injected.length > 0 && (
                             <div className="rp-injected">
                               {b.keywords_injected.map((kw) => (
