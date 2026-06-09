@@ -42,26 +42,33 @@ const SLIDER_CONFIG = [
   },
 ];
 
-export default function PDFPreview({ sessionId, apiBase, onBack, onReset }) {
+export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onReset }) {
   const [overrides, setOverrides] = useState(DEFAULTS);
   const [previewHtml, setPreviewHtml] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [error, setError] = useState(null);
   const debounceRef = useRef(null);
-  const iframeRef = useRef(null);
+  const iframeRef   = useRef(null);
+
+  // Build request body — always include resumeData if available so user
+  // edits made in ResumePreview are reflected in the PDF output.
+  function buildRequestBody(currentOverrides) {
+    return {
+      session_id:  sessionId,
+      overrides:   currentOverrides,
+      resume_data: resumeData || null,
+    };
+  }
 
   const fetchPreview = useCallback(async (currentOverrides) => {
     setLoadingPreview(true);
     setError(null);
     try {
       const res = await fetch(`${apiBase}/api/preview-html`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: sessionId,
-          overrides: currentOverrides,
-        }),
+        body:    JSON.stringify(buildRequestBody(currentOverrides)),
       });
       if (!res.ok) throw new Error(`Preview failed: ${res.status}`);
       const html = await res.text();
@@ -71,7 +78,7 @@ export default function PDFPreview({ sessionId, apiBase, onBack, onReset }) {
     } finally {
       setLoadingPreview(false);
     }
-  }, [apiBase, sessionId]);
+  }, [apiBase, sessionId, resumeData]);
 
   useEffect(() => {
     fetchPreview(DEFAULTS);
@@ -102,12 +109,9 @@ export default function PDFPreview({ sessionId, apiBase, onBack, onReset }) {
     setError(null);
     try {
       const res = await fetch(`${apiBase}/api/download-custom`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: sessionId,
-          overrides,
-        }),
+        body:    JSON.stringify(buildRequestBody(overrides)),
       });
       if (!res.ok) throw new Error(`Download failed: ${res.status}`);
       const blob = await res.blob();

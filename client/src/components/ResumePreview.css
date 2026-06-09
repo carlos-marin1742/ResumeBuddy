@@ -317,3 +317,36 @@
   padding: 0.75rem;
   font-size: 0.9rem;
 }
+/* ── Inline editing ── */
+.rp-editable {
+  cursor: text;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.rp-editable:hover {
+  background: var(--accent-bg);
+  outline: 1px dashed var(--accent);
+}
+
+.rp-edit-textarea {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  resize: vertical;
+  outline: none;
+  background: var(--white);
+}
+
+.rp-edit-btn {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  color: var(--ink-muted);
+}
+.rp-edit-btn:hover {
+  color: var(--accent);
+}
