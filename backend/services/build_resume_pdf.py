@@ -30,6 +30,10 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
         margin          (float, in)  — default 0.4
         entry_spacing   (float, pt)  — overrides entry_margin
         section_spacing (float, pt)  — overrides section_margin
+
+    In override mode, margins are applied as body padding so they render
+    correctly in the iframe preview (browser ignores @page rules in iframes).
+    Playwright uses @page margin for the actual PDF download.
     """
     contact    = resume.get("contact", {})
     skills     = resume.get("skills", {})
@@ -170,7 +174,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
     has_dense_skills = skill_row_count >= 4 and not has_projects
 
     if overrides:
-        # User-controlled override mode
+        # User-controlled override mode (preview + custom download)
         font_size_pt    = overrides.get("font_size", 8.5)
         margin_in       = overrides.get("margin", 0.4)
         entry_margin    = overrides.get("entry_spacing", 5.0)
@@ -179,11 +183,15 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
         contact_margin  = 6.0
         section_pb      = 0.5
         body_lh         = "1.28"
+        # @page margin for PDF output (Playwright respects this)
         page_margin_css = f"{margin_in}in 0.5in {margin_in}in 0.5in"
+        # body padding for iframe preview (browser ignores @page in iframes)
+        body_padding    = f"{margin_in}in 0.5in"
     else:
-        # Auto-fit mode
+        # Auto-fit mode — profile-aware spacing
         font_size_pt    = 8.5
         page_margin_css = "0.4in 0.5in 0.4in 0.5in"
+        body_padding    = "0"
 
         if has_projects:
             li_margin      = max(0.5, 1.0 + spacing_adjust)
@@ -225,6 +233,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
     line-height: {body_lh};
     color: #000;
     width: 100%;
+    padding: {body_padding};
   }}
 
   a {{ color: #000; text-decoration: underline; }}
