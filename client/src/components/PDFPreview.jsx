@@ -44,7 +44,7 @@ const SLIDER_CONFIG = [
 
 // Letter paper dimensions at 96dpi
 const PAPER_W = 816;  // 8.5in × 96
-const PAPER_H = 102; // was 1056, adjust for playwright dpi difference
+const PAPER_H = 1020; // adjusted for Playwright DPI difference
 
 export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onReset }) {
   const [overrides, setOverrides] = useState(DEFAULTS);
@@ -54,20 +54,25 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
   const [error, setError] = useState(null);
   const [iframeScale, setIframeScale] = useState(1);
 
-  const debounceRef  = useRef(null);
-  const iframeRef    = useRef(null);
-  const previewRef   = useRef(null);
+  const debounceRef = useRef(null);
+  const iframeRef   = useRef(null);
+  const previewRef  = useRef(null);
 
-  // Calculate scale so the 816px-wide iframe fits the container
+  // Delay scale measurement so grid layout has time to settle
   useEffect(() => {
     function updateScale() {
       if (!previewRef.current) return;
-      const containerW = previewRef.current.offsetWidth;
-      setIframeScale(containerW / PAPER_W);
+      const containerW = previewRef.current.getBoundingClientRect().width;
+      if (containerW > 0) {
+        setIframeScale(containerW / PAPER_W);
+      }
     }
-    updateScale();
+    const timer = setTimeout(updateScale, 50);
     window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateScale);
+    };
   }, []);
 
   function buildRequestBody(currentOverrides) {
@@ -145,7 +150,6 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
     }
   }
 
-  // Container height scales with iframe
   const containerH = Math.round(PAPER_H * iframeScale);
 
   return (
