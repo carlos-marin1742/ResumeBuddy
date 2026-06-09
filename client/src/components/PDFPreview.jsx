@@ -44,7 +44,7 @@ const SLIDER_CONFIG = [
 
 // Letter paper dimensions at 96dpi
 const PAPER_W = 816;  // 8.5in × 96
-const PAPER_H = 1056; // 11in  × 96
+const PAPER_H = 102; // was 1056, adjust for playwright dpi difference
 
 export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onReset }) {
   const [overrides, setOverrides] = useState(DEFAULTS);
