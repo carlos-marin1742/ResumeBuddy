@@ -220,8 +220,6 @@ def _render_html(
             body_lh        = "1.30"
 
     # ── Page boundary indicator (preview only) ────────────────────────────────
-    # Only injected when show_boundary=True (iframe preview).
-    # Never included in PDF rendering.
     if show_boundary:
         page_height_px = (11 - margin_in * 2) * 96
         page_boundary_css = f"""
@@ -404,7 +402,6 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
         page    = browser.new_page()
 
         for attempt in range(5):
-            # show_boundary=False — never inject red line into actual PDF
             page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
 
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -443,9 +440,10 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
 
 
 def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict) -> Path:
-    """Custom PDF — uses exact override values, no auto-fit loop.
-    If content overflows to 2 pages, reduces font size by 0.5pt and retries.
-    show_boundary is always False here — red line must never appear in PDF.
+    """Custom PDF — uses exact override values.
+    If content overflows to 2 pages, compresses spacing first then font size
+    and retries until it fits on one page.
+    show_boundary is always False — red line must never appear in PDF.
     """
     from playwright.sync_api import sync_playwright
     from pypdf import PdfReader
@@ -458,11 +456,10 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
         browser = p.chromium.launch()
         page    = browser.new_page()
 
-        for attempt in range(4):
+        for attempt in range(6):
             margin_in      = current_overrides.get("margin", 0.4)
             side_margin_in = current_overrides.get("side_margin", 0.5)
 
-            # show_boundary=False — never inject red line into PDF
             page.set_content(
                 _render_html(resume_data, overrides=current_overrides, show_boundary=False),
                 wait_until="networkidle"
@@ -490,10 +487,17 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
                 break
 
             Path(tmp_path).unlink(missing_ok=True)
-            current_font = current_overrides.get("font_size", 8.5)
-            current_overrides["font_size"] = max(7.5, current_font - 0.5)
+
+            # Compress spacing first, then font size as last resort
+            if current_overrides.get("entry_spacing", 5.0) > 2.0:
+                current_overrides["entry_spacing"]   = max(2.0, current_overrides["entry_spacing"] - 1.5)
+                current_overrides["section_spacing"] = max(3.0, current_overrides.get("section_spacing", 6.0) - 1.5)
+            else:
+                current_font = current_overrides.get("font_size", 8.5)
+                current_overrides["font_size"] = max(7.5, current_font - 0.5)
 
         else:
+            # All attempts exhausted — save last render as-is
             page.pdf(path=str(output_path), format="Letter", print_background=True)
 
         browser.close()
