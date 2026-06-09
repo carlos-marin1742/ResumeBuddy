@@ -32,6 +32,7 @@ OUTPUTS_DIR.mkdir(exist_ok=True)
 class SpacingOverrides(BaseModel):
     font_size: float = 8.5       # pt — range 7.5–10
     margin: float = 0.4          # inches — range 0.3–0.6
+    side_margin: float = 0.5      # inches — range 0.3–0.6
     entry_spacing: float = 5.0   # pt — range 0–15
     section_spacing: float = 6.0 # pt — range 0–15
 

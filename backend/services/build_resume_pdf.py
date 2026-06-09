@@ -27,7 +27,8 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
 
     overrides (optional): dict with keys:
         font_size       (float, pt)  — default 8.5
-        margin          (float, in)  — default 0.4
+        margin          (float, in)  — top/bottom margin, default 0.4
+        side_margin     (float, in)  — left/right margin, default 0.5
         entry_spacing   (float, pt)  — overrides entry_margin
         section_spacing (float, pt)  — overrides section_margin
 
@@ -177,16 +178,17 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
         # User-controlled override mode (preview + custom download)
         font_size_pt    = overrides.get("font_size", 8.5)
         margin_in       = overrides.get("margin", 0.4)
+        side_margin_in  = overrides.get("side_margin", 0.5)
         entry_margin    = overrides.get("entry_spacing", 5.0)
         section_margin  = overrides.get("section_spacing", 6.0)
         li_margin       = 1.5
         contact_margin  = 6.0
         section_pb      = 0.5
         body_lh         = "1.28"
-        # @page margin for PDF output (Playwright respects this)
-        page_margin_css = f"{margin_in}in 0.5in {margin_in}in 0.5in"
+        # @page margin for PDF output
+        page_margin_css = f"{margin_in}in {side_margin_in}in {margin_in}in {side_margin_in}in"
         # body padding for iframe preview (browser ignores @page in iframes)
-        body_padding    = f"{margin_in}in 0.5in"
+        body_padding    = f"{margin_in}in {side_margin_in}in"
     else:
         # Auto-fit mode — profile-aware spacing
         font_size_pt    = 8.5
@@ -415,7 +417,9 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    margin_in = overrides.get("margin", 0.4)
+
+    margin_in      = overrides.get("margin", 0.4)
+    side_margin_in = overrides.get("side_margin", 0.5)
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -427,8 +431,8 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
             margin={
                 "top":    f"{margin_in}in",
                 "bottom": f"{margin_in}in",
-                "left":   "0.5in",
-                "right":  "0.5in",
+                "left":   f"{side_margin_in}in",
+                "right":  f"{side_margin_in}in",
             },
             print_background=True,
         )
