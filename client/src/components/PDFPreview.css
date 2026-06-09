@@ -67,15 +67,16 @@
   flex: 1;
 }
 
-/* ── Preview ─────────────────────────────────────────────────────────────── */
+/* ── Preview wrapper ─────────────────────────────────────────────────────── */
+/* Height is set dynamically via inline style in JSX (scales with iframe).   */
+/* overflow: hidden clips the iframe to exactly one page height.             */
 .pp-preview-wrap {
   position: relative;
   background: #e8e8e8;
   border-radius: var(--radius-lg);
-  overflow: hidden;
-  /* Letter aspect ratio: 8.5 x 11 */
-  aspect-ratio: 8.5 / 11;
+  overflow: hidden;           /* clips content beyond one page */
   box-shadow: var(--shadow-lg);
+  width: 100%;
 }
 
 .pp-preview-loading {
@@ -92,9 +93,8 @@
   backdrop-filter: blur(2px);
 }
 
+/* iframe dimensions and scale are set via inline styles in JSX */
 .pp-iframe {
-  width: 100%;
-  height: 100%;
   border: none;
   display: block;
   transition: opacity 0.2s;

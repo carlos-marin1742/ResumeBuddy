@@ -42,17 +42,34 @@ const SLIDER_CONFIG = [
   },
 ];
 
+// Letter paper dimensions at 96dpi
+const PAPER_W = 816;  // 8.5in × 96
+const PAPER_H = 1056; // 11in  × 96
+
 export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onReset }) {
   const [overrides, setOverrides] = useState(DEFAULTS);
   const [previewHtml, setPreviewHtml] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [error, setError] = useState(null);
-  const debounceRef = useRef(null);
-  const iframeRef   = useRef(null);
+  const [iframeScale, setIframeScale] = useState(1);
 
-  // Build request body — always include resumeData if available so user
-  // edits made in ResumePreview are reflected in the PDF output.
+  const debounceRef  = useRef(null);
+  const iframeRef    = useRef(null);
+  const previewRef   = useRef(null);
+
+  // Calculate scale so the 816px-wide iframe fits the container
+  useEffect(() => {
+    function updateScale() {
+      if (!previewRef.current) return;
+      const containerW = previewRef.current.offsetWidth;
+      setIframeScale(containerW / PAPER_W);
+    }
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
+
   function buildRequestBody(currentOverrides) {
     return {
       session_id:  sessionId,
@@ -128,6 +145,9 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
     }
   }
 
+  // Container height scales with iframe
+  const containerH = Math.round(PAPER_H * iframeScale);
+
   return (
     <div className="pp-page fade-up">
       {/* ── Top bar ── */}
@@ -165,7 +185,11 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
 
       <div className="pp-layout">
         {/* ── Left: iframe preview ── */}
-        <div className="pp-preview-wrap">
+        <div
+          className="pp-preview-wrap"
+          ref={previewRef}
+          style={{ height: `${containerH}px` }}
+        >
           {loadingPreview && (
             <div className="pp-preview-loading">
               <span className="spinner" /> Updating preview…
@@ -175,6 +199,12 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
             ref={iframeRef}
             className={`pp-iframe ${loadingPreview ? "pp-iframe--loading" : ""}`}
             title="Resume Preview"
+            style={{
+              width:           `${PAPER_W}px`,
+              height:          `${PAPER_H}px`,
+              transform:       `scale(${iframeScale})`,
+              transformOrigin: "top left",
+            }}
           />
         </div>
 
@@ -212,7 +242,7 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
           </div>
 
           <div className="pp-hint card">
-            <p>Adjust sliders to fine-tune spacing and margins. The preview updates live. Download generates a PDF with your exact settings.</p>
+            <p>The preview shows exactly one page. If content is cut off, reduce font size or spacing. Download generates a PDF with your exact settings.</p>
           </div>
 
           <button
