@@ -4,6 +4,7 @@ import "./PDFPreview.css";
 const DEFAULTS = {
   font_size: 8.5,
   margin: 0.4,
+  side_margin: 0.5,
   entry_spacing: 5.0,
   section_spacing: 6.0,
 };
@@ -17,8 +18,14 @@ const SLIDER_CONFIG = [
   },
   {
     key: "margin",
-    label: "Page Margins",
+    label: "Top / Bottom Margins",
     min: 0.3, max: 0.6, step: 0.05,
+    format: (v) => `${v.toFixed(2)}in`,
+  },
+  {
+    key: "side_margin",
+    label: "Left / Right Margins",
+    min: 0.3, max: 0.8, step: 0.05,
     format: (v) => `${v.toFixed(2)}in`,
   },
   {
@@ -44,7 +51,6 @@ export default function PDFPreview({ sessionId, apiBase, onBack, onReset }) {
   const debounceRef = useRef(null);
   const iframeRef = useRef(null);
 
-  // Fetch preview HTML from backend
   const fetchPreview = useCallback(async (currentOverrides) => {
     setLoadingPreview(true);
     setError(null);
@@ -67,23 +73,18 @@ export default function PDFPreview({ sessionId, apiBase, onBack, onReset }) {
     }
   }, [apiBase, sessionId]);
 
-  // Load initial preview on mount
   useEffect(() => {
     fetchPreview(DEFAULTS);
   }, [fetchPreview]);
 
-  // Update iframe content when previewHtml changes
   useEffect(() => {
     if (!iframeRef.current || !previewHtml) return;
-    const doc = iframeRef.current.contentDocument;
-    if (doc) {
-      doc.open();
-      doc.write(previewHtml);
-      doc.close();
-    }
+    const blob = new Blob([previewHtml], { type: "text/html" });
+    const url  = URL.createObjectURL(blob);
+    iframeRef.current.src = url;
+    return () => URL.revokeObjectURL(url);
   }, [previewHtml]);
 
-  // Debounced slider handler
   function handleSlider(key, value) {
     const next = { ...overrides, [key]: parseFloat(value) };
     setOverrides(next);
@@ -170,7 +171,6 @@ export default function PDFPreview({ sessionId, apiBase, onBack, onReset }) {
             ref={iframeRef}
             className={`pp-iframe ${loadingPreview ? "pp-iframe--loading" : ""}`}
             title="Resume Preview"
-            sandbox="allow-same-origin"
           />
         </div>
 
