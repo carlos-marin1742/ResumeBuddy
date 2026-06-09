@@ -13,7 +13,7 @@ const SLIDER_CONFIG = [
   {
     key: "font_size",
     label: "Font Size",
-    min: 7.5, max: 10, step: 0.1,
+    min: 7.5, max: 12, step: 0.1,
     format: (v) => `${v.toFixed(1)}pt`,
   },
   {
