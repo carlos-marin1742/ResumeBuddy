@@ -32,9 +32,11 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
         entry_spacing   (float, pt)  — overrides entry_margin
         section_spacing (float, pt)  — overrides section_margin
 
-    In override mode, margins are applied as body padding so they render
-    correctly in the iframe preview (browser ignores @page rules in iframes).
-    Playwright uses @page margin for the actual PDF download.
+    Font sizes use em units relative to body font-size so all text scales
+    correctly when the user adjusts font_size via the preview sliders.
+
+    In override mode a red page boundary line is injected at the exact
+    letter page height so the user can see overflow before downloading.
     """
     contact    = resume.get("contact", {})
     skills     = resume.get("skills", {})
@@ -175,7 +177,6 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
     has_dense_skills = skill_row_count >= 4 and not has_projects
 
     if overrides:
-        # User-controlled override mode (preview + custom download)
         font_size_pt    = overrides.get("font_size", 8.5)
         margin_in       = overrides.get("margin", 0.4)
         side_margin_in  = overrides.get("side_margin", 0.5)
@@ -185,15 +186,34 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
         contact_margin  = 6.0
         section_pb      = 0.5
         body_lh         = "1.28"
-        # @page margin for PDF output
         page_margin_css = f"{margin_in}in {side_margin_in}in {margin_in}in {side_margin_in}in"
-        # body padding for iframe preview (browser ignores @page in iframes)
         body_padding    = f"{margin_in}in {side_margin_in}in"
+
+        # Red page boundary line at exact letter page height minus margins
+        page_height_px  = (11 - margin_in * 2) * 96
+        page_boundary_css = f"""
+    body {{ position: relative; }}
+    body::after {{
+      content: 'PAGE BREAK';
+      display: block;
+      position: absolute;
+      top: {page_height_px:.0f}px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #e53e3e;
+      z-index: 999;
+      font-size: 9px;
+      color: #e53e3e;
+      text-align: right;
+      padding-right: 4px;
+      line-height: 0;
+    }}"""
     else:
-        # Auto-fit mode — profile-aware spacing
-        font_size_pt    = 8.5
-        page_margin_css = "0.4in 0.5in 0.4in 0.5in"
-        body_padding    = "0"
+        font_size_pt      = 8.5
+        page_margin_css   = "0.4in 0.5in 0.4in 0.5in"
+        body_padding      = "0"
+        page_boundary_css = ""
 
         if has_projects:
             li_margin      = max(0.5, 1.0 + spacing_adjust)
@@ -222,6 +242,8 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
 <head>
 <meta charset="utf-8">
 <style>
+  {page_boundary_css}
+
   @page {{
     size: letter;
     margin: {page_margin_css};
@@ -250,7 +272,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
 
   .contact {{
     text-align: center;
-    font-size: 8pt;
+    font-size: 0.94em;
     margin-bottom: {contact_margin:.1f}pt;
   }}
 
@@ -271,7 +293,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
   }}
 
   .skill-row {{
-    font-size: 8pt;
+    font-size: 0.94em;
     line-height: 1.35;
   }}
 
@@ -289,14 +311,14 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
 
   .entry-title {{
     font-weight: bold;
-    font-size: 9pt;
+    font-size: 1.06em;
     flex: 1;
     line-height: 1.3;
   }}
 
   .entry-date {{
     font-style: italic;
-    font-size: 8pt;
+    font-size: 0.94em;
     white-space: nowrap;
     margin-left: 8pt;
     flex-shrink: 0;
@@ -306,7 +328,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
 
   .entry-sub {{
     font-style: italic;
-    font-size: 8pt;
+    font-size: 0.94em;
     margin-bottom: 2pt;
     line-height: 1.3;
   }}
@@ -314,7 +336,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
   .entry-sub-inline {{
     font-style: italic;
     font-weight: normal;
-    font-size: 8.5pt;
+    font-size: 1em;
   }}
 
   .dot {{ margin: 0 2pt; }}
@@ -326,7 +348,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
   }}
 
   li {{
-    font-size: 8pt;
+    font-size: 0.94em;
     line-height: 1.35;
     margin-bottom: {li_margin:.1f}pt;
   }}
@@ -334,7 +356,7 @@ def _render_html(resume: dict, spacing_adjust: float = 0, overrides: dict | None
   li:last-child {{ margin-bottom: 0; }}
 
   .summary {{
-    font-size: 8pt;
+    font-size: 0.94em;
     line-height: 1.35;
   }}
 </style>
@@ -412,30 +434,59 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
 
 
 def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict) -> Path:
-    """Custom PDF — uses exact override values, no auto-fit loop."""
+    """Custom PDF — uses exact override values, no auto-fit loop.
+    If content overflows to 2 pages, reduces font size by 0.5pt and retries.
+    """
     from playwright.sync_api import sync_playwright
+    from pypdf import PdfReader
 
-    output_path = Path(output_path)
+    output_path      = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    margin_in      = overrides.get("margin", 0.4)
-    side_margin_in = overrides.get("side_margin", 0.5)
+    current_overrides = dict(overrides)
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page    = browser.new_page()
-        page.set_content(_render_html(resume_data, overrides=overrides), wait_until="networkidle")
-        page.pdf(
-            path=str(output_path),
-            format="Letter",
-            margin={
-                "top":    f"{margin_in}in",
-                "bottom": f"{margin_in}in",
-                "left":   f"{side_margin_in}in",
-                "right":  f"{side_margin_in}in",
-            },
-            print_background=True,
-        )
+
+        for attempt in range(4):
+            margin_in      = current_overrides.get("margin", 0.4)
+            side_margin_in = current_overrides.get("side_margin", 0.5)
+
+            page.set_content(
+                _render_html(resume_data, overrides=current_overrides),
+                wait_until="networkidle"
+            )
+
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp_path = tmp.name
+
+            page.pdf(
+                path=tmp_path,
+                format="Letter",
+                margin={
+                    "top":    f"{margin_in}in",
+                    "bottom": f"{margin_in}in",
+                    "left":   f"{side_margin_in}in",
+                    "right":  f"{side_margin_in}in",
+                },
+                print_background=True,
+            )
+
+            reader = PdfReader(tmp_path)
+            if len(reader.pages) == 1:
+                shutil.copy(tmp_path, output_path)
+                Path(tmp_path).unlink(missing_ok=True)
+                break
+
+            Path(tmp_path).unlink(missing_ok=True)
+            # Reduce font size by 0.5pt and retry
+            current_font = current_overrides.get("font_size", 8.5)
+            current_overrides["font_size"] = max(7.5, current_font - 0.5)
+
+        else:
+            # All attempts exhausted — save last render as-is
+            page.pdf(path=str(output_path), format="Letter", print_background=True)
+
         browser.close()
 
     return output_path
