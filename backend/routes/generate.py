@@ -10,11 +10,14 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from sqlmodel import Session
 
-from services.claude_service import tailor_resume, score_resume, TailoredResume, ATSScoreResult
+from db import get_session
+from models import TailoredResumeRecord
+from services.claude_service import ATSScoreResult, TailoredResume, score_resume, tailor_resume
 from services.build_resume_pdf import build_pdf
 
 router = APIRouter()
@@ -24,16 +27,16 @@ OUTPUTS_DIR.mkdir(exist_ok=True)
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
-# ── In-memory store for tailored resume dicts (keyed by session_id) ───────────
-# Allows preview and custom download endpoints to access the last generated resume
-# without re-running Claude. Capped at 50 entries to avoid unbounded growth.
+# ── In-memory store for tailored resume dicts (keyed by session_id) ──────────
+# Allows preview and custom download endpoints to access the last generated
+# resume without re-running Claude. Capped at 50 entries to avoid unbounded
+# growth.
 RESUME_STORE: dict[str, dict] = {}
 RESUME_STORE_MAX = 50
 
 
 def _store_resume(session_id: str, resume_data: dict) -> None:
     if len(RESUME_STORE) >= RESUME_STORE_MAX:
-        # Evict oldest entry
         oldest = next(iter(RESUME_STORE))
         del RESUME_STORE[oldest]
     RESUME_STORE[session_id] = resume_data
@@ -46,6 +49,8 @@ class GenerateRequest(BaseModel):
     selected_keywords: list[str] = Field(default_factory=list)
     resume_id: str = "base_resume"
     summary_variant: str | None = None
+    company: str = ""
+    job_title: str = ""
 
 
 class BulletPreview(BaseModel):
@@ -81,9 +86,10 @@ class GenerateResponse(BaseModel):
     skills_added: dict[str, list[str]]
     ats: ATSPreview
     pdf_url: str
-    session_id: str        # used by preview and custom download endpoints
+    session_id: str
     generated_at: str
     resume_id: str
+    history_id: str        # DB record ID for the history endpoint
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -96,6 +102,31 @@ def _load_resume(resume_id: str) -> dict:
         return json.loads(path.read_text())
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=500, detail=f"Resume file is malformed: {exc}")
+
+
+def _persist_generation(
+    db: Session,
+    *,
+    request: GenerateRequest,
+    final_resume: dict,
+    ats_score: dict | None = None,
+    pdf_path: str | None = None,
+) -> TailoredResumeRecord:
+    record = TailoredResumeRecord(
+        company=request.company.strip() or "Unknown",
+        job_title=request.job_title.strip() or "Unknown",
+        profile=request.resume_id,
+        job_description=request.job_description,
+        selected_keywords=request.selected_keywords,
+        tailored_resume=final_resume,
+        ats_overall_score=(ats_score or {}).get("overall_score"),
+        ats_keyword_coverage=(ats_score or {}).get("keyword_coverage"),
+        pdf_path=pdf_path,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
 
 
 def _apply_summary_variant(base_resume: dict, variant_key: str | None) -> dict:
@@ -202,7 +233,10 @@ def _unique_filename(prefix: str, extension: str) -> str:
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.post("/api/generate-resume", response_model=GenerateResponse)
-def generate_resume(request: GenerateRequest) -> GenerateResponse:
+def generate_resume(
+    request: GenerateRequest,
+    db: Session = Depends(get_session),
+) -> GenerateResponse:
 
     jd = request.job_description.strip()
     if not jd:
@@ -233,18 +267,28 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"ATS scoring failed: {exc}")
 
-    # Store resume dict for preview/custom download
+    # Store in memory for preview / custom download endpoints
     session_id = uuid.uuid4().hex
     _store_resume(session_id, full_tailored_dict)
 
+    # Render PDF
     pdf_filename = _unique_filename("resume", "pdf")
     pdf_path = OUTPUTS_DIR / pdf_filename
-
     try:
         build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
 
+    # Persist to DB
+    record = _persist_generation(
+        db,
+        request=request,
+        final_resume=full_tailored_dict,
+        ats_score=ats_result.model_dump(exclude={"raw_response"}),
+        pdf_path=str(pdf_path),
+    )
+
+    # Build response
     experience_preview = [
         ExperiencePreview(
             company=exp.company,
@@ -276,8 +320,6 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         for proj in tailored.projects
     ]
 
-    resume_id = uuid.uuid4().hex[:8]
-
     return GenerateResponse(
         summary=tailored.summary,
         experiences=experience_preview,
@@ -294,7 +336,8 @@ def generate_resume(request: GenerateRequest) -> GenerateResponse:
         pdf_url=f"/api/download/{pdf_filename}",
         session_id=session_id,
         generated_at=datetime.utcnow().isoformat() + "Z",
-        resume_id=resume_id,
+        resume_id=request.resume_id,
+        history_id=record.id,
     )
 
 

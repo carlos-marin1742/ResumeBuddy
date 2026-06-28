@@ -6,7 +6,7 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-export default function ResumePreview({ result, apiBase, onBack, onReset, onPreviewPDF, onEdit, editedResumeData }) {
+export default function ResumePreview({ result, apiBase, onBack, onReset, onPreviewPDF, onEdit }) {
   const { summary, experiences, projects = [], skills_to_highlight, ats, pdf_url, generated_at } = result;
 
   // ── Local editable state ──────────────────────────────────────────────────
