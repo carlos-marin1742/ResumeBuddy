@@ -267,6 +267,9 @@ def generate_resume(
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"ATS scoring failed: {exc}")
 
+    # Embed matched keywords so history can surface them without re-scoring
+    full_tailored_dict["_ats_matched_keywords"] = ats_result.matched_keywords
+
     # Store in memory for preview / custom download endpoints
     session_id = uuid.uuid4().hex
     _store_resume(session_id, full_tailored_dict)

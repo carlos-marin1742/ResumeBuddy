@@ -33,6 +33,7 @@ class HistoryItem(BaseModel):
     ats_overall_score: int | None
     ats_keyword_coverage: float | None
     selected_keywords: list[str]
+    matched_keywords: list[str]
     job_description: str
     pdf_path: str | None
 
@@ -50,6 +51,7 @@ class DeleteResponse(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _to_item(record: TailoredResumeRecord) -> HistoryItem:
+    tailored = record.tailored_resume or {}
     return HistoryItem(
         id=record.id,
         created_at=record.created_at.isoformat(),
@@ -59,6 +61,7 @@ def _to_item(record: TailoredResumeRecord) -> HistoryItem:
         ats_overall_score=record.ats_overall_score,
         ats_keyword_coverage=record.ats_keyword_coverage,
         selected_keywords=record.selected_keywords or [],
+        matched_keywords=tailored.get("_ats_matched_keywords", []),
         job_description=record.job_description or "",
         pdf_path=record.pdf_path,
     )

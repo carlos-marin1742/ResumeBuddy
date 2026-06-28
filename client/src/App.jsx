@@ -211,6 +211,8 @@ export default function App() {
           onPreviewPDF={() => setStep(4)}
           onEdit={handleEdit}
           editedResumeData={editedResumeData}
+          jobDescription={jobDescription}
+          selectedKeywords={selectedKeywords}
         />
       )}
 
