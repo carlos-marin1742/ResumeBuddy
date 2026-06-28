@@ -2,17 +2,18 @@
 
 An AI-powered resume tailoring tool built for job seekers across tech, clinical, and administrative roles. Paste a job description, select the keywords that matter, and get a tailored single-page PDF resume generated in seconds.
 
-Built as a portfolio project demonstrating full-stack AI engineering: FastAPI backend, React frontend, Groq + Anthropic API integration, automated PDF generation via Playwright, and Docker containerization.
+Built as a portfolio project demonstrating full-stack AI engineering: FastAPI backend, React frontend, Groq + Anthropic API integration, automated PDF generation via Playwright, SQLite persistence, and Docker containerization.
 
 ---
 
 ## How it works
 
 1. **Select your resume profile** — choose from Tech, Clinical Research, or Administrative. Profiles are loaded dynamically from JSON files in `backend/data/`
-2. **Paste a job description** — Groq (Llama 3.3 70B) extracts hard skills, tools, soft skills, and role signals, scores each by ATS weight, and flags gaps against your base resume
+2. **Paste a job description** — enter the company name, job title, and description. Groq (Llama 3.3 70B) extracts hard skills, tools, soft skills, and role signals, scores each by ATS weight, and flags gaps against your base resume
 3. **Select your keywords** — review what's already in your resume vs. what's missing, then confirm the keywords you want to target
 4. **Generate** — Claude Haiku rewrites your bullets to naturally incorporate your selected keywords, injects missing skills into the correct categories, scores the result with a heuristic ATS engine, and produces a polished single-page PDF
-5. **Preview & adjust** — fine-tune font size, page margins, entry spacing, and section spacing with live sliders before downloading your custom PDF
+5. **Preview & adjust** — inline-edit your tailored resume, then fine-tune font size, page margins, entry spacing, and section spacing with live sliders before downloading your custom PDF
+6. **Resume History** — every generation is saved to SQLite. Browse, search, re-preview, and re-download past resumes from the history view at any time
 
 ---
 
@@ -25,7 +26,9 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 - **Skills filtering** — irrelevant skill categories are hidden per role type; admin/clinical resumes show only their own categories, not tech stacks
 - **Dynamic single-page enforcement** — profile-aware spacing engine with bidirectional feedback loop ensures the PDF always fills one page cleanly regardless of content density
 - **Heuristic ATS scoring** — fast, deterministic, zero-cost scoring with keyword coverage, matched/missing keywords, and actionable suggestions
+- **Inline resume editing** — edit summary bullets and experience bullets directly in the preview before generating your PDF
 - **PDF preview with live sliders** — adjust font size, margins, entry spacing, and section spacing in a live iframe before generating your final PDF
+- **Resume history** — SQLite-backed history of every generation with company, role, ATS score, and cached PDF; searchable and filterable by profile
 - **Docker support** — fully containerized for consistent cross-platform behavior
 
 ---
@@ -40,6 +43,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 | Resume tailoring | Anthropic API (Claude Haiku) |
 | ATS scoring | Heuristic Python function (no API) |
 | PDF generation | Playwright (HTML/CSS → PDF) + pypdf |
+| Persistence | SQLite via SQLModel |
 | Resume data | Structured JSON (multi-profile) |
 | Containerization | Docker, Docker Compose |
 
@@ -54,12 +58,15 @@ ResumeBuddy/
 ├── .env                              # gitignored — create manually
 ├── backend/
 │   ├── main.py                       # FastAPI app, CORS, routers, static serving, health check
+│   ├── db.py                         # SQLite engine setup via SQLModel
+│   ├── models.py                     # TailoredResumeRecord SQLModel table
 │   ├── requirements.txt
 │   ├── routes/
 │   │   ├── resumes.py                # GET /api/resumes
 │   │   ├── extract.py                # POST /api/extract-keywords
 │   │   ├── generate.py               # POST /api/generate-resume, GET /api/download/{file}
-│   │   └── preview.py                # POST /api/preview-html, POST /api/download-custom
+│   │   ├── preview.py                # POST /api/preview-html, POST /api/download-custom
+│   │   └── history.py                # GET|DELETE /api/history, restore + download endpoints
 │   ├── services/
 │   │   ├── claude_service.py         # Groq extraction, Claude tailoring, heuristic scoring
 │   │   └── build_resume_pdf.py       # HTML/CSS resume renderer → PDF via Playwright
@@ -67,16 +74,18 @@ ResumeBuddy/
 │       ├── base_resume.json          # Tech / AI profile
 │       ├── base_resume_clinical.json # Clinical research profile
 │       ├── base_resume_admin.json    # Administrative profile
-│       └── base_resume_schema.md     # Schema reference
+│       ├── base_resume_schema.md     # Schema reference
+│       └── resume_history.db         # SQLite database (auto-created on first run)
 └── client/
     └── src/
-        ├── App.jsx                   # 5-step flow orchestration
+        ├── App.jsx                   # 5-step flow orchestration + state management
         └── components/
-            ├── ResumePicker.jsx      # Step 1: select resume profile
-            ├── JDInput.jsx           # Step 2: paste job description
-            ├── KeywordSelector.jsx   # Step 3: review and select keywords
-            ├── ResumePreview.jsx     # Step 4: tailored preview + ATS score
-            └── PDFPreview.jsx        # Step 5: live PDF preview with spacing sliders
+            ├── ResumePicker.jsx      # Step 0: select resume profile
+            ├── JDInput.jsx           # Step 1: enter company, title, and job description
+            ├── KeywordSelector.jsx   # Step 2: review and select keywords
+            ├── ResumePreview.jsx     # Step 3: tailored preview + inline editing + ATS score
+            ├── PDFPreview.jsx        # Step 4: live PDF preview with spacing sliders
+            └── ResumeHistory.jsx     # History view: searchable list + detail + re-preview
 ```
 
 ---
@@ -210,6 +219,11 @@ See `base_resume_schema.md` for the full JSON schema. Key sections:
 | `GET` | `/api/download/{filename}` | Download a generated PDF (auto-fit spacing) |
 | `POST` | `/api/preview-html` | Get rendered HTML for iframe preview (instant, no Playwright) |
 | `POST` | `/api/download-custom` | Generate PDF with user-specified spacing overrides |
+| `GET` | `/api/history` | List all saved resume generations, newest first |
+| `GET` | `/api/history/{id}` | Get a single history record |
+| `DELETE` | `/api/history/{id}` | Delete a history record |
+| `POST` | `/api/history/{id}/restore` | Load a history record into session for re-preview |
+| `GET` | `/api/download-history/{id}` | Re-download the cached PDF for a history record |
 
 ### POST /api/extract-keywords
 
