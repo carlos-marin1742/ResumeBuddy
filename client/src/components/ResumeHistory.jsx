@@ -85,13 +85,17 @@ function HistoryDetail({ record, onBack }) {
     month: "long", day: "numeric", year: "numeric",
   });
 
+  const coveragePct = record.ats_keyword_coverage != null
+    ? Math.round(record.ats_keyword_coverage * 100)
+    : null;
+
+  const selectedCount = record.selected_keywords?.length ?? 0;
+  const matchedCount  = record.matched_keywords?.length ?? 0;
+
   return (
     <div className="rh-detail">
       <div className="rh-detail-topbar">
         <button className="rh-back-btn" onClick={onBack}>← Back to History</button>
-        {record.ats_overall_score != null && (
-          <ScoreBadge score={record.ats_overall_score} />
-        )}
       </div>
 
       <div className="rh-detail-head">
@@ -104,6 +108,60 @@ function HistoryDetail({ record, onBack }) {
         </p>
       </div>
 
+      {/* ── Stats grid ── */}
+      {record.ats_overall_score != null && (
+        <div className="rh-stats-grid">
+          <div className="rh-stat-card">
+            <span className="rh-stat-label">ATS Score</span>
+            <ScoreBadge score={record.ats_overall_score} />
+          </div>
+          {coveragePct != null && (
+            <div className="rh-stat-card">
+              <span className="rh-stat-label">Keyword Coverage</span>
+              <span className="rh-stat-value">{coveragePct}%</span>
+            </div>
+          )}
+          <div className="rh-stat-card">
+            <span className="rh-stat-label">Keywords Selected</span>
+            <span className="rh-stat-value">{selectedCount}</span>
+          </div>
+          <div className="rh-stat-card">
+            <span className="rh-stat-label">Keywords Applied</span>
+            <span className="rh-stat-value">{matchedCount}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Selected keywords ── */}
+      {selectedCount > 0 && (
+        <div className="rh-detail-section">
+          <p className="rh-detail-section-label">Keywords Selected ({selectedCount})</p>
+          <div className="rh-kw-chips">
+            {record.selected_keywords.map((kw) => (
+              <span
+                key={kw}
+                className={`rh-kw-chip ${record.matched_keywords?.includes(kw) ? "rh-kw-matched" : "rh-kw-missing"}`}
+              >
+                {kw}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Matched keywords ── */}
+      {matchedCount > 0 && (
+        <div className="rh-detail-section">
+          <p className="rh-detail-section-label">Keywords Applied ({matchedCount})</p>
+          <div className="rh-kw-chips">
+            {record.matched_keywords.map((kw) => (
+              <span key={kw} className="rh-kw-chip rh-kw-matched">{kw}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Job description ── */}
       {record.job_description && (
         <div className="rh-detail-section">
           <p className="rh-detail-section-label">Job Description</p>
@@ -182,12 +240,10 @@ export default function ResumeHistory({ onBack }) {
     }
   };
 
-  // ── If a record is selected, show the full-page detail view ──────────────
   if (detailRecord) {
     return <HistoryDetail record={detailRecord} onBack={() => setDetailRecord(null)} />;
   }
 
-  // ── Filter + sort ─────────────────────────────────────────────────────────
   const q = search.trim().toLowerCase();
   const visible = records
     .filter(r => filterProfile === "all" || r.profile === filterProfile)
@@ -200,7 +256,6 @@ export default function ResumeHistory({ onBack }) {
 
   const profiles = [...new Set(records.map(r => r.profile))];
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="rh-root">
       {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -282,7 +337,7 @@ export default function ResumeHistory({ onBack }) {
 
         {!loading && !error && visible.length === 0 && records.length > 0 && (
           <div className="rh-no-results">
-            No resumes match <strong>"{search}"</strong>.
+            No resumes match <strong>&quot;{search}&quot;</strong>.
           </div>
         )}
 
@@ -290,47 +345,68 @@ export default function ResumeHistory({ onBack }) {
           <div className="rh-list">
             <div className="rh-list-header">
               <span>Company</span><span>Role</span><span>Profile</span>
-              <span>Date</span><span>Score</span><span />
+              <span>Date</span><span>Score</span><span>Keywords</span><span />
             </div>
 
-            {visible.map(record => (
-              <div
-                key={record.id}
-                className="rh-row"
-                onClick={() => setDetailRecord(record)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => e.key === "Enter" && setDetailRecord(record)}
-              >
-                <span className="rh-cell rh-cell-company">{record.company}</span>
-                <span className="rh-cell rh-cell-title">{record.job_title}</span>
-                <span className="rh-cell">
-                  <span className="rh-profile-chip">
-                    {PROFILE_LABELS[record.profile] ?? record.profile}
+            {visible.map(record => {
+              const coveragePct = record.ats_keyword_coverage != null
+                ? Math.round(record.ats_keyword_coverage * 100)
+                : null;
+              const selectedCount = record.selected_keywords?.length ?? 0;
+              const matchedCount  = record.matched_keywords?.length ?? 0;
+
+              return (
+                <div
+                  key={record.id}
+                  className="rh-row"
+                  onClick={() => setDetailRecord(record)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === "Enter" && setDetailRecord(record)}
+                >
+                  <span className="rh-cell rh-cell-company">{record.company}</span>
+                  <span className="rh-cell rh-cell-title">{record.job_title}</span>
+                  <span className="rh-cell">
+                    <span className="rh-profile-chip">
+                      {PROFILE_LABELS[record.profile] ?? record.profile}
+                    </span>
                   </span>
-                </span>
-                <span className="rh-cell rh-cell-date">
-                  {new Date(record.created_at).toLocaleDateString("en-US", {
-                    month: "short", day: "numeric", year: "numeric",
-                  })}
-                </span>
-                <span className="rh-cell">
-                  {record.ats_overall_score != null
-                    ? <ScoreBadge score={record.ats_overall_score} />
-                    : <span className="rh-cell-none">—</span>}
-                </span>
-                <span className="rh-cell rh-cell-actions">
-                  <button
-                    className="rh-delete-btn"
-                    disabled={deleting === record.id}
-                    onClick={e => handleDelete(record.id, e)}
-                    aria-label="Delete"
-                  >
-                    {deleting === record.id ? "…" : "✕"}
-                  </button>
-                </span>
-              </div>
-            ))}
+                  <span className="rh-cell rh-cell-date">
+                    {new Date(record.created_at).toLocaleDateString("en-US", {
+                      month: "short", day: "numeric", year: "numeric",
+                    })}
+                  </span>
+                  <span className="rh-cell rh-cell-score-col">
+                    {record.ats_overall_score != null
+                      ? <ScoreBadge score={record.ats_overall_score} />
+                      : <span className="rh-cell-none">—</span>}
+                    {coveragePct != null && (
+                      <span className="rh-coverage-sub">{coveragePct}% coverage</span>
+                    )}
+                  </span>
+                  <span className="rh-cell rh-cell-kw">
+                    {selectedCount > 0 && (
+                      <span className="rh-kw-stat">
+                        <span className="rh-kw-stat-matched">{matchedCount}</span>
+                        <span className="rh-kw-stat-sep">/</span>
+                        <span className="rh-kw-stat-total">{selectedCount}</span>
+                        <span className="rh-kw-stat-label"> kw</span>
+                      </span>
+                    )}
+                  </span>
+                  <span className="rh-cell rh-cell-actions">
+                    <button
+                      className="rh-delete-btn"
+                      disabled={deleting === record.id}
+                      onClick={e => handleDelete(record.id, e)}
+                      aria-label="Delete"
+                    >
+                      {deleting === record.id ? "…" : "✕"}
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </main>

@@ -20,6 +20,7 @@ from routes.extract import router as extract_router
 from routes.generate import router as generate_router
 from routes.history import router as history_router
 from routes.preview import router as preview_router
+from routes.regenerate import router as regenerate_router
 from routes.resumes import router as resumes_router
 
 load_dotenv()
@@ -54,6 +55,7 @@ app.include_router(resumes_router)
 app.include_router(extract_router)
 app.include_router(generate_router)
 app.include_router(preview_router)
+app.include_router(regenerate_router)
 app.include_router(history_router)
 
 BASE_RESUME_PATH = Path(__file__).resolve().parent / "data" / "base_resume.json"

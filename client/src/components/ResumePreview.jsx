@@ -1,33 +1,47 @@
 import { useState, useEffect } from "react";
 import "./ResumePreview.css";
 
-// Deep clone helper
 function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-export default function ResumePreview({ result, apiBase, onBack, onReset, onPreviewPDF, onEdit }) {
-  const { summary, experiences, projects = [], skills_to_highlight, ats, pdf_url, generated_at } = result;
+export default function ResumePreview({
+  result,
+  apiBase,
+  onBack,
+  onReset,
+  onPreviewPDF,
+  onEdit,
+  jobDescription,
+  selectedKeywords,
+}) {
+  const { summary, experiences, projects = [], skills_to_highlight, pdf_url, generated_at } = result;
 
-  // ── Local editable state ──────────────────────────────────────────────────
+  // ── Editable content state ────────────────────────────────────────────────
   const [editSummary, setEditSummary] = useState(summary);
   const [editExperiences, setEditExperiences] = useState(() => deepClone(experiences));
   const [editProjects, setEditProjects] = useState(() => deepClone(projects));
+  const [atsState, setAtsState] = useState(result.ats);
 
-  // Editing mode flags
+  // ── Inline edit mode ──────────────────────────────────────────────────────
   const [summaryEditing, setSummaryEditing] = useState(false);
-  const [editingBullet, setEditingBullet] = useState(null); // { type: "exp"|"proj", company/name, index }
+  const [editingBullet, setEditingBullet] = useState(null);
+
+  // ── Regenerate panel state ────────────────────────────────────────────────
+  // { type: "summary" | "exp" | "proj", key: company|name|null }
+  const [regenPanel, setRegenPanel] = useState(null);
+  const [regenFeedback, setRegenFeedback] = useState("");
+  const [regenLoading, setRegenLoading] = useState(false);
+  const [regenError, setRegenError] = useState(null);
 
   const scoreColor =
-    ats.overall_score >= 80 ? "score-high" :
-    ats.overall_score >= 60 ? "score-mid"  : "score-low";
+    atsState.overall_score >= 80 ? "score-high" :
+    atsState.overall_score >= 60 ? "score-mid"  : "score-low";
 
-  const coveragePct = Math.round(ats.keyword_coverage * 100);
+  const coveragePct = Math.round(atsState.keyword_coverage * 100);
 
-  // Sync edits upward to App whenever anything changes
+  // Sync edits upward to App
   useEffect(() => {
-    // Build a minimal resume data patch with edited text
-    // Backend uses tailored_summary, experience[].bullets[].text
     const patch = {
       tailored_summary: editSummary,
       experience: editExperiences.map((exp) => ({
@@ -51,19 +65,7 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
     onEdit(patch);
   }, [editSummary, editExperiences, editProjects]);
 
-  // ── Summary edit ──────────────────────────────────────────────────────────
-  function handleSummaryClick() {
-    setSummaryEditing(true);
-  }
-  function handleSummaryBlur() {
-    setSummaryEditing(false);
-  }
-
-  // ── Bullet edit ───────────────────────────────────────────────────────────
-  function handleBulletClick(type, key, index) {
-    setEditingBullet({ type, key, index });
-  }
-
+  // ── Inline edit handlers ──────────────────────────────────────────────────
   function handleBulletChange(type, key, index, value) {
     if (type === "exp") {
       setEditExperiences((prev) => {
@@ -82,19 +84,127 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
     }
   }
 
-  function handleBulletBlur() {
-    setEditingBullet(null);
-  }
-
   function isEditingBullet(type, key, index) {
     return editingBullet?.type === type &&
            editingBullet?.key === key &&
            editingBullet?.index === index;
   }
 
+  // ── Regenerate handlers ───────────────────────────────────────────────────
+  function openRegenPanel(type, key = null) {
+    // Close inline edit if open
+    setSummaryEditing(false);
+    setEditingBullet(null);
+    setRegenError(null);
+    setRegenFeedback("");
+    setRegenPanel({ type, key });
+  }
+
+  function closeRegenPanel() {
+    setRegenPanel(null);
+    setRegenFeedback("");
+    setRegenError(null);
+  }
+
+  async function handleRegenerate() {
+    setRegenLoading(true);
+    setRegenError(null);
+
+    const sectionMap = { summary: "summary", exp: "experience", proj: "project" };
+
+    try {
+      const res = await fetch(`${apiBase}/api/regenerate-section`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: result.session_id,
+          section: sectionMap[regenPanel.type],
+          target: regenPanel.key,
+          feedback: regenFeedback,
+          job_description: jobDescription,
+          selected_keywords: selectedKeywords,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (regenPanel.type === "summary") {
+        setEditSummary(data.summary);
+      } else if (regenPanel.type === "exp") {
+        setEditExperiences((prev) => {
+          const next = deepClone(prev);
+          const exp = next.find((e) => e.company === regenPanel.key);
+          if (exp && data.bullets) {
+            exp.bullets = data.bullets.map((b) => ({
+              original: b.original,
+              tailored: b.tailored,
+              keywords_injected: b.keywords_injected,
+            }));
+          }
+          return next;
+        });
+      } else if (regenPanel.type === "proj") {
+        setEditProjects((prev) => {
+          const next = deepClone(prev);
+          const proj = next.find((p) => p.name === regenPanel.key);
+          if (proj && data.bullets) {
+            proj.bullets = data.bullets.map((b) => ({
+              original: b.original,
+              tailored: b.tailored,
+              keywords_injected: b.keywords_injected,
+            }));
+          }
+          return next;
+        });
+      }
+
+      setAtsState(data.ats);
+      closeRegenPanel();
+    } catch (e) {
+      setRegenError(e.message);
+    } finally {
+      setRegenLoading(false);
+    }
+  }
+
   function handleDownload() {
     window.open(`${apiBase}${pdf_url}`, "_blank");
   }
+
+  const regenPanelJSX = regenPanel ? (
+    <div className="rp-regen-panel">
+      <textarea
+        className="rp-regen-textarea"
+        placeholder='Optional: add instructions (e.g. "focus on leadership", "more technical")'
+        value={regenFeedback}
+        onChange={(e) => setRegenFeedback(e.target.value)}
+        rows={2}
+        disabled={regenLoading}
+      />
+      {regenError && <p className="rp-regen-error">{regenError}</p>}
+      <div className="rp-regen-actions">
+        <button className="btn btn-ghost btn-sm" onClick={closeRegenPanel} disabled={regenLoading}>
+          Cancel
+        </button>
+        <button
+          className="btn btn-primary btn-sm rp-regen-submit"
+          onClick={handleRegenerate}
+          disabled={regenLoading}
+        >
+          {regenLoading ? (
+            <><span className="rp-spinner" /> Regenerating…</>
+          ) : (
+            "↺ Regenerate"
+          )}
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="rp-page fade-up">
@@ -130,10 +240,17 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
             <div className="rp-section-header">
               <span className="rp-section-title">Summary</span>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <button
+                  className="btn btn-ghost btn-sm rp-regen-btn"
+                  onClick={() => regenPanel?.type === "summary" ? closeRegenPanel() : openRegenPanel("summary")}
+                  title="Regenerate summary with AI"
+                >
+                  ↺ Regenerate
+                </button>
                 {!summaryEditing && (
                   <button
                     className="btn btn-ghost btn-sm rp-edit-btn"
-                    onClick={handleSummaryClick}
+                    onClick={() => { closeRegenPanel(); setSummaryEditing(true); }}
                     title="Edit summary"
                   >
                     ✎ Edit
@@ -142,19 +259,20 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
                 <span className="rp-badge tailored">Tailored</span>
               </div>
             </div>
+            {regenPanel?.type === "summary" && regenPanelJSX}
             {summaryEditing ? (
               <textarea
                 className="rp-edit-textarea"
                 value={editSummary}
                 onChange={(e) => setEditSummary(e.target.value)}
-                onBlur={handleSummaryBlur}
+                onBlur={() => setSummaryEditing(false)}
                 autoFocus
                 rows={4}
               />
             ) : (
               <p
                 className="rp-summary-text rp-editable"
-                onClick={handleSummaryClick}
+                onClick={() => { closeRegenPanel(); setSummaryEditing(true); }}
                 title="Click to edit"
               >
                 {editSummary}
@@ -185,8 +303,22 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
                   <span className="rp-section-title">{exp.title}</span>
                   <span className="rp-section-sub"> · {exp.company}</span>
                 </div>
-                <span className="rp-badge tailored">Tailored</span>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <button
+                    className="btn btn-ghost btn-sm rp-regen-btn"
+                    onClick={() =>
+                      regenPanel?.type === "exp" && regenPanel?.key === exp.company
+                        ? closeRegenPanel()
+                        : openRegenPanel("exp", exp.company)
+                    }
+                    title="Regenerate bullets with AI"
+                  >
+                    ↺ Regenerate
+                  </button>
+                  <span className="rp-badge tailored">Tailored</span>
+                </div>
               </div>
+              {regenPanel?.type === "exp" && regenPanel?.key === exp.company && regenPanelJSX}
               <div className="rp-bullets">
                 {exp.bullets.map((b, i) => (
                   <div key={i} className="rp-bullet">
@@ -197,14 +329,14 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
                           className="rp-edit-textarea"
                           value={b.tailored}
                           onChange={(e) => handleBulletChange("exp", exp.company, i, e.target.value)}
-                          onBlur={handleBulletBlur}
+                          onBlur={() => setEditingBullet(null)}
                           autoFocus
                           rows={2}
                         />
                       ) : (
                         <p
                           className="rp-editable"
-                          onClick={() => handleBulletClick("exp", exp.company, i)}
+                          onClick={() => { closeRegenPanel(); setEditingBullet({ type: "exp", key: exp.company, index: i }); }}
                           title="Click to edit"
                         >
                           {b.tailored}
@@ -240,8 +372,22 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
                     <div>
                       <span className="rp-section-title">{proj.name}</span>
                     </div>
-                    <span className="rp-badge tailored">Tailored</span>
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      <button
+                        className="btn btn-ghost btn-sm rp-regen-btn"
+                        onClick={() =>
+                          regenPanel?.type === "proj" && regenPanel?.key === proj.name
+                            ? closeRegenPanel()
+                            : openRegenPanel("proj", proj.name)
+                        }
+                        title="Regenerate bullets with AI"
+                      >
+                        ↺ Regenerate
+                      </button>
+                      <span className="rp-badge tailored">Tailored</span>
+                    </div>
                   </div>
+                  {regenPanel?.type === "proj" && regenPanel?.key === proj.name && regenPanelJSX}
                   <div className="rp-bullets">
                     {proj.bullets.map((b, i) => (
                       <div key={i} className="rp-bullet">
@@ -252,14 +398,14 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
                               className="rp-edit-textarea"
                               value={b.tailored}
                               onChange={(e) => handleBulletChange("proj", proj.name, i, e.target.value)}
-                              onBlur={handleBulletBlur}
+                              onBlur={() => setEditingBullet(null)}
                               autoFocus
                               rows={2}
                             />
                           ) : (
                             <p
                               className="rp-editable"
-                              onClick={() => handleBulletClick("proj", proj.name, i)}
+                              onClick={() => { closeRegenPanel(); setEditingBullet({ type: "proj", key: proj.name, index: i }); }}
                               title="Click to edit"
                             >
                               {b.tailored}
@@ -291,7 +437,6 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
 
         {/* ── Right: ATS score sidebar ── */}
         <aside className="rp-sidebar">
-          {/* Score card */}
           <div className={`rp-score-card card ${scoreColor}`}>
             <p className="rp-score-label">ATS Score</p>
             <div className="rp-score-ring-wrap">
@@ -301,53 +446,49 @@ export default function ResumePreview({ result, apiBase, onBack, onReset, onPrev
                   cx="40" cy="40" r="34"
                   className="rp-ring-fill"
                   strokeDasharray={`${2 * Math.PI * 34}`}
-                  strokeDashoffset={`${2 * Math.PI * 34 * (1 - ats.overall_score / 100)}`}
+                  strokeDashoffset={`${2 * Math.PI * 34 * (1 - atsState.overall_score / 100)}`}
                 />
               </svg>
-              <span className="rp-score-num">{ats.overall_score}</span>
+              <span className="rp-score-num">{atsState.overall_score}</span>
             </div>
             <p className="rp-coverage">
               Keyword coverage: <strong>{coveragePct}%</strong>
             </p>
           </div>
 
-          {/* Matched keywords */}
-          {ats.matched_keywords.length > 0 && (
+          {atsState.matched_keywords.length > 0 && (
             <div className="rp-ats-card card">
               <p className="rp-ats-card-title match">✓ Matched keywords</p>
               <div className="rp-ats-chips">
-                {ats.matched_keywords.map((kw) => (
+                {atsState.matched_keywords.map((kw) => (
                   <span key={kw} className="rp-ats-chip match">{kw}</span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Missing keywords */}
-          {ats.missing_keywords.length > 0 && (
+          {atsState.missing_keywords.length > 0 && (
             <div className="rp-ats-card card">
               <p className="rp-ats-card-title missing">✕ Still missing</p>
               <div className="rp-ats-chips">
-                {ats.missing_keywords.map((kw) => (
+                {atsState.missing_keywords.map((kw) => (
                   <span key={kw} className="rp-ats-chip missing">{kw}</span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Suggestions */}
-          {ats.suggestions.length > 0 && (
+          {atsState.suggestions.length > 0 && (
             <div className="rp-suggestions card">
               <p className="rp-suggestions-title">Suggestions</p>
               <ul className="rp-suggestions-list">
-                {ats.suggestions.map((s, i) => (
+                {atsState.suggestions.map((s, i) => (
                   <li key={i}>{s}</li>
                 ))}
               </ul>
             </div>
           )}
 
-          {/* Preview & Download */}
           <button className="btn btn-primary rp-download-btn" onClick={onPreviewPDF}>
             Preview &amp; Adjust →
           </button>

@@ -780,6 +780,123 @@ Rules:
 
 
 # ---------------------------------------------------------------------------
+# 2b. Section regeneration — Claude Haiku (targeted rewrites)
+# ---------------------------------------------------------------------------
+
+def regenerate_summary(
+    original_summary: str,
+    current_tailored_summary: str,
+    job_description: str,
+    selected_keywords: list[str],
+    user_feedback: str = "",
+) -> str:
+    system = """\
+You are an expert resume writer. Write an alternative professional summary that is clearly
+different from the current version but equally strong. Keep it 2-3 sentences.
+Never use em-dashes (—) or en-dashes (–); use commas, colons, or rephrase instead.
+Respond with ONLY the summary text — no preamble, no quotes, no explanation.
+"""
+    user = f"""\
+Write an alternative professional summary for this role.
+
+ORIGINAL (base) SUMMARY:
+{original_summary}
+
+CURRENT TAILORED SUMMARY (the version to replace):
+{current_tailored_summary}
+
+SELECTED KEYWORDS TO INCORPORATE:
+{json.dumps(selected_keywords)}
+
+JOB DESCRIPTION:
+{job_description}
+"""
+    if user_feedback:
+        user += f"\nUSER INSTRUCTIONS:\n{user_feedback}\n"
+
+    user += "\nReturn only the new summary text (2-3 sentences). Make it meaningfully different from the current version."
+
+    return _call_claude(system, user, max_tokens=512).strip()
+
+
+def regenerate_bullets(
+    section_type: str,
+    target_name: str,
+    target_title: str,
+    original_bullets: list[str],
+    current_tailored_bullets: list[str],
+    job_description: str,
+    selected_keywords: list[str],
+    user_feedback: str = "",
+) -> list[TailoredBullet]:
+    bullet_count = len(original_bullets)
+
+    system = """\
+You are an expert resume writer. Rewrite resume bullets as an alternative version.
+Never use em-dashes (—) or en-dashes (–); use commas, colons, or rephrase instead.
+Every bullet must start with a strong past-tense action verb.
+Never fabricate metrics, technologies, or experiences not in the originals.
+Respond with ONLY valid JSON — no preamble, no markdown fences, no explanation.
+"""
+
+    bullets_context = [
+        {"index": i, "original": orig, "current_tailored": curr}
+        for i, (orig, curr) in enumerate(zip(original_bullets, current_tailored_bullets))
+    ]
+
+    schema = [{"original": "...", "tailored": "alternative bullet text", "keywords_injected": ["kw1"]}
+              for _ in range(bullet_count)]
+
+    user = f"""\
+Write alternative tailored bullets for this {section_type} entry.
+Target: {target_name}{f" | {target_title}" if target_title else ""}
+
+BULLETS (original + current tailored version):
+{json.dumps(bullets_context, indent=2)}
+
+SELECTED KEYWORDS TO INCORPORATE:
+{json.dumps(selected_keywords)}
+
+JOB DESCRIPTION:
+{job_description}
+"""
+    if user_feedback:
+        user += f"\nUSER INSTRUCTIONS:\n{user_feedback}\n"
+
+    user += f"""
+Return exactly {bullet_count} bullets as a JSON array matching this schema:
+{json.dumps(schema, indent=2)}
+
+Rules:
+- Each bullet must start with a strong past-tense action verb
+- Keep bullets to max 165 characters
+- Never fabricate metrics or experiences
+- Make bullets clearly different from the current_tailored versions
+- keywords_injected must only list keywords actually present in the tailored text
+"""
+
+    raw = _call_claude(system, user, max_tokens=1024)
+
+    try:
+        parsed = _extract_json(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Claude returned non-JSON for bullet regeneration: {exc}\n\nRaw:\n{raw}"
+        ) from exc
+
+    return [
+        TailoredBullet(
+            original=b.get("original", ""),
+            tailored=b.get("tailored", ""),
+            keywords_injected=validate_keywords_in_text(
+                b.get("tailored", ""), selected_keywords
+            ),
+        )
+        for b in parsed
+    ]
+
+
+# ---------------------------------------------------------------------------
 # 3. ATS scoring — heuristic (no API call)
 # ---------------------------------------------------------------------------
 

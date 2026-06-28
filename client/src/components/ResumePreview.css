@@ -350,3 +350,73 @@
 .rp-edit-btn:hover {
   color: var(--accent);
 }
+
+/* ── Regenerate button ── */
+.rp-regen-btn {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  color: var(--ink-muted);
+}
+.rp-regen-btn:hover {
+  color: var(--accent);
+}
+
+/* ── Regenerate panel ── */
+.rp-regen-panel {
+  border-top: 1px solid var(--rule-light);
+  background: var(--paper);
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.rp-regen-textarea {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  resize: none;
+  outline: none;
+  background: var(--white);
+}
+.rp-regen-textarea:focus {
+  border-color: var(--accent);
+}
+
+.rp-regen-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.rp-regen-submit {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.rp-regen-error {
+  font-size: 0.78rem;
+  color: var(--error);
+  margin: 0;
+}
+
+/* ── Spinner ── */
+.rp-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: rp-spin 0.65s linear infinite;
+}
+@keyframes rp-spin {
+  to { transform: rotate(360deg); }
+}
