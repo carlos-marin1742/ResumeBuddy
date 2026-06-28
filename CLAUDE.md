@@ -26,6 +26,11 @@ npm run dev
 cd client && npm run lint
 ```
 
+**Run backend unit tests** (no API keys needed — all external calls are mocked):
+```bash
+cd backend/services && pytest test_claude_service.py -v
+```
+
 **Smoke-test AI services directly** (requires `.env` with API keys):
 ```bash
 cd backend && python services/claude_service.py
@@ -48,28 +53,31 @@ ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5173
 
 ## Architecture
 
-This is a full-stack AI resume tailoring app. The frontend is a 5-step wizard; the backend orchestrates two LLMs and PDF generation via Playwright.
+This is a full-stack AI resume tailoring app. The frontend is a 5-step wizard (steps 0–4); the backend orchestrates two LLMs, SQLite persistence, and PDF generation via Playwright.
 
 ### Request flow
 
 1. **Step 0 — Profile selection**: `GET /api/resumes` discovers all `backend/data/*.json` files dynamically.
 2. **Step 1 → 2 — Keyword extraction**: `POST /api/extract-keywords` calls Groq (Llama 3.3 70B, free tier) to extract and ATS-score keywords from the job description.
-3. **Step 2 → 3 — Resume generation**: `POST /api/generate-resume` calls Claude Haiku to rewrite bullets, then runs the heuristic ATS scorer. The tailored resume dict is stored in `RESUME_STORE` (in-memory, max 50 entries) keyed by `session_id`. Playwright generates the PDF.
-4. **Step 3 — Tailored preview**: `POST /api/preview-html` renders HTML instantly (no Playwright) with a red page-boundary indicator (`show_boundary=True`). Used for live iframe preview.
+3. **Step 2 → 3 — Resume generation**: `POST /api/generate-resume` calls Claude Haiku to rewrite bullets, then runs the heuristic ATS scorer. The tailored resume dict is stored in `RESUME_STORE` (in-memory, max 50 entries) keyed by `session_id`. Playwright generates the PDF. The record is also persisted to SQLite.
+4. **Step 3 — Tailored preview**: `POST /api/preview-html` renders HTML instantly (no Playwright) with a red page-boundary indicator (`show_boundary=True`). Used for live iframe preview. Inline edits made here are held in `editedResumeData` state in `App.jsx` and forwarded to step 4.
 5. **Step 4 — PDF with sliders**: `POST /api/download-custom` runs Playwright with exact user-specified spacing overrides to produce the final PDF.
 
 ### Key backend files
 
-- `backend/main.py` — FastAPI app, CORS, router wiring, static file serving (frontend built to `backend/static/` in Docker), health check.
-- `backend/services/claude_service.py` — All AI logic: `extract_keywords()` (Groq), `tailor_resume()` (Claude Haiku), `score_resume()` (heuristic). Also contains the `SKILL_TO_CATEGORY` and `PREFERRED_SKILL_CASING` lookup tables, and `determine_skills_to_add()` / `determine_skills_to_show()` helpers that map JD keywords to the correct resume skill categories.
+- `backend/main.py` — FastAPI app, CORS, router wiring, static file serving (frontend built to `backend/static/` in Docker), health check, `init_db()` call on startup.
+- `backend/db.py` — SQLite engine setup via SQLModel. DB lives at `backend/data/resume_history.db` (gitignored). Provides `get_session()` FastAPI dependency.
+- `backend/models.py` — `TailoredResumeRecord` SQLModel table: captures company, job_title, profile, JD, selected_keywords, tailored_resume dict, ATS scores, and optional pdf_path per generation.
+- `backend/services/claude_service.py` — All AI logic: `extract_keywords()` (Groq), `tailor_resume()` (Claude Haiku), `score_resume()` (heuristic). Also contains `SKILL_TO_CATEGORY` and `PREFERRED_SKILL_CASING` lookup tables, and `determine_skills_to_add()` / `determine_skills_to_show()` helpers that map JD keywords to the correct resume skill categories.
 - `backend/services/build_resume_pdf.py` — Renders resume dict → HTML/CSS string (`_render_html`) and then → PDF via Playwright (`build_pdf`, `build_pdf_with_overrides`). Contains the single-page enforcement logic (bidirectional spacing feedback loop). The `show_boundary` flag injects a red line for iframe preview only — never in PDFs.
-- `backend/routes/generate.py` — `POST /api/generate-resume`, `GET /api/download/{filename}`. Owns `RESUME_STORE` (session dict). `_build_tailored_resume_dict()` merges Claude's response back into the base resume structure.
+- `backend/routes/generate.py` — `POST /api/generate-resume`, `GET /api/download/{filename}`. Owns `RESUME_STORE` (session dict). `_build_tailored_resume_dict()` merges Claude's response back into the base resume structure and writes to SQLite.
 - `backend/routes/preview.py` — `POST /api/preview-html`, `POST /api/download-custom`. Reads from `RESUME_STORE` and optionally applies user edits from the frontend before re-rendering.
+- `backend/routes/history.py` — `GET /api/history`, `GET /api/history/{id}`, `DELETE /api/history/{id}`, `GET /api/download-history/{id}`.
 
 ### Key frontend files
 
-- `client/src/App.jsx` — Step state machine (steps 0–4), all API calls, data flow between components. `editedResumeData` holds user inline edits; it's passed through to `PDFPreview` for custom PDF generation.
-- `client/src/components/` — One component per step: `ResumePicker`, `JDInput`, `KeywordSelector`, `ResumePreview`, `PDFPreview`.
+- `client/src/App.jsx` — Step state machine (steps 0–4), all API calls, data flow between components. `editedResumeData` holds user inline edits from `ResumePreview`; it's forwarded to `PDFPreview` for custom PDF generation. The `API` constant (`http://127.0.0.1:8000`) is passed as `apiBase` prop to every component that needs it.
+- `client/src/components/` — One component per step: `ResumePicker` (step 0), `JDInput` (step 1), `KeywordSelector` (step 2), `ResumePreview` (step 3), `PDFPreview` (step 4). Also `ResumeHistory` (sidebar view, hardcodes the API URL internally rather than taking `apiBase` as a prop).
 
 ### Resume data format
 
@@ -86,6 +94,6 @@ Skills categories for tech resumes: `languages`, `ai_ml`, `backend`, `frontend`,
 
 ### AI models
 
-- Keyword extraction: `llama-3.3-70b-versatile` via Groq
+- Keyword extraction: `llama-3.3-70b-versatile` via Groq (`GROQ_MODEL` constant in `claude_service.py`)
 - Resume tailoring: `claude-haiku-4-5-20251001` via Anthropic (`CLAUDE_MODEL` constant in `claude_service.py`)
 - ATS scoring: local heuristic, no API call

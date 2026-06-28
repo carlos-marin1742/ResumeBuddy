@@ -46,7 +46,17 @@ const SLIDER_CONFIG = [
 const PAPER_W = 816;  // 8.5in × 96
 const PAPER_H = 1020; // adjusted for Playwright DPI difference
 
-export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onReset }) {
+export default function PDFPreview({
+  sessionId,
+  resumeData,
+  apiBase,
+  onBack,
+  onReset,
+  title = "PDF Preview",
+  jobTitle = null,
+  jobDescription = null,
+  topOffset = 64,
+}) {
   const [overrides, setOverrides] = useState(DEFAULTS);
   const [previewHtml, setPreviewHtml] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -102,9 +112,8 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
     }
   }, [apiBase, sessionId, resumeData]);
 
-  useEffect(() => {
-    fetchPreview(DEFAULTS);
-  }, [fetchPreview]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchPreview(DEFAULTS); }, [fetchPreview]);
 
   useEffect(() => {
     if (!iframeRef.current || !previewHtml) return;
@@ -153,18 +162,20 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
   const containerH = Math.round(PAPER_H * iframeScale);
 
   return (
-    <div className="pp-page fade-up">
+    <div className="pp-page fade-up" style={{ "--pp-top-offset": `${topOffset}px` }}>
       {/* ── Top bar ── */}
       <div className="pp-topbar">
         <div className="pp-topbar-inner">
           <div className="pp-topbar-left">
             <button className="btn btn-ghost btn-sm" onClick={onBack}>← Back</button>
-            <span className="pp-title">PDF Preview</span>
+            <span className="pp-title">{title}</span>
           </div>
           <div className="pp-topbar-right">
-            <button className="btn btn-secondary btn-sm" onClick={onReset}>
-              Start over
-            </button>
+            {onReset && (
+              <button className="btn btn-secondary btn-sm" onClick={onReset}>
+                Start over
+              </button>
+            )}
             <button
               className="btn btn-primary"
               onClick={handleDownload}
@@ -214,39 +225,53 @@ export default function PDFPreview({ sessionId, resumeData, apiBase, onBack, onR
 
         {/* ── Right: controls sidebar ── */}
         <aside className="pp-sidebar">
-          <div className="pp-controls card">
-            <div className="pp-controls-header">
-              <span className="pp-controls-title">Adjust Layout</span>
-              <button className="btn btn-ghost btn-sm" onClick={handleReset}>
-                Reset
-              </button>
+          <div className="pp-sidebar-scroll">
+            {(jobTitle || jobDescription) && (
+              <div className="pp-job-info card">
+                {jobTitle && <p className="pp-job-info-role">{jobTitle}</p>}
+                {jobDescription && (
+                  <div className="pp-job-info-jd">
+                    <p className="pp-job-info-jd-label">Job Description</p>
+                    <p className="pp-job-info-jd-body">{jobDescription}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="pp-controls card">
+              <div className="pp-controls-header">
+                <span className="pp-controls-title">Adjust Layout</span>
+                <button className="btn btn-ghost btn-sm" onClick={handleReset}>
+                  Reset
+                </button>
+              </div>
+
+              {SLIDER_CONFIG.map(({ key, label, min, max, step, format }) => (
+                <div key={key} className="pp-slider-group">
+                  <div className="pp-slider-label">
+                    <span>{label}</span>
+                    <span className="pp-slider-value">{format(overrides[key])}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={overrides[key]}
+                    onChange={(e) => handleSlider(key, e.target.value)}
+                    className="pp-slider"
+                  />
+                  <div className="pp-slider-range">
+                    <span>{format(min)}</span>
+                    <span>{format(max)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {SLIDER_CONFIG.map(({ key, label, min, max, step, format }) => (
-              <div key={key} className="pp-slider-group">
-                <div className="pp-slider-label">
-                  <span>{label}</span>
-                  <span className="pp-slider-value">{format(overrides[key])}</span>
-                </div>
-                <input
-                  type="range"
-                  min={min}
-                  max={max}
-                  step={step}
-                  value={overrides[key]}
-                  onChange={(e) => handleSlider(key, e.target.value)}
-                  className="pp-slider"
-                />
-                <div className="pp-slider-range">
-                  <span>{format(min)}</span>
-                  <span>{format(max)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="pp-hint card">
-            <p>The preview shows exactly one page. If content is cut off, reduce font size or spacing. Download generates a PDF with your exact settings.</p>
+            <div className="pp-hint card">
+              <p>The preview shows exactly one page. If content is cut off, reduce font size or spacing. Download generates a PDF with your exact settings.</p>
+            </div>
           </div>
 
           <button

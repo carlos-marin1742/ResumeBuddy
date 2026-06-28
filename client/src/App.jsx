@@ -4,47 +4,74 @@ import JDInput from "./components/JDInput";
 import KeywordSelector from "./components/KeywordSelector";
 import ResumePreview from "./components/ResumePreview";
 import PDFPreview from "./components/PDFPreview";
+import ResumeHistory from "./components/ResumeHistory";
 import "./App.css";
 
-const API = import.meta.env.VITE_API_URL || "";
+const API = "http://127.0.0.1:8000";
 
-// Steps: 0 = pick resume, 1 = JD input, 2 = keywords, 3 = result, 4 = PDF preview
+// Steps:
+//   0 = pick resume profile  (ResumePicker)
+//   1 = enter JD + company   (JDInput)
+//   2 = select keywords      (KeywordSelector)
+//   3 = preview + download   (ResumePreview)
+//  "history" = history view  (ResumeHistory)
+
 export default function App() {
   const [step, setStep] = useState(0);
 
+  // Resume profile selected in step 0
   const [selectedResume, setSelectedResume] = useState(null);
-  const [jobDescription, setJobDescription] = useState("");
-  const [extractResult, setExtractResult] = useState(null);
-  const [selectedKeywords, setSelectedKeywords] = useState([]);
-  const [generateResult, setGenerateResult] = useState(null);
 
-  // Stores user edits to the generated resume (summary + bullets).
-  // Null until the user makes their first edit — falls back to session store.
+  // Job details collected in step 1
+  const [jobDescription, setJobDescription]   = useState("");
+  const [company, setCompany]                 = useState("");
+  const [jobTitle, setJobTitle]               = useState("");
+
+  // Keyword extraction result (step 1 → 2)
+  const [extractResult, setExtractResult]     = useState(null);
+  const [selectedKeywords, setSelectedKeywords] = useState([]);
+
+  // Generation result (step 2 → 3)
+  const [generateResult, setGenerateResult]   = useState(null);
+
+  // Inline edits made in ResumePreview (step 3), forwarded to PDFPreview (step 4)
   const [editedResumeData, setEditedResumeData] = useState(null);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  // Shared loading / error state
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState(null);
 
-  // ── Step 0 → 1 ───────────────────────────────────────────────────────────
+  // ── Step 0 → 1: choose profile ──────────────────────────────────────────
   function handleResumeSelect(resume) {
     setSelectedResume(resume);
     setStep(1);
   }
 
-  // ── Step 1 → 2 ───────────────────────────────────────────────────────────
-  async function handleExtract(jd) {
+  // ── Step 1 → 2: extract keywords ────────────────────────────────────────
+  async function handleExtract(jd, co, title) {
+    // JDInput passes (jobDescription, company, jobTitle)
+    setJobDescription(jd);
+    setCompany(co);
+    setJobTitle(title);
     setError(null);
     setLoading(true);
+
     try {
       const res = await fetch(`${API}/api/extract-keywords`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_description: jd, resume_id: selectedResume.id }),
+        body: JSON.stringify({
+          job_description: jd,
+          resume_id: selectedResume.id,
+        }),
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       setExtractResult(data);
-      const priority = data.keywords.filter((k) => k.ats_weight === 10).map((k) => k.keyword);
+      // Pre-select priority keywords (ats_weight === 10)
+      const priority = data.keywords
+        .filter((k) => k.ats_weight === 10)
+        .map((k) => k.keyword);
       setSelectedKeywords(priority);
       setStep(2);
     } catch (e) {
@@ -54,24 +81,27 @@ export default function App() {
     }
   }
 
-  // ── Step 2 → 3 ───────────────────────────────────────────────────────────
-  async function handleGenerate() {
+  // ── Step 2 → 3: generate resume ─────────────────────────────────────────
+  async function handleGenerate(keywords) {
+    setSelectedKeywords(keywords);
     setError(null);
     setLoading(true);
+
     try {
       const res = await fetch(`${API}/api/generate-resume`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           job_description: jobDescription,
-          selected_keywords: selectedKeywords,
+          selected_keywords: keywords,
           resume_id: selectedResume.id,
+          company,
+          job_title: jobTitle,
         }),
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       setGenerateResult(data);
-      setEditedResumeData(null); // reset edits on new generation
       setStep(3);
     } catch (e) {
       setError(e.message);
@@ -80,29 +110,18 @@ export default function App() {
     }
   }
 
-  // ── Step 3 → 4 ───────────────────────────────────────────────────────────
-  function handlePreviewPDF() {
-    setStep(4);
+  // ── Step 3: track inline edits from ResumePreview ───────────────────────
+  function handleEdit(patch) {
+    setEditedResumeData(patch);
   }
 
-  // ── Edit handler (called from ResumePreview) ──────────────────────────────
-  function handleEdit(updatedResumeData) {
-    setEditedResumeData(updatedResumeData);
-  }
-
-  // ── Back navigation ───────────────────────────────────────────────────────
-  function handleBack() {
-    setError(null);
-    if (step === 4) { setStep(3); return; }
-    if (step === 3) { setStep(2); return; }
-    if (step === 2) { setStep(1); setExtractResult(null); setSelectedKeywords([]); return; }
-    if (step === 1) { setStep(0); setSelectedResume(null); setJobDescription(""); }
-  }
-
+  // ── Reset to start ───────────────────────────────────────────────────────
   function handleReset() {
     setStep(0);
     setSelectedResume(null);
     setJobDescription("");
+    setCompany("");
+    setJobTitle("");
     setExtractResult(null);
     setSelectedKeywords([]);
     setGenerateResult(null);
@@ -110,74 +129,100 @@ export default function App() {
     setError(null);
   }
 
-  const STEP_LABELS = ["Resume", "Job Description", "Keywords", "Result", "PDF Preview"];
+  // ── History view ─────────────────────────────────────────────────────────
+  if (step === "history") {
+    return <ResumeHistory onBack={() => setStep(0)} />;
+  }
 
+  // ── Step router ──────────────────────────────────────────────────────────
   return (
-    <div className="app">
-      <header className="app-header">
-        <button className="wordmark" onClick={handleReset}>ResuméBuddy</button>
-        <nav className="step-nav">
-          {STEP_LABELS.map((label, i) => (
-            <div key={i} className={`step-pill ${i === step ? "active" : ""} ${i < step ? "done" : ""}`}>
-              <span className="step-num">{i + 1}</span>
-              <span className="step-label">{label}</span>
+    <div className="app-root">
+      {/* Global nav bar */}
+      <nav className="app-nav">
+        <span className="app-nav-brand">ResuméBuddy</span>
+        <button
+          className="app-nav-history-btn"
+          onClick={() => setStep("history")}
+        >
+          History
+        </button>
+      </nav>
+
+      {/* Step indicator (steps 0–3 only) */}
+      {typeof step === "number" && (
+        <div className="app-step-bar">
+          {["Profile", "Job Details", "Keywords", "Resume", "PDF"].map((label, i) => (
+            <div
+              key={label}
+              className={`app-step ${
+                i < step ? "app-step-done" :
+                i === step ? "app-step-active" : ""
+              }`}
+            >
+              <span className="app-step-dot">{i < step ? "✓" : i + 1}</span>
+              <span className="app-step-label">{label}</span>
+              {i < 4 && <span className="app-step-rule" />}
             </div>
           ))}
-        </nav>
-      </header>
-
-      {error && (
-        <div className="error-banner">
-          <span>⚠ {error}</span>
-          <button onClick={() => setError(null)}>✕</button>
         </div>
       )}
 
-      <main className="app-main">
-        {step === 0 && (
-          <ResumePicker apiBase={API} onSelect={handleResumeSelect} />
-        )}
-        {step === 1 && (
-          <JDInput
-            value={jobDescription}
-            onChange={setJobDescription}
-            onSubmit={handleExtract}
-            onBack={handleBack}
-            loading={loading}
-            resumeName={selectedResume?.name}
-          />
-        )}
-        {step === 2 && extractResult && (
-          <KeywordSelector
-            extractResult={extractResult}
-            selected={selectedKeywords}
-            onChange={setSelectedKeywords}
-            onBack={handleBack}
-            onGenerate={handleGenerate}
-            loading={loading}
-          />
-        )}
-        {step === 3 && generateResult && (
-          <ResumePreview
-            result={generateResult}
-            apiBase={API}
-            onBack={handleBack}
-            onReset={handleReset}
-            onPreviewPDF={handlePreviewPDF}
-            onEdit={handleEdit}
-            editedResumeData={editedResumeData}
-          />
-        )}
-        {step === 4 && generateResult && (
-          <PDFPreview
-            sessionId={generateResult.session_id}
-            resumeData={editedResumeData}
-            apiBase={API}
-            onBack={handleBack}
-            onReset={handleReset}
-          />
-        )}
-      </main>
+      {/* Error banner */}
+      {error && (
+        <div className="app-error-banner">
+          {error}
+          <button className="app-error-dismiss" onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Views */}
+      {step === 0 && (
+        <ResumePicker apiBase={API} onSelect={handleResumeSelect} />
+      )}
+
+      {step === 1 && (
+        <JDInput
+          onSubmit={handleExtract}
+          onBack={() => setStep(0)}
+          loading={loading}
+          initialCompany={company}
+          initialJobTitle={jobTitle}
+          initialJD={jobDescription}
+        />
+      )}
+
+      {step === 2 && extractResult && (
+        <KeywordSelector
+          extractResult={extractResult}
+          selected={selectedKeywords}
+          onChange={setSelectedKeywords}
+          onGenerate={() => handleGenerate(selectedKeywords)}
+          onBack={() => setStep(1)}
+          loading={loading}
+        />
+      )}
+
+      {step === 3 && generateResult && (
+        <ResumePreview
+          result={generateResult}
+          apiBase={API}
+          onBack={() => setStep(2)}
+          onReset={handleReset}
+          onPreviewPDF={() => setStep(4)}
+          onEdit={handleEdit}
+          editedResumeData={editedResumeData}
+        />
+      )}
+
+      {step === 4 && generateResult && (
+        <PDFPreview
+          sessionId={generateResult.session_id}
+          resumeData={editedResumeData}
+          apiBase={API}
+          onBack={() => setStep(3)}
+          onReset={handleReset}
+        />
+      )}
     </div>
   );
 }
