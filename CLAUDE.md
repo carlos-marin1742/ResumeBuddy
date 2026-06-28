@@ -72,12 +72,12 @@ This is a full-stack AI resume tailoring app. The frontend is a 5-step wizard (s
 - `backend/services/build_resume_pdf.py` — Renders resume dict → HTML/CSS string (`_render_html`) and then → PDF via Playwright (`build_pdf`, `build_pdf_with_overrides`). Contains the single-page enforcement logic (bidirectional spacing feedback loop). The `show_boundary` flag injects a red line for iframe preview only — never in PDFs.
 - `backend/routes/generate.py` — `POST /api/generate-resume`, `GET /api/download/{filename}`. Owns `RESUME_STORE` (session dict). `_build_tailored_resume_dict()` merges Claude's response back into the base resume structure and writes to SQLite.
 - `backend/routes/preview.py` — `POST /api/preview-html`, `POST /api/download-custom`. Reads from `RESUME_STORE` and optionally applies user edits from the frontend before re-rendering.
-- `backend/routes/history.py` — `GET /api/history`, `GET /api/history/{id}`, `DELETE /api/history/{id}`, `GET /api/download-history/{id}`.
+- `backend/routes/history.py` — `GET /api/history`, `GET /api/history/{id}`, `DELETE /api/history/{id}`, `GET /api/download-history/{id}`, `POST /api/history/{id}/restore`. The restore endpoint loads a SQLite record's `tailored_resume` into `RESUME_STORE` under a fresh `session_id`, allowing `PDFPreview` to re-render and re-download any past generation.
 
 ### Key frontend files
 
 - `client/src/App.jsx` — Step state machine (steps 0–4), all API calls, data flow between components. `editedResumeData` holds user inline edits from `ResumePreview`; it's forwarded to `PDFPreview` for custom PDF generation. The `API` constant (`http://127.0.0.1:8000`) is passed as `apiBase` prop to every component that needs it.
-- `client/src/components/` — One component per step: `ResumePicker` (step 0), `JDInput` (step 1), `KeywordSelector` (step 2), `ResumePreview` (step 3), `PDFPreview` (step 4). Also `ResumeHistory` (sidebar view, hardcodes the API URL internally rather than taking `apiBase` as a prop).
+- `client/src/components/` — One component per step: `ResumePicker` (step 0), `JDInput` (step 1 — captures company name, job title, and JD text), `KeywordSelector` (step 2), `ResumePreview` (step 3), `PDFPreview` (step 4). Also `ResumeHistory` — a full-page history view (hardcodes the API URL internally); clicking a row opens a detail page showing job info + JD with "Preview Resume" / "Download PDF" actions; "Preview Resume" lazily calls the restore endpoint then renders `PDFPreview`. `PDFPreview` accepts `topOffset` (px, default 64) so it positions its sticky topbar correctly whether rendered inside the wizard (64px app nav) or from history (0px).
 
 ### Resume data format
 
