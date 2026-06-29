@@ -34,6 +34,7 @@ class HistoryItem(BaseModel):
     ats_keyword_coverage: float | None
     selected_keywords: list[str]
     matched_keywords: list[str]
+    extracted_keywords_count: int
     job_description: str
     pdf_path: str | None
 
@@ -62,6 +63,7 @@ def _to_item(record: TailoredResumeRecord) -> HistoryItem:
         ats_keyword_coverage=record.ats_keyword_coverage,
         selected_keywords=record.selected_keywords or [],
         matched_keywords=tailored.get("_ats_matched_keywords", []),
+        extracted_keywords_count=tailored.get("_extracted_keywords_count", 0),
         job_description=record.job_description or "",
         pdf_path=record.pdf_path,
     )
@@ -155,9 +157,12 @@ def download_history_pdf(
             detail="PDF has been cleaned up from disk. Re-generate to get a fresh copy.",
         )
 
+    person_name  = record.tailored_resume.get("contact", {}).get("name", "") if record.tailored_resume else ""
+    display_name = f"{person_name}-{record.company}-{record.job_title} Resume.pdf" if person_name else f"{record.company}-{record.job_title} Resume.pdf"
+
     return FileResponse(
         path=pdf_path,
         media_type="application/pdf",
-        filename=f"resume_{record.company}_{record.job_title}.pdf".replace(" ", "_"),
+        filename=display_name,
         headers={"Cache-Control": "no-store"},
     )

@@ -6,6 +6,7 @@ GET  /api/download/{filename}
 """
 
 import json
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -51,6 +52,7 @@ class GenerateRequest(BaseModel):
     summary_variant: str | None = None
     company: str = ""
     job_title: str = ""
+    extracted_keywords_count: int = 0
 
 
 class BulletPreview(BaseModel):
@@ -90,6 +92,7 @@ class GenerateResponse(BaseModel):
     generated_at: str
     resume_id: str
     history_id: str        # DB record ID for the history endpoint
+    person_name: str       # From resume contact, for download filename
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -224,10 +227,32 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
     return output
 
 
-def _unique_filename(prefix: str, extension: str) -> str:
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    short_id = uuid.uuid4().hex[:6]
-    return f"{prefix}_{ts}_{short_id}.{extension}"
+def _safe_part(s: str) -> str:
+    """Strip filesystem-unsafe chars, collapse whitespace, replace spaces with underscores."""
+    s = re.sub(r'[<>:"/\\|?*]+', '', s).strip()
+    return re.sub(r'\s+', '_', s)
+
+
+def _pdf_storage_name(person_name: str, company: str, job_title: str) -> str:
+    """
+    Build a unique, URL-safe filename that encodes the display name.
+    Format: {Name}-{Company}-{Title}_Resume_{short_id}.pdf
+    Display name is recovered by stripping the last underscore-delimited suffix.
+    """
+    name    = _safe_part(person_name) or "Resume"
+    co      = _safe_part(company)     or "Unknown"
+    title   = _safe_part(job_title)   or "Unknown"
+    short_id = uuid.uuid4().hex[:8]
+    return f"{name}-{co}-{title}_Resume_{short_id}.pdf"
+
+
+def _pdf_display_name(storage_filename: str) -> str:
+    """
+    Recover the human-readable display name from a storage filename.
+    Strips the trailing _{short_id}.pdf suffix and replaces underscores with spaces.
+    """
+    base = storage_filename.rsplit("_", 1)[0]  # drop short_id
+    return base.replace("_", " ") + ".pdf"
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -269,13 +294,15 @@ def generate_resume(
 
     # Embed matched keywords so history can surface them without re-scoring
     full_tailored_dict["_ats_matched_keywords"] = ats_result.matched_keywords
+    full_tailored_dict["_extracted_keywords_count"] = request.extracted_keywords_count
 
     # Store in memory for preview / custom download endpoints
     session_id = uuid.uuid4().hex
     _store_resume(session_id, full_tailored_dict)
 
     # Render PDF
-    pdf_filename = _unique_filename("resume", "pdf")
+    person_name = base_resume.get("contact", {}).get("name", "")
+    pdf_filename = _pdf_storage_name(person_name, request.company, request.job_title)
     pdf_path = OUTPUTS_DIR / pdf_filename
     try:
         build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
@@ -341,6 +368,7 @@ def generate_resume(
         generated_at=datetime.utcnow().isoformat() + "Z",
         resume_id=request.resume_id,
         history_id=record.id,
+        person_name=person_name,
     )
 
 
@@ -359,9 +387,11 @@ def download_resume(filename: str) -> FileResponse:
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }
 
+    display = _pdf_display_name(filename) if suffix == ".pdf" else filename
+
     return FileResponse(
         path=file_path,
         media_type=media_type_map.get(suffix, "application/octet-stream"),
-        filename=filename,
+        filename=display,
         headers={"Cache-Control": "no-store"},
     )

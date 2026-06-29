@@ -97,6 +97,7 @@ export default function App() {
           resume_id: selectedResume.id,
           company,
           job_title: jobTitle,
+          extracted_keywords_count: extractResult?.keywords?.length ?? 0,
         }),
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -223,6 +224,9 @@ export default function App() {
           apiBase={API}
           onBack={() => setStep(3)}
           onReset={handleReset}
+          company={company}
+          jobTitle={jobTitle}
+          personName={generateResult.person_name}
         />
       )}
     </div>
