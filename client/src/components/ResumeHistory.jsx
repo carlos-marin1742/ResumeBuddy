@@ -49,6 +49,7 @@ function HistoryDetail({ record, onBack }) {
   const [sessionId, setSessionId] = useState(null);
   const [restoring, setRestoring] = useState(false);
   const [error, setError]         = useState(null);
+  const [activePanel, setActivePanel] = useState("selected");
 
   async function handlePreview() {
     setRestoring(true);
@@ -76,6 +77,8 @@ function HistoryDetail({ record, onBack }) {
         onReset={null}
         topOffset={0}
         title={record.company}
+        company={record.company}
+        jobTitle={record.job_title}
       />
     );
   }
@@ -89,8 +92,9 @@ function HistoryDetail({ record, onBack }) {
     ? Math.round(record.ats_keyword_coverage * 100)
     : null;
 
-  const selectedCount = record.selected_keywords?.length ?? 0;
-  const matchedCount  = record.matched_keywords?.length ?? 0;
+  const extractedCount = record.extracted_keywords_count ?? 0;
+  const selectedCount  = record.selected_keywords?.length ?? 0;
+  const matchedCount   = record.matched_keywords?.length ?? 0;
 
   return (
     <div className="rh-detail">
@@ -108,64 +112,117 @@ function HistoryDetail({ record, onBack }) {
         </p>
       </div>
 
-      {/* ── Stats grid ── */}
-      {record.ats_overall_score != null && (
-        <div className="rh-stats-grid">
-          <div className="rh-stat-card">
-            <span className="rh-stat-label">ATS Score</span>
+      {/* ── Stats row (one row, each item clickable) ── */}
+      <div className="rh-stats-row">
+        {record.ats_overall_score != null && (
+          <button
+            className={`rh-stat-pill ${activePanel === "ats" ? "rh-stat-pill--active" : ""}`}
+            onClick={() => setActivePanel(activePanel === "ats" ? null : "ats")}
+          >
+            <span className="rh-stat-pill-label">ATS Score</span>
             <ScoreBadge score={record.ats_overall_score} />
-          </div>
-          {coveragePct != null && (
-            <div className="rh-stat-card">
-              <span className="rh-stat-label">Keyword Coverage</span>
-              <span className="rh-stat-value">{coveragePct}%</span>
-            </div>
+          </button>
+        )}
+        {coveragePct != null && (
+          <button
+            className={`rh-stat-pill ${activePanel === "coverage" ? "rh-stat-pill--active" : ""}`}
+            onClick={() => setActivePanel(activePanel === "coverage" ? null : "coverage")}
+          >
+            <span className="rh-stat-pill-label">Keyword Coverage</span>
+            <span className="rh-stat-pill-value">{coveragePct}%</span>
+          </button>
+        )}
+        <button
+          className={`rh-stat-pill ${activePanel === "extracted" ? "rh-stat-pill--active" : ""}`}
+          onClick={() => setActivePanel(activePanel === "extracted" ? null : "extracted")}
+        >
+          <span className="rh-stat-pill-label">Keywords Extracted</span>
+          <span className="rh-stat-pill-value">{extractedCount > 0 ? extractedCount : "—"}</span>
+        </button>
+        <button
+          className={`rh-stat-pill ${activePanel === "selected" ? "rh-stat-pill--active" : ""}`}
+          onClick={() => setActivePanel(activePanel === "selected" ? null : "selected")}
+        >
+          <span className="rh-stat-pill-label">Keywords Selected</span>
+          <span className="rh-stat-pill-value">{selectedCount}</span>
+        </button>
+        <button
+          className={`rh-stat-pill ${activePanel === "matched" ? "rh-stat-pill--active" : ""}`}
+          onClick={() => setActivePanel(activePanel === "matched" ? null : "matched")}
+        >
+          <span className="rh-stat-pill-label">Keywords Matched</span>
+          <span className="rh-stat-pill-value">{matchedCount}</span>
+        </button>
+        {record.job_description && (
+          <button
+            className={`rh-stat-pill ${activePanel === "jd" ? "rh-stat-pill--active" : ""}`}
+            onClick={() => setActivePanel(activePanel === "jd" ? null : "jd")}
+          >
+            <span className="rh-stat-pill-label">Job Description</span>
+            <span className="rh-stat-pill-value">{record.job_description.split(/\s+/).length} words</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── Panel rendered by active stat ── */}
+      {activePanel && (
+        <div className="rh-stat-panel">
+          {activePanel === "ats" && (
+            <>
+              <p className="rh-detail-section-label">ATS Score</p>
+              <div className="rh-ats-panel">
+                <ScoreBadge score={record.ats_overall_score} />
+                <span className="rh-ats-tier">
+                  {record.ats_overall_score >= 80 ? "Strong match" : record.ats_overall_score >= 60 ? "Moderate match" : "Needs improvement"}
+                </span>
+              </div>
+            </>
           )}
-          <div className="rh-stat-card">
-            <span className="rh-stat-label">Keywords Selected</span>
-            <span className="rh-stat-value">{selectedCount}</span>
-          </div>
-          <div className="rh-stat-card">
-            <span className="rh-stat-label">Keywords Applied</span>
-            <span className="rh-stat-value">{matchedCount}</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Selected keywords ── */}
-      {selectedCount > 0 && (
-        <div className="rh-detail-section">
-          <p className="rh-detail-section-label">Keywords Selected ({selectedCount})</p>
-          <div className="rh-kw-chips">
-            {record.selected_keywords.map((kw) => (
-              <span
-                key={kw}
-                className={`rh-kw-chip ${record.matched_keywords?.includes(kw) ? "rh-kw-matched" : "rh-kw-missing"}`}
-              >
-                {kw}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Matched keywords ── */}
-      {matchedCount > 0 && (
-        <div className="rh-detail-section">
-          <p className="rh-detail-section-label">Keywords Applied ({matchedCount})</p>
-          <div className="rh-kw-chips">
-            {record.matched_keywords.map((kw) => (
-              <span key={kw} className="rh-kw-chip rh-kw-matched">{kw}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Job description ── */}
-      {record.job_description && (
-        <div className="rh-detail-section">
-          <p className="rh-detail-section-label">Job Description</p>
-          <p className="rh-detail-jd">{record.job_description}</p>
+          {activePanel === "coverage" && (
+            <>
+              <p className="rh-detail-section-label">Keyword Coverage</p>
+              <div className="rh-coverage-bar-wrap">
+                <div className="rh-coverage-bar" style={{ width: `${coveragePct}%` }} />
+              </div>
+              <p className="rh-coverage-detail">{coveragePct}% of selected keywords appear in the resume ({matchedCount} of {selectedCount})</p>
+            </>
+          )}
+          {activePanel === "extracted" && (
+            <>
+              <p className="rh-detail-section-label">Keywords Extracted</p>
+              <p className="rh-panel-note">
+                {extractedCount > 0
+                  ? `${extractedCount} keywords were identified from the job description. You selected ${selectedCount} of them.`
+                  : "Keyword extraction count was not recorded for this entry."}
+              </p>
+            </>
+          )}
+          {activePanel === "selected" && selectedCount > 0 && (
+            <>
+              <p className="rh-detail-section-label">Keywords Selected ({selectedCount}) — green = matched, red = missing</p>
+              <div className="rh-kw-chips">
+                {record.selected_keywords.map((kw) => (
+                  <span key={kw} className={`rh-kw-chip ${record.matched_keywords?.includes(kw) ? "rh-kw-matched" : "rh-kw-missing"}`}>
+                    {kw}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+          {activePanel === "matched" && (
+            <>
+              <p className="rh-detail-section-label">Keywords Matched ({matchedCount})</p>
+              {matchedCount > 0
+                ? <div className="rh-kw-chips">{record.matched_keywords.map((kw) => <span key={kw} className="rh-kw-chip rh-kw-matched">{kw}</span>)}</div>
+                : <p className="rh-panel-note">No keywords were matched in this resume.</p>}
+            </>
+          )}
+          {activePanel === "jd" && (
+            <>
+              <p className="rh-detail-section-label">Job Description</p>
+              <p className="rh-detail-jd">{record.job_description}</p>
+            </>
+          )}
         </div>
       )}
 
@@ -352,8 +409,9 @@ export default function ResumeHistory({ onBack }) {
               const coveragePct = record.ats_keyword_coverage != null
                 ? Math.round(record.ats_keyword_coverage * 100)
                 : null;
-              const selectedCount = record.selected_keywords?.length ?? 0;
-              const matchedCount  = record.matched_keywords?.length ?? 0;
+              const extractedCount = record.extracted_keywords_count ?? 0;
+              const selectedCount  = record.selected_keywords?.length ?? 0;
+              const matchedCount   = record.matched_keywords?.length ?? 0;
 
               return (
                 <div
@@ -385,12 +443,15 @@ export default function ResumeHistory({ onBack }) {
                     )}
                   </span>
                   <span className="rh-cell rh-cell-kw">
+                    {extractedCount > 0 && (
+                      <span className="rh-kw-extracted-sub">{extractedCount} extracted</span>
+                    )}
                     {selectedCount > 0 && (
                       <span className="rh-kw-stat">
                         <span className="rh-kw-stat-matched">{matchedCount}</span>
                         <span className="rh-kw-stat-sep">/</span>
                         <span className="rh-kw-stat-total">{selectedCount}</span>
-                        <span className="rh-kw-stat-label"> kw</span>
+                        <span className="rh-kw-stat-label"> matched</span>
                       </span>
                     )}
                   </span>

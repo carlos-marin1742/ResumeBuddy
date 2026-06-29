@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from services.build_resume_pdf import _render_html, build_pdf_with_overrides
-from routes.generate import RESUME_STORE
+from routes.generate import RESUME_STORE, _pdf_storage_name, _pdf_display_name
 
 router = APIRouter()
 
@@ -48,6 +48,8 @@ class DownloadRequest(BaseModel):
     session_id: str
     overrides: SpacingOverrides = SpacingOverrides()
     resume_data: dict | None = None
+    company: str = ""
+    job_title: str = ""
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -133,8 +135,10 @@ def preview_html(request: PreviewRequest) -> str:
 def download_custom(request: DownloadRequest) -> FileResponse:
     resume = _resolve_resume(request.session_id, request.resume_data)
 
-    filename    = f"resume_custom_{uuid.uuid4().hex[:8]}.pdf"
-    output_path = OUTPUTS_DIR / filename
+    person_name = resume.get("contact", {}).get("name", "")
+    storage_name = _pdf_storage_name(person_name, request.company, request.job_title)
+    output_path  = OUTPUTS_DIR / storage_name
+    display_name = _pdf_display_name(storage_name)
 
     # show_boundary is always False in build_pdf_with_overrides —
     # red line never appears in the downloaded PDF
@@ -147,6 +151,6 @@ def download_custom(request: DownloadRequest) -> FileResponse:
     return FileResponse(
         path=output_path,
         media_type="application/pdf",
-        filename=filename,
+        filename=display_name,
         headers={"Cache-Control": "no-store"},
     )

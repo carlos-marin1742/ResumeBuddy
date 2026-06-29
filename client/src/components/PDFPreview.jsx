@@ -56,6 +56,8 @@ export default function PDFPreview({
   jobTitle = null,
   jobDescription = null,
   topOffset = 64,
+  company = "",
+  personName = "",
 }) {
   const [overrides, setOverrides] = useState(DEFAULTS);
   const [previewHtml, setPreviewHtml] = useState("");
@@ -90,6 +92,8 @@ export default function PDFPreview({
       session_id:  sessionId,
       overrides:   currentOverrides,
       resume_data: resumeData || null,
+      company:     company,
+      job_title:   jobTitle || "",
     };
   }
 
@@ -145,11 +149,12 @@ export default function PDFPreview({
         body:    JSON.stringify(buildRequestBody(overrides)),
       });
       if (!res.ok) throw new Error(`Download failed: ${res.status}`);
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = "resume_custom.pdf";
+      const blob        = await res.blob();
+      const url         = URL.createObjectURL(blob);
+      const a           = document.createElement("a");
+      a.href            = url;
+      const nameParts   = [personName, company, jobTitle].filter(Boolean);
+      a.download        = nameParts.length ? `${nameParts.join("-")} Resume.pdf` : "Resume.pdf";
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
