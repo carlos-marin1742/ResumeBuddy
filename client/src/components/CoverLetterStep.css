@@ -1,0 +1,140 @@
+.cover-letter-step {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  font-family: "DM Sans", sans-serif;
+}
+
+.cl-header h2 {
+  font-family: "Playfair Display", serif;
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+}
+
+.cl-context {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0 0 1.5rem;
+}
+
+.cl-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+}
+
+.cl-empty p {
+  color: #555;
+  max-width: 46ch;
+  margin: 0 auto 1.5rem;
+  line-height: 1.5;
+}
+
+.cl-loading {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #555;
+}
+
+.cl-spinner {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 1rem;
+  border: 3px solid #e0e0e0;
+  border-top-color: #333;
+  border-radius: 50%;
+  animation: cl-spin 0.8s linear infinite;
+}
+
+@keyframes cl-spin {
+  to { transform: rotate(360deg); }
+}
+
+.cl-error {
+  background: #fdecea;
+  color: #b3261e;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+
+.cl-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.cl-wordcount {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.cl-wordcount.over {
+  color: #b3261e;
+  font-weight: 600;
+}
+
+.cl-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cl-textarea {
+  width: 100%;
+  min-height: 420px;
+  padding: 1.25rem;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.cl-textarea:focus {
+  outline: none;
+  border-color: #333;
+}
+
+.cl-footer {
+  margin-top: 1.5rem;
+}
+
+.cl-btn {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.9rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.cl-btn:hover {
+  background: #f5f5f5;
+}
+
+.cl-btn-primary {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
+
+.cl-btn-primary:hover {
+  background: #333;
+}
+
+.cl-btn-ghost {
+  border: none;
+  background: transparent;
+  color: #555;
+}
+
+.cl-btn-ghost:hover {
+  background: #f0f0f0;
+}
