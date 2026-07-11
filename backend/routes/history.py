@@ -8,6 +8,7 @@ GET    /api/download-history/{id} — re-serve the cached PDF for a record
 """
 
 import uuid
+from datetime import timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -53,9 +54,12 @@ class DeleteResponse(BaseModel):
 
 def _to_item(record: TailoredResumeRecord) -> HistoryItem:
     tailored = record.tailored_resume or {}
+    created_at = record.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
     return HistoryItem(
         id=record.id,
-        created_at=record.created_at.isoformat(),
+        created_at=created_at.isoformat(),
         company=record.company,
         job_title=record.job_title,
         profile=record.profile,
