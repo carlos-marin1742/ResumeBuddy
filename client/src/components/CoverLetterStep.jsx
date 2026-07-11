@@ -17,6 +17,7 @@ import "./CoverLetterStep.css";
  */
 export default function CoverLetterStep({
   tailoredResume,
+  sessionId,
   jobDescription,
   company,
   jobTitle,
@@ -38,7 +39,8 @@ export default function CoverLetterStep({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tailored_resume: tailoredResume,
+          tailored_resume: tailoredResume || null,
+          session_id: sessionId || null,
           job_description: jobDescription,
           company: company || "",
           job_title: jobTitle || "",

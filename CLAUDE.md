@@ -33,7 +33,8 @@ cd backend/services && pytest test_claude_service.py -v
 
 **Smoke-test AI services directly** (requires `.env` with API keys):
 ```bash
-cd backend && python services/claude_service.py
+cd backend && python services/claude_service.py        # resume tailoring
+cd backend && python test_extract.py                   # keyword extraction
 ```
 
 ### Docker (production-like)
@@ -68,16 +69,21 @@ This is a full-stack AI resume tailoring app. The frontend is a 5-step wizard (s
 - `backend/main.py` — FastAPI app, CORS, router wiring, static file serving (frontend built to `backend/static/` in Docker), health check, `init_db()` call on startup.
 - `backend/db.py` — SQLite engine setup via SQLModel. DB lives at `backend/data/resume_history.db` (gitignored). Provides `get_session()` FastAPI dependency.
 - `backend/models.py` — `TailoredResumeRecord` SQLModel table: captures company, job_title, profile, JD, selected_keywords, tailored_resume dict, ATS scores, and optional pdf_path per generation.
-- `backend/services/claude_service.py` — All AI logic: `extract_keywords()` (Groq), `tailor_resume()` (Claude Haiku), `score_resume()` (heuristic). Also contains `SKILL_TO_CATEGORY` and `PREFERRED_SKILL_CASING` lookup tables, and `determine_skills_to_add()` / `determine_skills_to_show()` helpers that map JD keywords to the correct resume skill categories.
+- `backend/services/claude_service.py` — All core AI logic via direct Anthropic SDK: `extract_keywords()` (Groq), `tailor_resume()` (Claude Haiku), `score_resume()` (heuristic), `regenerate_summary()` / `regenerate_bullets()` (HITL re-generation with user feedback). Also contains `SKILL_TO_CATEGORY` and `PREFERRED_SKILL_CASING` lookup tables, and `determine_skills_to_add()` / `determine_skills_to_show()` helpers that map JD keywords to the correct resume skill categories.
+- `backend/services/cover_letter_service.py` — Cover letter generation via **LangChain** (`langchain_anthropic`, `langchain_core`). Uses Claude Haiku; note this is the only place in the backend that uses LangChain rather than the direct Anthropic SDK.
 - `backend/services/build_resume_pdf.py` — Renders resume dict → HTML/CSS string (`_render_html`) and then → PDF via Playwright (`build_pdf`, `build_pdf_with_overrides`). Contains the single-page enforcement logic (bidirectional spacing feedback loop). The `show_boundary` flag injects a red line for iframe preview only — never in PDFs.
-- `backend/routes/generate.py` — `POST /api/generate-resume`, `GET /api/download/{filename}`. Owns `RESUME_STORE` (session dict). `_build_tailored_resume_dict()` merges Claude's response back into the base resume structure and writes to SQLite.
+- `backend/routes/resumes.py` — `GET /api/resumes`. Discovers all `backend/data/*.json` profiles.
+- `backend/routes/extract.py` — `POST /api/extract-keywords`. Loads the selected resume JSON, calls `claude_service.extract_keywords()`, cross-references results against the resume to flag gaps, and returns structured `Keyword` objects with `ats_weight` and `present_in_resume`.
+- `backend/routes/generate.py` — `POST /api/generate-resume`, `GET /api/download/{filename}`. Owns `RESUME_STORE` (session dict, max 50 entries). `_build_tailored_resume_dict()` merges Claude's response back into the base resume structure and writes to SQLite.
+- `backend/routes/regenerate.py` — `POST /api/regenerate-section`. HITL endpoint: accepts `session_id`, `section` (`"summary"` | `"experience"` | `"project"`), optional `target` name, and free-text `feedback`. Mutates `RESUME_STORE` in place and returns updated bullets/summary + fresh ATS score.
 - `backend/routes/preview.py` — `POST /api/preview-html`, `POST /api/download-custom`. Reads from `RESUME_STORE` and optionally applies user edits from the frontend before re-rendering.
 - `backend/routes/history.py` — `GET /api/history`, `GET /api/history/{id}`, `DELETE /api/history/{id}`, `GET /api/download-history/{id}`, `POST /api/history/{id}/restore`. The restore endpoint loads a SQLite record's `tailored_resume` into `RESUME_STORE` under a fresh `session_id`, allowing `PDFPreview` to re-render and re-download any past generation.
+- `backend/routes/cover_letter.py` — `POST /api/generate-cover-letter`. Accepts the tailored resume payload plus job context and delegates to `cover_letter_service`.
 
 ### Key frontend files
 
 - `client/src/App.jsx` — Step state machine (steps 0–4), all API calls, data flow between components. `editedResumeData` holds user inline edits from `ResumePreview`; it's forwarded to `PDFPreview` for custom PDF generation. The `API` constant (`http://127.0.0.1:8000`) is passed as `apiBase` prop to every component that needs it.
-- `client/src/components/` — One component per step: `ResumePicker` (step 0), `JDInput` (step 1 — captures company name, job title, and JD text), `KeywordSelector` (step 2), `ResumePreview` (step 3), `PDFPreview` (step 4). Also `ResumeHistory` — a full-page history view (hardcodes the API URL internally); clicking a row opens a detail page showing job info + JD with "Preview Resume" / "Download PDF" actions; "Preview Resume" lazily calls the restore endpoint then renders `PDFPreview`. `PDFPreview` accepts `topOffset` (px, default 64) so it positions its sticky topbar correctly whether rendered inside the wizard (64px app nav) or from history (0px).
+- `client/src/components/` — One component per step: `ResumePicker` (step 0), `JDInput` (step 1 — captures company name, job title, and JD text), `KeywordSelector` (step 2), `ResumePreview` (step 3 — also drives HITL regeneration via `POST /api/regenerate-section` with per-section feedback), `PDFPreview` (step 4). Also `ResumeHistory` — a full-page history view; clicking a row opens a detail page with "Preview Resume" / "Download PDF" actions that lazily call the restore endpoint then render `PDFPreview`. `PDFPreview` accepts `topOffset` (px, default 64) so it positions its sticky topbar correctly whether rendered inside the wizard or from history. `CoverLetterStep.jsx` exists for cover letter generation (calls `POST /api/generate-cover-letter`) but is not yet wired into the App.jsx step router.
 
 ### Resume data format
 

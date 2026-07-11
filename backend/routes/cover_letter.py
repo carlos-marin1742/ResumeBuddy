@@ -10,12 +10,14 @@ held in frontend App state, and returns a generated cover letter.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from services.cover_letter_service import generate_cover_letter, CoverLetterResult
+from routes.generate import RESUME_STORE
 
 router = APIRouter()
 
 
 class CoverLetterRequest(BaseModel):
-    tailored_resume: dict          # TailoredResume shape from /api/generate-resume
+    tailored_resume: dict | None = None
+    session_id: str | None = None
     job_description: str
     company: str = ""
     job_title: str = ""
@@ -32,9 +34,15 @@ def generate_cover_letter_route(request: CoverLetterRequest) -> CoverLetterResul
     if len(jd) > 20_000:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
+    resume = request.tailored_resume
+    if not resume and request.session_id:
+        resume = RESUME_STORE.get(request.session_id)
+    if not resume:
+        raise HTTPException(status_code=422, detail="No resume data available. Re-generate your resume and try again.")
+
     try:
         return generate_cover_letter(
-            tailored_resume=request.tailored_resume,
+            tailored_resume=resume,
             job_description=jd,
             company=request.company.strip(),
             job_title=request.job_title.strip(),

@@ -5,6 +5,7 @@ import KeywordSelector from "./components/KeywordSelector";
 import ResumePreview from "./components/ResumePreview";
 import PDFPreview from "./components/PDFPreview";
 import ResumeHistory from "./components/ResumeHistory";
+import CoverLetterStep from "./components/CoverLetterStep";
 import "./App.css";
 
 const API = "http://127.0.0.1:8000";
@@ -227,6 +228,18 @@ export default function App() {
           company={company}
           jobTitle={jobTitle}
           personName={generateResult.person_name}
+          onCoverLetter={() => setStep(5)}
+        />
+      )}
+      {step === 5 && generateResult && (
+        <CoverLetterStep
+          tailoredResume={editedResumeData}
+          sessionId={generateResult.session_id}
+          jobDescription={jobDescription}
+          company={company}
+          jobTitle={jobTitle}
+          selectedKeywords={selectedKeywords}
+          onBack={() => setStep(4)}
         />
       )}
     </div>

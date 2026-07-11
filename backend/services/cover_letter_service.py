@@ -114,21 +114,26 @@ def _build_chain():
 def _format_resume_context(tailored_resume: dict) -> str:
     """
     Flatten the tailored resume dict into a compact plain-text block.
-    Expects the shape produced by claude_service.tailor_resume().model_dump(),
-    but degrades gracefully if fields are missing.
+    Handles the shape produced by _build_tailored_resume_dict in generate.py:
+    - tailored_summary (string)
+    - skills_to_highlight (list)
+    - experience (list), each with bullets[].text / bullets[].original
     """
     lines: list[str] = []
 
-    if summary := tailored_resume.get("summary"):
+    summary = tailored_resume.get("tailored_summary") or tailored_resume.get("summary", {})
+    if isinstance(summary, dict):
+        summary = summary.get("default", "")
+    if summary:
         lines.append(f"SUMMARY: {summary}")
 
     if skills := tailored_resume.get("skills_to_highlight"):
         lines.append(f"KEY SKILLS: {', '.join(skills)}")
 
-    for exp in tailored_resume.get("experiences", []):
+    for exp in tailored_resume.get("experience", []):
         lines.append(f"\n{exp.get('title', '')} at {exp.get('company', '')}:")
-        for b in exp.get("tailored_bullets", []):
-            text = b.get("tailored") or b.get("original") or ""
+        for b in exp.get("bullets", []):
+            text = b.get("text") or b.get("tailored") or b.get("original") or ""
             if text:
                 lines.append(f"- {text}")
 
@@ -151,7 +156,7 @@ def generate_cover_letter(
     company: str,
     job_title: str,
     selected_keywords: list[str],
-    candidate_name: str = "Carlos Marin",
+    candidate_name: str = "",
 ) -> CoverLetterResult:
     """
     Generate a cover letter grounded in the tailored resume.
@@ -169,8 +174,10 @@ def generate_cover_letter(
     """
     chain = _build_chain()
 
+    resolved_name = candidate_name or tailored_resume.get("contact", {}).get("name", "the candidate")
+
     raw = chain.invoke({
-        "candidate_name": candidate_name,
+        "candidate_name": resolved_name,
         "company": company or "the company",
         "job_title": job_title or "this role",
         "keywords": ", ".join(selected_keywords) if selected_keywords else "none specified",

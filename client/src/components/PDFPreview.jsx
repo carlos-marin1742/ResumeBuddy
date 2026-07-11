@@ -52,6 +52,7 @@ export default function PDFPreview({
   apiBase,
   onBack,
   onReset,
+  onCoverLetter,
   title = "PDF Preview",
   jobTitle = null,
   jobDescription = null,
@@ -181,6 +182,11 @@ export default function PDFPreview({
                 Start over
               </button>
             )}
+            {onCoverLetter && (
+              <button className="btn btn-secondary" onClick={onCoverLetter}>
+                Write Cover Letter →
+              </button>
+            )}
             <button
               className="btn btn-primary"
               onClick={handleDownload}
@@ -290,6 +296,11 @@ export default function PDFPreview({
               <>↓ Download Custom PDF</>
             )}
           </button>
+          {onCoverLetter && (
+            <button className="btn btn-secondary pp-download-btn" onClick={onCoverLetter}>
+              Write Cover Letter →
+            </button>
+          )}
         </aside>
       </div>
     </div>
