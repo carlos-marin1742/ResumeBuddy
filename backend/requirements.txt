@@ -5,6 +5,7 @@ uvicorn[standard]
 # AI
 anthropic
 groq
+langchain_anthropic
 
 # PDF generation
 playwright
