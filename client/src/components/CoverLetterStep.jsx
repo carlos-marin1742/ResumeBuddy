@@ -1,6 +1,13 @@
 import { useState } from "react";
 import "./CoverLetterStep.css";
 
+function countCoverLetterWords(text) {
+  const greeting = "Dear Hiring Manager,";
+  const greetingIndex = text.indexOf(greeting);
+  const countedText = greetingIndex >= 0 ? text.slice(greetingIndex) : text;
+  return countedText.trim() ? countedText.trim().split(/\s+/).length : 0;
+}
+
 /**
  * CoverLetterStep
  * ---------------
@@ -67,7 +74,7 @@ export default function CoverLetterStep({
   const handleEdit = (e) => {
     const text = e.target.value;
     setLetter(text);
-    setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
+    setWordCount(countCoverLetterWords(text));
     setCopied(false);
   };
 
