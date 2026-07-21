@@ -146,8 +146,8 @@ def _sanitize(text: str) -> str:
     return text.strip()
 
 
-def _format_cover_letter(text: str, candidate_name: str) -> str:
-    """Wrap model-generated body text in the required greeting and sign-off."""
+def _format_cover_letter_body(text: str, candidate_name: str) -> str:
+    """Wrap model-generated text in the counted greeting and sign-off."""
     name = candidate_name.strip() or "Candidate"
     lines = text.strip().splitlines()
 
@@ -179,6 +179,33 @@ def _format_cover_letter(text: str, candidate_name: str) -> str:
     return f"Dear Hiring Manager,\n\n{body}\n\nThank You\n{name}"
 
 
+def _format_contact_header(contact: dict, company: str) -> str:
+    """Build the uncounted applicant and recipient address block."""
+    applicant_lines = []
+    for field in ("name", "location", "phone", "email"):
+        value = contact.get(field, "")
+        if isinstance(value, str) and value.strip():
+            applicant_lines.append(value.strip())
+
+    recipient_lines = ["Hiring Manager"]
+    if company.strip():
+        recipient_lines.append(company.strip())
+
+    return "\n".join(applicant_lines + [""] + recipient_lines)
+
+
+def _format_cover_letter(
+    text: str,
+    candidate_name: str,
+    contact: dict | None = None,
+    company: str = "",
+) -> tuple[str, str]:
+    """Return the display letter and the portion included in word count."""
+    counted_text = _format_cover_letter_body(text, candidate_name)
+    header = _format_contact_header(contact or {}, company)
+    return f"{header}\n\n{counted_text}", counted_text
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -190,6 +217,7 @@ def generate_cover_letter(
     job_title: str,
     selected_keywords: list[str],
     candidate_name: str = "",
+    applicant_contact: dict | None = None,
 ) -> CoverLetterResult:
     """
     Generate a cover letter grounded in the tailored resume.
@@ -201,13 +229,17 @@ def generate_cover_letter(
         job_title:         Target role title (from app state).
         selected_keywords: Keywords the user confirmed in KeywordSelector.
         candidate_name:    Name for the letter closing.
+        applicant_contact: Applicant name, location, phone, and email.
 
     Returns:
         CoverLetterResult with the letter text and word count.
     """
     chain = _build_chain()
 
-    resolved_name = candidate_name.strip() or tailored_resume.get("contact", {}).get("name", "").strip()
+    contact = applicant_contact or tailored_resume.get("contact", {})
+    if not isinstance(contact, dict):
+        contact = {}
+    resolved_name = candidate_name.strip() or contact.get("name", "").strip()
 
     raw = chain.invoke({
         "candidate_name": resolved_name or "the candidate",
@@ -218,11 +250,16 @@ def generate_cover_letter(
         "job_description": job_description,
     })
 
-    letter = _format_cover_letter(_sanitize(raw), resolved_name)
+    letter, counted_text = _format_cover_letter(
+        _sanitize(raw),
+        resolved_name,
+        contact=contact,
+        company=company,
+    )
 
     return CoverLetterResult(
         letter=letter,
-        word_count=len(letter.split()),
+        word_count=len(counted_text.split()),
         company=company,
         job_title=job_title,
     )

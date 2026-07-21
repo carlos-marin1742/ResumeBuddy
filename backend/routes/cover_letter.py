@@ -45,6 +45,11 @@ def generate_cover_letter_route(request: CoverLetterRequest) -> CoverLetterResul
         candidate_name = resume.get("contact", {}).get("name", "").strip()
     if not candidate_name and stored_resume:
         candidate_name = stored_resume.get("contact", {}).get("name", "").strip()
+    applicant_contact = (
+        stored_resume.get("contact", {})
+        if stored_resume
+        else resume.get("contact", {})
+    )
 
     try:
         return generate_cover_letter(
@@ -54,6 +59,7 @@ def generate_cover_letter_route(request: CoverLetterRequest) -> CoverLetterResul
             job_title=request.job_title.strip(),
             selected_keywords=request.selected_keywords,
             candidate_name=candidate_name,
+            applicant_contact=applicant_contact,
         )
     except EnvironmentError as e:
         raise HTTPException(status_code=500, detail=str(e))

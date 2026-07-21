@@ -13,7 +13,13 @@ client = TestClient(app)
 @patch("routes.cover_letter.generate_cover_letter")
 def test_route_recovers_name_from_session_when_edit_patch_omits_contact(mock_generate):
     session_id = "cover-letter-test-session"
-    RESUME_STORE[session_id] = {"contact": {"name": "Carlos Marin"}}
+    contact = {
+        "name": "Carlos Marin",
+        "location": "Houston, TX",
+        "phone": "713-555-0555",
+        "email": "MYEMAIL@EMAIL.COM",
+    }
+    RESUME_STORE[session_id] = {"contact": contact}
     mock_generate.return_value = CoverLetterResult(
         letter="Dear Hiring Manager,\n\nLetter\n\nThank You\nCarlos Marin",
         word_count=8,
@@ -38,6 +44,7 @@ def test_route_recovers_name_from_session_when_edit_patch_omits_contact(mock_gen
 
     assert response.status_code == 200
     assert mock_generate.call_args.kwargs["candidate_name"] == "Carlos Marin"
+    assert mock_generate.call_args.kwargs["applicant_contact"] == contact
 
 
 def test_route_preserves_job_description_validation():
