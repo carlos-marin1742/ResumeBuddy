@@ -9,6 +9,7 @@ import "./CoverLetterStep.css";
  *
  * Props:
  *   tailoredResume    - TailoredResume object from /api/generate-resume
+ *   candidateName     - user's name from the generated resume
  *   jobDescription    - the JD text from step 0
  *   company           - company name from App state
  *   jobTitle          - job title from App state
@@ -18,6 +19,7 @@ import "./CoverLetterStep.css";
 export default function CoverLetterStep({
   tailoredResume,
   sessionId,
+  candidateName,
   jobDescription,
   company,
   jobTitle,
@@ -41,6 +43,7 @@ export default function CoverLetterStep({
         body: JSON.stringify({
           tailored_resume: tailoredResume || null,
           session_id: sessionId || null,
+          candidate_name: candidateName || "",
           job_description: jobDescription,
           company: company || "",
           job_title: jobTitle || "",

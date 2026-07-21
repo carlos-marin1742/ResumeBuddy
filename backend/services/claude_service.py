@@ -498,17 +498,43 @@ CATEGORY_KEYWORDS = {
 
 
 def determine_skills_to_add(
-    base_skills: dict[str, list[str]],
+    base_skills: dict[str, list[str]] | list[dict],
     selected_keywords: list[str]
 ) -> dict[str, list[str]]:
     """
     Identifies selected keywords not present in base skills that map to known
     categories, and returns them structured by category.
     """
+    if isinstance(base_skills, dict):
+        skills_by_category = base_skills
+    elif isinstance(base_skills, list):
+        skills_by_category = {
+            section.get("category", ""): section.get("items", [])
+            for section in base_skills
+            if isinstance(section, dict) and section.get("category")
+        }
+    else:
+        skills_by_category = {}
+
     existing_skills_lower = set()
-    for skill_list in base_skills.values():
+    for skill_list in skills_by_category.values():
         for skill in skill_list:
-            existing_skills_lower.add(skill.lower())
+            if isinstance(skill, str):
+                existing_skills_lower.add(skill.lower())
+
+    # Map internal category names to the display categories used by the
+    # current list-based resume schema so new skills merge into existing rows.
+    category_aliases = {
+        "languages": "Languages",
+        "ai_ml": "AI/ML",
+        "backend": "Frameworks",
+        "frontend": "Frameworks",
+        "databases_cloud": "Data & Infra",
+        "tools": "Data & Infra",
+    }
+    existing_category_names = {
+        category.lower(): category for category in skills_by_category
+    }
 
     skills_to_add: dict[str, list[str]] = {}
 
@@ -518,6 +544,10 @@ def determine_skills_to_add(
 
         if kw_lower in SKILL_TO_CATEGORY and kw_lower not in existing_skills_lower:
             category = SKILL_TO_CATEGORY[kw_lower]
+            display_category = category_aliases.get(category, category)
+            category = existing_category_names.get(
+                display_category.lower(), category
+            )
             presentation_name = PREFERRED_SKILL_CASING.get(kw_lower, kw_clean)
 
             if category not in skills_to_add:
@@ -545,7 +575,16 @@ def determine_skills_to_show(
     # "Administrative Operations", "Software Data", "Communication Leadership"),
     # return all of them as-is — the tech filter logic doesn't apply.
     if base_skills:
-        resume_cats = set(base_skills.keys())
+        if isinstance(base_skills, dict):
+            resume_cats = set(base_skills.keys())
+        elif isinstance(base_skills, list):
+            resume_cats = {
+                section.get("category")
+                for section in base_skills
+                if isinstance(section, dict) and section.get("category")
+            }
+        else:
+            resume_cats = set()
         if not resume_cats.intersection(STANDARD_TECH_CATEGORIES):
             return list(resume_cats)
 

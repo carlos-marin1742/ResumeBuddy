@@ -14,7 +14,7 @@ playwright install chromium
 fastapi dev main.py
 ```
 
-**Frontend** (Node.js 18+, runs on port 5173 in dev):
+**Frontend** (Node.js 18+, runs on port 5175 in dev):
 ```bash
 cd client
 npm install
@@ -49,7 +49,7 @@ Create `.env` in the project root:
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 GROQ_API_KEY=gsk_...
-ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5175
 ```
 
 ## Architecture

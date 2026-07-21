@@ -223,6 +223,14 @@ class TestLimitCharacterCount:
 # ---------------------------------------------------------------------------
 
 class TestDetermineSkillsToAdd:
+    def test_supports_list_based_resume_skills(self):
+        base_skills = [
+            {"category": "Languages", "items": ["Python"]},
+            {"category": "Frameworks", "items": ["React"]},
+        ]
+        result = determine_skills_to_add(base_skills, ["Python", "FastAPI"])
+        assert result == {"Frameworks": ["FastAPI"]}
+
     def test_adds_new_mapped_skills(self):
         base_skills = {"languages": ["Python"]}
         selected_keywords = ["Tailwind", "Python"]  # Tailwind is not in base, Python is

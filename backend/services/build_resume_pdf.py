@@ -50,11 +50,23 @@ def _render_html(
     ats_config = resume.get("ats_config", {})
     highlights = set(s.lower() for s in resume.get("skills_to_highlight", []))
 
-    summary_text = (
-        resume.get("tailored_summary") or
-        (resume["summary"] if isinstance(resume.get("summary"), str)
-         else (resume.get("summary") or {}).get("default", ""))
-    )
+    raw_summary = resume.get("summary")
+    if isinstance(raw_summary, str):
+        base_summary = raw_summary
+    elif isinstance(raw_summary, dict):
+        base_summary = raw_summary.get("default", "")
+    elif isinstance(raw_summary, list):
+        base_summary = next(
+            (
+                variant.get("text", "")
+                for variant in raw_summary
+                if isinstance(variant, dict) and variant.get("text")
+            ),
+            "",
+        )
+    else:
+        base_summary = ""
+    summary_text = resume.get("tailored_summary") or base_summary
 
     skills_order = ats_config.get("skills_order") or list(skills.keys())
     skill_labels = {
@@ -107,11 +119,14 @@ def _render_html(
     for exp in experience:
         bullets_html = "".join(f"<li>{bullet_text(b)}</li>" for b in exp.get("bullets",[]) if bullet_text(b))
         location = f" <span class='dot'>•</span> {exp['location']}" if exp.get("location") else ""
+        date_text = exp.get("date_range") or (
+            f"{fmt_date(exp.get('start_date'))}&ndash;{fmt_date(exp.get('end_date'))}"
+        )
         exp_html += f"""
         <div class='entry'>
           <div class='entry-header'>
             <span class='entry-title'>{exp.get('title','')}</span>
-            <span class='entry-date'>{fmt_date(exp.get('start_date'))}&ndash;{fmt_date(exp.get('end_date'))}</span>
+            <span class='entry-date'>{date_text}</span>
           </div>
           <div class='entry-sub'>{exp.get('company','')}{location}</div>
           <ul>{bullets_html}</ul>
@@ -120,10 +135,21 @@ def _render_html(
     # Projects
     proj_html = ""
     for proj in projects:
-        tech    = " · ".join(proj.get("tech_stack", []))
+        tech    = " · ".join(proj.get("tech_stack") or proj.get("tools_used", []))
         name    = proj.get("name", "Project")
-        github  = proj.get("links", {}).get("github")
-        preview = proj.get("links", {}).get("preview")
+        raw_links = proj.get("links", {})
+        if isinstance(raw_links, list):
+            links = {
+                link.get("label", "").lower(): link.get("url", "")
+                for link in raw_links
+                if isinstance(link, dict)
+            }
+        elif isinstance(raw_links, dict):
+            links = raw_links
+        else:
+            links = {}
+        github  = links.get("github") or links.get("repo")
+        preview = links.get("preview") or links.get("demo")
         name_html    = f'<a href="{github}">{name}</a>' if github else name
         preview_html = f' <span class="dot">·</span> <a href="{preview}">Live Demo</a>' if preview else ""
         bullets_html = "".join(f"<li>{bullet_text(b)}</li>" for b in proj.get("bullets",[]) if bullet_text(b))
@@ -139,11 +165,18 @@ def _render_html(
     # Education
     edu_html = ""
     for edu in education:
-        grad = fmt_date(edu.get("graduation_date","")) if edu.get("graduation_date") else ""
+        grad = edu.get("date") or (
+            fmt_date(edu.get("graduation_date", ""))
+            if edu.get("graduation_date") else ""
+        )
+        institution = edu.get("institution") or edu.get("school", "")
+        degree = edu.get("degree", "")
+        field = edu.get("field", "")
+        degree_text = f"{degree} in {field}" if field else degree
         edu_html += f"""
         <div class='entry'>
           <div class='entry-header'>
-            <span class='entry-title'>{edu.get('degree','')} in {edu.get('field','')}&ensp;<span class='entry-sub-inline'>{edu.get('institution','')}</span></span>
+            <span class='entry-title'>{degree_text}&ensp;<span class='entry-sub-inline'>{institution}</span></span>
             <span class='entry-date'>{grad}</span>
           </div>
         </div>"""
