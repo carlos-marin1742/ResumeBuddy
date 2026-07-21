@@ -6,6 +6,7 @@ import babel from '@rolldown/plugin-babel'
 export default defineConfig({
   plugins: [react(), babel({ presets: [reactCompilerPreset()] })],
   server: {
+    port: 5175,
     proxy: {
       "/api": "http://127.0.0.1:8000",
     },

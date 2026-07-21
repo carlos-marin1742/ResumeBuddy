@@ -61,17 +61,44 @@ def flatten_resume_keywords(resume: dict) -> set[str]:
     """
     keywords: set[str] = set()
 
-    for skill_list in resume.get("skills", {}).values():
+    skills = resume.get("skills", {})
+    if isinstance(skills, dict):
+        skill_lists = skills.values()
+    elif isinstance(skills, list):
+        # Current resume schema: [{"category": "Languages", "items": [...]}]
+        skill_lists = (
+            section.get("items", [])
+            for section in skills
+            if isinstance(section, dict)
+        )
+    else:
+        skill_lists = []
+
+    for skill_list in skill_lists:
         if isinstance(skill_list, list):
-            keywords.update(k.lower() for k in skill_list)
+            keywords.update(
+                skill.lower() for skill in skill_list if isinstance(skill, str)
+            )
 
     for job in resume.get("experience", []):
         for bullet in job.get("bullets", []):
-            keywords.update(k.lower() for k in bullet.get("keywords", []))
+            if isinstance(bullet, dict):
+                bullet_keywords = bullet.get("keywords", bullet.get("tags", []))
+                keywords.update(
+                    keyword.lower()
+                    for keyword in bullet_keywords
+                    if isinstance(keyword, str)
+                )
 
     for project in resume.get("projects", []):
         for bullet in project.get("bullets", []):
-            keywords.update(k.lower() for k in bullet.get("keywords", []))
+            if isinstance(bullet, dict):
+                bullet_keywords = bullet.get("keywords", bullet.get("tags", []))
+                keywords.update(
+                    keyword.lower()
+                    for keyword in bullet_keywords
+                    if isinstance(keyword, str)
+                )
 
     return keywords
 

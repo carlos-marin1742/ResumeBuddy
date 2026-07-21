@@ -147,6 +147,16 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
     output = dict(base_resume)
     output["tailored_summary"] = tailored.summary
 
+    # Normalize the current list-based resume schema to the dictionary shape
+    # consumed by skill merging and the PDF renderer.
+    raw_skills = output.get("skills", {})
+    if isinstance(raw_skills, list):
+        output["skills"] = {
+            section.get("category", ""): list(section.get("items", []))
+            for section in raw_skills
+            if isinstance(section, dict) and section.get("category")
+        }
+
     # ── Merge tailored experience bullets ─────────────────────────────────────
     tailored_exp_map = {exp.company: exp for exp in tailored.experiences}
     updated_experience = []

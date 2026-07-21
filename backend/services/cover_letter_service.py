@@ -77,8 +77,8 @@ Hard rules:
   provided resume data. Never invent anything.
 - Use active past-tense verbs (Deployed, Engineered, Reduced).
 - Never use em-dashes or en-dashes anywhere in the output.
-- Output ONLY the letter body: no preamble, no explanation, no signature block
-  beyond a simple closing with the candidate's name.
+- Output ONLY the body paragraphs. Do not include a greeting, sign-off,
+  candidate name, preamble, or explanation; the application adds those.
 """
 
 _USER_PROMPT = """\
@@ -146,6 +146,39 @@ def _sanitize(text: str) -> str:
     return text.strip()
 
 
+def _format_cover_letter(text: str, candidate_name: str) -> str:
+    """Wrap model-generated body text in the required greeting and sign-off."""
+    name = candidate_name.strip() or "Candidate"
+    lines = text.strip().splitlines()
+
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+
+    # The model is instructed to return body text only, but remove common
+    # model-added wrappers so regeneration never duplicates them.
+    if lines and lines[0].strip().casefold().startswith("dear hiring manager"):
+        lines.pop(0)
+        while lines and not lines[0].strip():
+            lines.pop(0)
+
+    signature_names = {name.casefold(), "candidate", "the candidate", "[candidate name]"}
+    if lines and lines[-1].strip().casefold() in signature_names:
+        lines.pop()
+        while lines and not lines[-1].strip():
+            lines.pop()
+
+    sign_offs = {"thank you", "sincerely", "best", "best regards", "regards", "respectfully"}
+    if lines and lines[-1].strip().rstrip(",").casefold() in sign_offs:
+        lines.pop()
+        while lines and not lines[-1].strip():
+            lines.pop()
+
+    body = "\n".join(lines).strip()
+    return f"Dear Hiring Manager,\n\n{body}\n\nThank You\n{name}"
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -174,10 +207,10 @@ def generate_cover_letter(
     """
     chain = _build_chain()
 
-    resolved_name = candidate_name or tailored_resume.get("contact", {}).get("name", "the candidate")
+    resolved_name = candidate_name.strip() or tailored_resume.get("contact", {}).get("name", "").strip()
 
     raw = chain.invoke({
-        "candidate_name": resolved_name,
+        "candidate_name": resolved_name or "the candidate",
         "company": company or "the company",
         "job_title": job_title or "this role",
         "keywords": ", ".join(selected_keywords) if selected_keywords else "none specified",
@@ -185,7 +218,7 @@ def generate_cover_letter(
         "job_description": job_description,
     })
 
-    letter = _sanitize(raw)
+    letter = _format_cover_letter(_sanitize(raw), resolved_name)
 
     return CoverLetterResult(
         letter=letter,

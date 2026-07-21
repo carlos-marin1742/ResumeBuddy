@@ -235,6 +235,7 @@ export default function App() {
         <CoverLetterStep
           tailoredResume={editedResumeData}
           sessionId={generateResult.session_id}
+          candidateName={generateResult.person_name}
           jobDescription={jobDescription}
           company={company}
           jobTitle={jobTitle}

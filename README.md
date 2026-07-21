@@ -167,7 +167,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` with the backend running on port 8000.
+Open `http://localhost:5175` with the backend running on port 8000.
 
 ---
 
@@ -178,7 +178,7 @@ Create `.env` in the project root:
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 GROQ_API_KEY=gsk_...
-ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5173,http://localhost:3000
+ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5175,http://localhost:3000
 ```
 
 Get a free Groq API key at [console.groq.com](https://console.groq.com).
