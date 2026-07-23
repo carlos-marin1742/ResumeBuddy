@@ -101,6 +101,7 @@ Array of technical project entries.
 |---|---|---|
 | `id` | string | Unique identifier (kebab-case) |
 | `name` | string | Display name of the project |
+| `created_at_work` | boolean | Optional. Set to `true` for a project created as part of professional work; these projects receive selection priority |
 | `tech_stack` | string[] | Technologies used |
 | `links.github` | string | GitHub repo URL |
 | `links.preview` | string | Live demo or deployment URL |
@@ -118,6 +119,8 @@ Array of technical project entries.
 | `strength` | `"high"` \| `"medium"` \| `"low"` | Priority signal for tailoring logic |
 
 > **Bullet selection logic:** When tailoring for a JD, the service ranks bullets by keyword overlap and `strength`, then caps output at `ats_config.max_bullets_per_project`.
+
+> **Project selection logic:** When more than three projects are present, the service selects three before tailoring. Projects with `created_at_work: true` are considered first, then projects are ranked by overlap with the job description and candidate-selected keywords. Original order breaks ties.
 
 ---
 

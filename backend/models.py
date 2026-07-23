@@ -10,7 +10,7 @@ stored — it is re-rendered on demand from `tailored_resume`.
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, Text
 from sqlmodel import Field, SQLModel
 
 
@@ -33,6 +33,7 @@ class TailoredResumeRecord(SQLModel, table=True):
     # ── Structured payloads (JSON → TEXT in SQLite) ───────────────────
     selected_keywords: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     tailored_resume: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    cover_letter: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
     # ── ATS scoring (flattened for easy sort / filter) ────────────────
     ats_overall_score: int | None = Field(default=None, index=True)

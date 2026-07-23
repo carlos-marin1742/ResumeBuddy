@@ -7,6 +7,7 @@ A single SQLite file lives at backend/data/resume_history.db (gitignored).
 Call init_db() once on app startup to create tables.
 """
 from pathlib import Path
+from sqlalchemy import inspect, text
 from sqlmodel import SQLModel, Session, create_engine
 
 # ── Database location ─────────────────────────────────────────────────
@@ -24,9 +25,15 @@ engine = create_engine(
 
 
 def init_db() -> None:
-    """Create tables if they don't exist. Safe to call repeatedly."""
+    """Create tables and apply additive migrations. Safe to call repeatedly."""
     from models import TailoredResumeRecord  # noqa: F401  (registers metadata)
     SQLModel.metadata.create_all(engine)
+    columns = {column["name"] for column in inspect(engine).get_columns("tailored_resumes")}
+    if "cover_letter" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE tailored_resumes ADD COLUMN cover_letter TEXT")
+            )
 
 
 def get_session():

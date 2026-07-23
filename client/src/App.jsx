@@ -236,6 +236,7 @@ export default function App() {
           tailoredResume={editedResumeData}
           sessionId={generateResult.session_id}
           candidateName={generateResult.person_name}
+          historyId={generateResult.history_id}
           jobDescription={jobDescription}
           company={company}
           jobTitle={jobTitle}

@@ -19,8 +19,11 @@ from sqlmodel import Session, select
 from db import get_session
 from models import TailoredResumeRecord
 from routes.generate import _store_resume
+from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
 
 router = APIRouter()
+OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
+OUTPUTS_DIR.mkdir(exist_ok=True)
 
 
 # ── Response Models ───────────────────────────────────────────────────────────
@@ -38,6 +41,7 @@ class HistoryItem(BaseModel):
     extracted_keywords_count: int
     job_description: str
     pdf_path: str | None
+    cover_letter: str | None
 
 
 class HistoryListResponse(BaseModel):
@@ -70,6 +74,7 @@ def _to_item(record: TailoredResumeRecord) -> HistoryItem:
         extracted_keywords_count=tailored.get("_extracted_keywords_count", 0),
         job_description=record.job_description or "",
         pdf_path=record.pdf_path,
+        cover_letter=record.cover_letter,
     )
 
 
@@ -166,6 +171,45 @@ def download_history_pdf(
 
     return FileResponse(
         path=pdf_path,
+        media_type="application/pdf",
+        filename=display_name,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/api/download-history-cover-letter/{record_id}")
+def download_history_cover_letter(
+    record_id: str,
+    db: Session = Depends(get_session),
+) -> FileResponse:
+    """Render and download the cover letter stored with a history record."""
+    record = db.get(TailoredResumeRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found.")
+    if not record.cover_letter or not record.cover_letter.strip():
+        raise HTTPException(status_code=404, detail="No cover letter stored for this record.")
+
+    output_path = OUTPUTS_DIR / f"history_cover_letter_{uuid.uuid4().hex}.pdf"
+    try:
+        build_cover_letter_pdf(record.cover_letter, output_path)
+    except Exception as exc:
+        output_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Cover letter PDF generation failed: {exc}")
+
+    person_name = (
+        record.tailored_resume.get("contact", {}).get("name", "")
+        if record.tailored_resume
+        else ""
+    )
+
+    display_name = cover_letter_filename(
+        person_name,
+        record.company,
+        record.job_title,
+    )
+
+    return FileResponse(
+        path=output_path,
         media_type="application/pdf",
         filename=display_name,
         headers={"Cache-Control": "no-store"},

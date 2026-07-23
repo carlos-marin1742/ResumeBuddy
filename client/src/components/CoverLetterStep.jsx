@@ -27,6 +27,7 @@ export default function CoverLetterStep({
   tailoredResume,
   sessionId,
   candidateName,
+  historyId,
   jobDescription,
   company,
   jobTitle,
@@ -38,6 +39,7 @@ export default function CoverLetterStep({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const generate = async () => {
     setLoading(true);
@@ -55,6 +57,7 @@ export default function CoverLetterStep({
           company: company || "",
           job_title: jobTitle || "",
           selected_keywords: selectedKeywords || [],
+          history_id: historyId || null,
         }),
       });
       if (!res.ok) {
@@ -85,6 +88,41 @@ export default function CoverLetterStep({
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setError("Couldn't access clipboard. Select and copy manually.");
+    }
+  };
+
+  const downloadPdf = async () => {
+    setDownloadingPdf(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/download-cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          letter,
+          candidate_name: candidateName || "",
+          company: company || "",
+          job_title: jobTitle || "",
+          history_id: historyId || null,
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail || `Download failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filenameMatch?.[1] || "Cover-Letter.pdf";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -130,6 +168,13 @@ export default function CoverLetterStep({
             <div className="cl-actions">
               <button className="cl-btn" onClick={generate}>
                 Regenerate
+              </button>
+              <button
+                className="cl-btn"
+                onClick={downloadPdf}
+                disabled={downloadingPdf}
+              >
+                {downloadingPdf ? "Generating PDF…" : "Download PDF"}
               </button>
               <button className="cl-btn cl-btn-primary" onClick={copyToClipboard}>
                 {copied ? "Copied ✓" : "Copy to Clipboard"}
