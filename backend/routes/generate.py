@@ -18,8 +18,9 @@ from sqlmodel import Session
 
 from db import get_session
 from models import TailoredResumeRecord
-from services.claude_service import ATSScoreResult, TailoredResume, score_resume, tailor_resume
 from services.build_resume_pdf import build_pdf
+from services.claude_service import ATSScoreResult, TailoredResume, score_resume, tailor_resume
+from services.project_selection import select_relevant_projects
 
 router = APIRouter()
 
@@ -281,6 +282,14 @@ def generate_resume(
 
     base_resume = _load_resume(request.resume_id)
     base_resume = _apply_summary_variant(base_resume, request.summary_variant)
+    base_resume = {
+        **base_resume,
+        "projects": select_relevant_projects(
+            base_resume.get("projects", []),
+            jd,
+            request.selected_keywords,
+        ),
+    }
 
     try:
         tailored: TailoredResume = tailor_resume(

@@ -162,6 +162,17 @@ function HistoryDetail({ record, onBack }) {
             <span className="rh-stat-pill-value">{record.job_description.split(/\s+/).length} words</span>
           </button>
         )}
+        {record.cover_letter && (
+          <button
+            className={`rh-stat-pill ${activePanel === "cover-letter" ? "rh-stat-pill--active" : ""}`}
+            onClick={() => setActivePanel(activePanel === "cover-letter" ? null : "cover-letter")}
+          >
+            <span className="rh-stat-pill-label">Cover Letter</span>
+            <span className="rh-stat-pill-value">
+              {record.cover_letter.trim().split(/\s+/).length} words
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ── Panel rendered by active stat ── */}
@@ -223,6 +234,12 @@ function HistoryDetail({ record, onBack }) {
               <p className="rh-detail-jd">{record.job_description}</p>
             </>
           )}
+          {activePanel === "cover-letter" && (
+            <>
+              <p className="rh-detail-section-label">Cover Letter</p>
+              <div className="rh-cover-letter-preview">{record.cover_letter}</div>
+            </>
+          )}
         </div>
       )}
 
@@ -245,6 +262,22 @@ function HistoryDetail({ record, onBack }) {
           >
             ↓ Download PDF
           </a>
+        )}
+        {record.cover_letter && (
+          <>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setActivePanel("cover-letter")}
+            >
+              Preview Cover Letter
+            </button>
+            <a
+              className="btn btn-secondary"
+              href={`${API}/api/download-history-cover-letter/${record.id}`}
+            >
+              ↓ Download Cover Letter
+            </a>
+          </>
         )}
       </div>
     </div>

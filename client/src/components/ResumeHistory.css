@@ -693,6 +693,22 @@
   line-height: 1.6;
 }
 
+.rh-cover-letter-preview {
+  max-width: 8.5in;
+  min-height: 5in;
+  margin: 0 auto;
+  padding: 1in;
+  background: #ffffff;
+  border: 1px solid var(--rule, #e2e0db);
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  color: #000000;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12pt;
+  line-height: 1.15;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
 /* keep old names alive for list-row usage */
 .rh-stat-label {
   font-size: 0.72rem;
@@ -744,6 +760,7 @@
   .rh-header  { padding: 1.5rem 1.25rem 1rem; }
   .rh-controls { padding: 0.75rem 1.25rem; flex-wrap: wrap; }
   .rh-main    { padding: 1.25rem 1rem 2.5rem; }
+  .rh-cover-letter-preview { min-height: 0; padding: 1.25rem; }
   .rh-list-header,
   .rh-row {
     grid-template-columns: 1.5fr 1.5fr 2rem;
