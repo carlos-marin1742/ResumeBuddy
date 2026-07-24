@@ -23,6 +23,8 @@ from routes.resumes import router as resumes_router
 from routes.history import router as history_router
 from routes.cover_letter import router as cover_letter_router
 from routes.regenerate import router as regenerate_router
+from routes.resume_import import router as resume_import_router
+from routes.master_resumes import router as master_resumes_router
 
 
 load_dotenv()
@@ -60,6 +62,8 @@ app.include_router(preview_router)
 app.include_router(history_router)
 app.include_router(cover_letter_router)
 app.include_router(regenerate_router)
+app.include_router(resume_import_router)
+app.include_router(master_resumes_router)
 BASE_RESUME_PATH = Path(__file__).resolve().parent / "data" / "base_resume.json"
 
 @app.get("/health", tags=["meta"])

@@ -1,0 +1,50 @@
+.mrp-page {
+  margin: 0 auto;
+  max-width: 1000px;
+  padding: 2rem 1.5rem 5rem;
+}
+
+.mrp-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.mrp-toolbar > div { align-items: center; display: flex; gap: 1rem; }
+.mrp-saved { color: var(--success); font-size: 0.8rem; }
+
+.mrp-paper {
+  background: var(--white);
+  box-shadow: var(--shadow-lg);
+  margin: 0 auto;
+  max-width: 816px;
+  min-height: 1056px;
+  padding: 3.5rem 4rem;
+}
+
+.mrp-header { border-bottom: 2px solid var(--ink); padding-bottom: 1rem; text-align: center; }
+.mrp-header h1 { font-family: var(--font-display); font-size: 2rem; line-height: 1.2; }
+.mrp-role { color: var(--ink-soft); font-size: 1rem; margin-top: 0.2rem; }
+.mrp-contact { display: flex; flex-wrap: wrap; font-size: 0.75rem; gap: 0.25rem 0.85rem; justify-content: center; margin-top: 0.65rem; }
+.mrp-contact a, .mrp-project-heading a { color: var(--accent); }
+
+.mrp-section { margin-top: 1.2rem; }
+.mrp-section > h2 { border-bottom: 1px solid var(--ink); font-size: 0.85rem; letter-spacing: 0.08em; margin-bottom: 0.55rem; text-transform: uppercase; }
+.mrp-section > p { font-size: 0.82rem; line-height: 1.5; }
+.mrp-entry + .mrp-entry { margin-top: 0.8rem; }
+.mrp-entry-heading, .mrp-project-heading { align-items: baseline; display: flex; gap: 1rem; justify-content: space-between; }
+.mrp-entry h3 { font-size: 0.88rem; line-height: 1.35; }
+.mrp-entry-heading p, .mrp-entry-heading span { color: var(--ink-soft); font-size: 0.76rem; }
+.mrp-entry-heading span { flex-shrink: 0; }
+.mrp-highlights { font-size: 0.79rem; line-height: 1.45; margin-top: 0.25rem; white-space: pre-line; }
+.mrp-technologies { color: var(--ink-soft); font-size: 0.74rem; font-style: italic; }
+.mrp-project-heading > div { display: flex; font-size: 0.75rem; gap: 0.65rem; }
+
+@media (max-width: 700px) {
+  .mrp-page { padding: 1rem 0 3rem; }
+  .mrp-toolbar { align-items: stretch; flex-direction: column; gap: 0.75rem; padding: 0 1rem; }
+  .mrp-toolbar > div { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
+  .mrp-paper { min-height: 0; padding: 2rem 1.25rem; }
+  .mrp-entry-heading { align-items: flex-start; flex-direction: column; gap: 0.1rem; }
+}

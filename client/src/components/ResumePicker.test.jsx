@@ -53,4 +53,27 @@ describe("ResumePicker", () => {
 
     expect(await screen.findByText(/server error 503/i)).toBeInTheDocument();
   });
+
+  it("opens the create-resume flow from above the profile list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ resumes: [] }),
+      }),
+    );
+    const onCreate = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <ResumePicker
+        apiBase="http://api.test"
+        onCreate={onCreate}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /create a resume/i }));
+    expect(onCreate).toHaveBeenCalledOnce();
+  });
 });

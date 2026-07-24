@@ -1,105 +1,91 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
-## Commands
+## Project Layout
 
-### Local development
+```text
+ResumeBuddy/
+├── backend/
+│   ├── main.py                 # FastAPI entry point and production static serving
+│   ├── db.py / models.py       # SQLModel engine, migrations, and history model
+│   ├── routes/                 # API handlers and route-level pytest tests
+│   ├── services/               # AI, ATS, project selection, and PDF services/tests
+│   ├── data/                   # Resume schema, private profiles, and SQLite history
+│   ├── outputs/                # Generated PDFs (gitignored)
+│   └── requirements.txt
+├── client/
+│   ├── src/
+│   │   ├── App.jsx             # Multi-step workflow and shared client state
+│   │   ├── components/         # React components, colocated CSS, and *.test.jsx
+│   │   ├── test/setup.js       # Vitest/Testing Library global cleanup and matchers
+│   │   └── assets/
+│   ├── public/                 # Directly served static assets
+│   ├── package.json
+│   └── vite.config.js          # Vite dev proxy and Vitest jsdom configuration
+├── Dockerfile / docker-compose.yml
+├── README.md / CLAUDE.md
+└── AGENTS.md
+```
 
-**Backend** (Python 3.11+, runs on port 8000):
-```bash
-cd backend
-pip install -r requirements.txt
+`backend/main.py` registers the routers, initializes SQLite, configures CORS, and serves the built React app in production. Personal resume JSON, `backend/data/resume_history.db`, `backend/outputs/`, `client/node_modules/`, and build output are runtime artifacts and must not be committed.
+
+The SQLite ignore rule only affects untracked files. If `backend/data/resume_history.db` is already tracked, run `git rm --cached backend/data/resume_history.db` once and commit the index removal; the local database remains intact. Verify `git ls-files backend/data/resume_history.db` returns no output before using broad staging commands.
+
+## Architecture and Important Modules
+
+The UI flow is profile selection (`ResumePicker`) → job details (`JDInput`) → keywords (`KeywordSelector`) → editable resume (`ResumePreview`) → HTML/PDF preview (`PDFPreview`) → cover letter (`CoverLetterStep`). `ResumeHistory` is a separate history view. `App.jsx` owns cross-step state.
+
+Backend responsibilities:
+
+- `claude_service.py`: Groq keyword extraction, Claude tailoring/regeneration, skill filtering, and local ATS scoring.
+- `project_selection.py`: caps projects at three using work-project priority (`created_at_work`) and job relevance.
+- `build_resume_pdf.py`: resume HTML and Playwright PDF generation, including spacing overrides.
+- `cover_letter_service.py`: LangChain/Anthropic generation and letter formatting.
+- `build_cover_letter_pdf.py`: sanitized filenames and 12pt Times New Roman PDF rendering.
+- `generate.py`: `_build_tailored_resume_dict`, persistence, the bounded in-memory `RESUME_STORE`, and initial PDF generation.
+
+## API Routes
+
+- `GET /health`, `GET /api/resumes`: readiness and available JSON profiles.
+- `POST /api/extract-keywords`: extract and compare JD keywords with a profile.
+- `POST /api/generate-resume`, `GET /api/download/{filename}`: tailor, score, persist, and download.
+- `POST /api/preview-html`, `POST /api/download-custom`: merge user edits and preview/download with spacing controls.
+- `POST /api/regenerate-section`: regenerate summary, experience, or project bullets in a session.
+- `/api/history`: list/filter, fetch, delete, restore sessions, and download stored resume/cover-letter artifacts.
+- `POST /api/generate-cover-letter`, `POST /api/download-cover-letter`: generate, persist, and render cover letters.
+- `POST /api/resumes/parse`: parse PDF or DOCX content into a reviewable builder draft without retaining the source file.
+- `POST /api/master-resumes`, `PUT/GET /api/master-resumes/{id}`: persist, update, and retrieve reviewed master resumes.
+
+## Data, Authentication, and Security
+
+`TailoredResumeRecord` stores job-specific generation history. `MasterResumeRecord` stores reviewed resume-builder data for editing and preview. Both use `backend/data/resume_history.db`. `init_db()` creates tables and applies the additive cover-letter migration.
+
+There is currently **no authentication or authorization**; all API and history routes are open to any client that can reach the server. Do not imply per-user isolation. Preserve path validation, input limits, HTML escaping, and `Cache-Control: no-store` behavior.
+
+Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, and optional comma-separated `ALLOWED_ORIGINS`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
+
+## Development and Validation
+
+```powershell
+pip install -r backend/requirements.txt
+pip install pytest
 playwright install chromium
-fastapi dev main.py
+cd backend; fastapi dev main.py
+cd client; npm install; npm run dev
+cd client; npm test; npm run lint; npm run build
+cd backend; pytest routes -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
+docker compose up --build
 ```
 
-**Frontend** (Node.js 18+, runs on port 5175 in dev):
-```bash
-cd client
-npm install
-npm run dev
-```
+Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
 
-**Lint frontend:**
-```bash
-cd client && npm run lint
-```
+Pytest files are named `test_*.py` beside services or under `backend/routes/`. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/test_extract.py` is a credential-dependent smoke script, not a unit test. Full pytest collection currently has two known blockers: `test_claude_service.py` imports removed `limit_character_count`, and the smoke script name collides with `routes/test_extract.py`. Run focused test paths until those are resolved.
 
-**Run backend unit tests** (no API keys needed — all external calls are mocked):
-```bash
-cd backend/services && pytest test_claude_service.py -v
-```
+Frontend tests mock `fetch`, clipboard, and browser download boundaries. `CoverLetterStep.test.jsx` contains one `it.fails` regression: clearing the letter unmounts its textarea. Do not remove the marker without fixing and verifying the component. No coverage threshold is enforced.
 
-**Smoke-test AI services directly** (requires `.env` with API keys):
-```bash
-cd backend && python services/claude_service.py        # resume tailoring
-cd backend && python test_extract.py                   # keyword extraction
-```
+## Coding and Contribution Conventions
 
-### Docker (production-like)
-```bash
-docker compose up --build        # build and start
-docker compose restart           # after changing only JSON resume files
-```
-Production serves frontend + backend together on port 8000.
+Use four-space Python indentation, `snake_case` functions/modules, `PascalCase` classes, Pydantic request/response models, and FastAPI dependency injection for database sessions. React uses two spaces, `PascalCase` component files, `camelCase` props/functions, functional components, and colocated CSS. Follow ESLint and avoid adding dependencies without clear value.
 
-### Environment setup
-Create `.env` in the project root:
-```
-ANTHROPIC_API_KEY=sk-ant-...
-GROQ_API_KEY=gsk_...
-ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5175
-```
-
-## Architecture
-
-This is a full-stack AI resume tailoring app. The frontend is a 5-step wizard (steps 0–4); the backend orchestrates two LLMs, SQLite persistence, and PDF generation via Playwright.
-
-### Request flow
-
-1. **Step 0 — Profile selection**: `GET /api/resumes` discovers all `backend/data/*.json` files dynamically.
-2. **Step 1 → 2 — Keyword extraction**: `POST /api/extract-keywords` calls Groq (Llama 3.3 70B, free tier) to extract and ATS-score keywords from the job description.
-3. **Step 2 → 3 — Resume generation**: `POST /api/generate-resume` calls Claude Haiku to rewrite bullets, then runs the heuristic ATS scorer. The tailored resume dict is stored in `RESUME_STORE` (in-memory, max 50 entries) keyed by `session_id`. Playwright generates the PDF. The record is also persisted to SQLite.
-4. **Step 3 — Tailored preview**: `POST /api/preview-html` renders HTML instantly (no Playwright) with a red page-boundary indicator (`show_boundary=True`). Used for live iframe preview. Inline edits made here are held in `editedResumeData` state in `App.jsx` and forwarded to step 4.
-5. **Step 4 — PDF with sliders**: `POST /api/download-custom` runs Playwright with exact user-specified spacing overrides to produce the final PDF.
-
-### Key backend files
-
-- `backend/main.py` — FastAPI app, CORS, router wiring, static file serving (frontend built to `backend/static/` in Docker), health check, `init_db()` call on startup.
-- `backend/db.py` — SQLite engine setup via SQLModel. DB lives at `backend/data/resume_history.db` (gitignored). Provides `get_session()` FastAPI dependency.
-- `backend/models.py` — `TailoredResumeRecord` SQLModel table: captures company, job_title, profile, JD, selected_keywords, tailored_resume dict, ATS scores, and optional pdf_path per generation.
-- `backend/services/claude_service.py` — All core AI logic via direct Anthropic SDK: `extract_keywords()` (Groq), `tailor_resume()` (Claude Haiku), `score_resume()` (heuristic), `regenerate_summary()` / `regenerate_bullets()` (HITL re-generation with user feedback). Also contains `SKILL_TO_CATEGORY` and `PREFERRED_SKILL_CASING` lookup tables, and `determine_skills_to_add()` / `determine_skills_to_show()` helpers that map JD keywords to the correct resume skill categories.
-- `backend/services/cover_letter_service.py` — Cover letter generation via **LangChain** (`langchain_anthropic`, `langchain_core`). Uses Claude Haiku; note this is the only place in the backend that uses LangChain rather than the direct Anthropic SDK.
-- `backend/services/build_resume_pdf.py` — Renders resume dict → HTML/CSS string (`_render_html`) and then → PDF via Playwright (`build_pdf`, `build_pdf_with_overrides`). Contains the single-page enforcement logic (bidirectional spacing feedback loop). The `show_boundary` flag injects a red line for iframe preview only — never in PDFs.
-- `backend/routes/resumes.py` — `GET /api/resumes`. Discovers all `backend/data/*.json` profiles.
-- `backend/routes/extract.py` — `POST /api/extract-keywords`. Loads the selected resume JSON, calls `claude_service.extract_keywords()`, cross-references results against the resume to flag gaps, and returns structured `Keyword` objects with `ats_weight` and `present_in_resume`.
-- `backend/routes/generate.py` — `POST /api/generate-resume`, `GET /api/download/{filename}`. Owns `RESUME_STORE` (session dict, max 50 entries). `_build_tailored_resume_dict()` merges Claude's response back into the base resume structure and writes to SQLite.
-- `backend/routes/regenerate.py` — `POST /api/regenerate-section`. HITL endpoint: accepts `session_id`, `section` (`"summary"` | `"experience"` | `"project"`), optional `target` name, and free-text `feedback`. Mutates `RESUME_STORE` in place and returns updated bullets/summary + fresh ATS score.
-- `backend/routes/preview.py` — `POST /api/preview-html`, `POST /api/download-custom`. Reads from `RESUME_STORE` and optionally applies user edits from the frontend before re-rendering.
-- `backend/routes/history.py` — `GET /api/history`, `GET /api/history/{id}`, `DELETE /api/history/{id}`, `GET /api/download-history/{id}`, `POST /api/history/{id}/restore`. The restore endpoint loads a SQLite record's `tailored_resume` into `RESUME_STORE` under a fresh `session_id`, allowing `PDFPreview` to re-render and re-download any past generation.
-- `backend/routes/cover_letter.py` — `POST /api/generate-cover-letter`. Accepts the tailored resume payload plus job context and delegates to `cover_letter_service`.
-
-### Key frontend files
-
-- `client/src/App.jsx` — Step state machine (steps 0–4), all API calls, data flow between components. `editedResumeData` holds user inline edits from `ResumePreview`; it's forwarded to `PDFPreview` for custom PDF generation. The `API` constant (`http://127.0.0.1:8000`) is passed as `apiBase` prop to every component that needs it.
-- `client/src/components/` — One component per step: `ResumePicker` (step 0), `JDInput` (step 1 — captures company name, job title, and JD text), `KeywordSelector` (step 2), `ResumePreview` (step 3 — also drives HITL regeneration via `POST /api/regenerate-section` with per-section feedback), `PDFPreview` (step 4). Also `ResumeHistory` — a full-page history view; clicking a row opens a detail page with "Preview Resume" / "Download PDF" actions that lazily call the restore endpoint then render `PDFPreview`. `PDFPreview` accepts `topOffset` (px, default 64) so it positions its sticky topbar correctly whether rendered inside the wizard or from history. `CoverLetterStep.jsx` exists for cover letter generation (calls `POST /api/generate-cover-letter`) but is not yet wired into the App.jsx step router.
-
-### Resume data format
-
-Profiles live in `backend/data/*.json` (gitignored). Each file is auto-discovered. Key top-level keys:
-- `meta` — `label`, `target_roles`, `last_updated`
-- `contact`, `summary`, `skills`, `experience`, `projects`, `education`, `certifications`
-- `ats_config.skills_order` — array controlling which skill categories render and in what order
-
-Skills categories for tech resumes: `languages`, `ai_ml`, `backend`, `frontend`, `databases_cloud`, `tools`. Non-tech resumes (clinical, admin) use different category names, and the `determine_skills_to_show()` function detects this via `STANDARD_TECH_CATEGORIES` to skip tech-specific filtering.
-
-### PDF spacing system
-
-`_render_html()` accepts `overrides` dict: `font_size` (pt), `margin`/`side_margin` (in), `entry_spacing`/`section_spacing` (pt). `build_pdf()` runs a bidirectional feedback loop — shrinking or expanding spacing to ensure content fills exactly one letter-size page. `build_pdf_with_overrides()` skips the loop and applies exact values.
-
-### AI models
-
-- Keyword extraction: `llama-3.3-70b-versatile` via Groq (`GROQ_MODEL` constant in `claude_service.py`)
-- Resume tailoring: `claude-haiku-4-5-20251001` via Anthropic (`CLAUDE_MODEL` constant in `claude_service.py`)
-- ATS scoring: local heuristic, no API call
+Keep commits short and imperative, preferably under 72 characters. PRs should explain behavior, list validation commands, identify schema/configuration changes, link issues, and include screenshots for visible UI changes. Preserve unrelated work and never commit secrets, personal resumes, generated PDFs, or the runtime database.

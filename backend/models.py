@@ -41,3 +41,16 @@ class TailoredResumeRecord(SQLModel, table=True):
 
     # ── Optional cached render ────────────────────────────────────────
     pdf_path: str | None = Field(default=None)
+
+
+class MasterResumeRecord(SQLModel, table=True):
+    """Reusable, user-reviewed resume data created in the resume builder."""
+
+    __tablename__ = "master_resumes"
+
+    id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
+    created_at: datetime = Field(default_factory=_utcnow, index=True)
+    updated_at: datetime = Field(default_factory=_utcnow, index=True)
+    name: str = Field(index=True)
+    target_role: str = Field(default="", index=True)
+    resume_data: dict = Field(default_factory=dict, sa_column=Column(JSON))

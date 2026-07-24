@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./ResumePicker.css";
 
-export default function ResumePicker({ apiBase, onSelect }) {
+export default function ResumePicker({ apiBase, onCreate, onSelect }) {
   const [resumes, setResumes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -48,6 +48,11 @@ export default function ResumePicker({ apiBase, onSelect }) {
           Choose the resume profile you want to tailor for this application.
         </p>
       </div>
+
+      <button className="rpicker-create-btn" type="button" onClick={onCreate}>
+        <span aria-hidden="true">+</span>
+        Create a resume
+      </button>
 
       <div className="rpicker-grid">
         {resumes.map((resume) => (

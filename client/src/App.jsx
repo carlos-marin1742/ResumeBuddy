@@ -1,5 +1,7 @@
 import { useState } from "react";
 import ResumePicker from "./components/ResumePicker";
+import ResumeBuilder from "./components/ResumeBuilder";
+import MasterResumePreview from "./components/MasterResumePreview";
 import JDInput from "./components/JDInput";
 import KeywordSelector from "./components/KeywordSelector";
 import ResumePreview from "./components/ResumePreview";
@@ -19,6 +21,9 @@ const API = "http://127.0.0.1:8000";
 
 export default function App() {
   const [step, setStep] = useState(0);
+  const [resumeDraft, setResumeDraft] = useState(null);
+  const [masterResumeId, setMasterResumeId] = useState(null);
+  const [savedMasterResume, setSavedMasterResume] = useState(null);
 
   // Resume profile selected in step 0
   const [selectedResume, setSelectedResume] = useState(null);
@@ -136,6 +141,48 @@ export default function App() {
     return <ResumeHistory onBack={() => setStep(0)} />;
   }
 
+  async function handleMasterResumeSave(draft) {
+    const url = masterResumeId
+      ? `${API}/api/master-resumes/${masterResumeId}`
+      : `${API}/api/master-resumes`;
+    const response = await fetch(url, {
+      method: masterResumeId ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resume: draft }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || `Server error ${response.status}`);
+    }
+    setResumeDraft(data.resume);
+    setMasterResumeId(data.id);
+    setSavedMasterResume(data);
+    setStep("master-preview");
+    return data;
+  }
+
+  if (step === "create-resume") {
+    return (
+      <ResumeBuilder
+        apiBase={API}
+        initialDraft={resumeDraft}
+        onBack={() => setStep(0)}
+        onSave={handleMasterResumeSave}
+      />
+    );
+  }
+
+  if (step === "master-preview" && savedMasterResume) {
+    return (
+      <MasterResumePreview
+        resume={savedMasterResume.resume}
+        savedAt={savedMasterResume.updated_at}
+        onBack={() => setStep(0)}
+        onEdit={() => setStep("create-resume")}
+      />
+    );
+  }
+
   // ── Step router ──────────────────────────────────────────────────────────
   return (
     <div className="app-root">
@@ -179,7 +226,11 @@ export default function App() {
 
       {/* Views */}
       {step === 0 && (
-        <ResumePicker apiBase={API} onSelect={handleResumeSelect} />
+        <ResumePicker
+          apiBase={API}
+          onCreate={() => setStep("create-resume")}
+          onSelect={handleResumeSelect}
+        />
       )}
 
       {step === 1 && (

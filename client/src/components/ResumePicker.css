@@ -46,6 +46,41 @@
 }
 
 /* ── Card grid ───────────────────────────────────────────────────────────── */
+.rpicker-create-btn {
+  align-items: center;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  color: var(--white);
+  cursor: pointer;
+  display: flex;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  gap: 0.55rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  padding: 0.85rem 1.25rem;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  width: 100%;
+}
+
+.rpicker-create-btn:hover {
+  background: var(--accent-mid);
+  border-color: var(--accent-mid);
+  transform: translateY(-1px);
+}
+
+.rpicker-create-btn:focus-visible {
+  outline: 3px solid #9db9dc;
+  outline-offset: 2px;
+}
+
+.rpicker-create-btn span {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
 .rpicker-grid {
   display: flex;
   flex-direction: column;
