@@ -19,7 +19,7 @@ describe("ResumeBuilder", () => {
     summary: "Imported summary",
     experience: [{ company: "", title: "", location: "", startDate: "", endDate: "", highlights: "" }],
     education: [{ institution: "", degree: "", field: "", graduationDate: "" }],
-    skills: "Research",
+    skills: [{ category: "Design", items: "Research" }],
     projects: [{ name: "", technologies: "", description: "", links: [] }],
     certifications: [{ name: "", issuer: "", date: "" }],
   };
@@ -64,6 +64,31 @@ describe("ResumeBuilder", () => {
       experience: expect.any(Array),
     }));
     expect(screen.getByText("Resume saved.")).toBeInTheDocument();
+  });
+
+  it("adds and saves labeled skill categories", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.type(screen.getByLabelText("Category name"), "Frontend");
+    await user.type(screen.getByLabelText("Skills"), "React, TypeScript");
+    await user.click(screen.getByRole("button", { name: /add category/i }));
+
+    const categoryInputs = screen.getAllByLabelText("Category name");
+    const skillInputs = screen.getAllByLabelText("Skills");
+    await user.type(categoryInputs[1], "AI & LLMs");
+    await user.type(skillInputs[1], "Claude API, LangChain");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      skills: [
+        { category: "Frontend", items: "React, TypeScript" },
+        { category: "AI & LLMs", items: "Claude API, LangChain" },
+      ],
+    }));
   });
 
   it("does not save when required contact details are missing", async () => {

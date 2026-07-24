@@ -106,6 +106,16 @@ Why:
 
 Adding a path to `.gitignore` does not remove an already tracked copy. Older clones must run `git rm --cached backend/data/resume_history.db` once and commit that index removal. This removes the file from Git without deleting the local database.
 
+## Use same-origin API requests in the client
+
+Browser requests use relative `/api` paths. Vite supplies the development proxy, while FastAPI serves the API and built frontend from the same origin in production.
+
+Why:
+
+- A hard-coded loopback address points to the browser user's machine after deployment.
+- Same-origin requests avoid unnecessary CORS and mixed-content failures.
+- The same client build works in local, Docker, and production environments.
+
 ## Support repeatable named project links
 
 Each project may contain zero or more `{name, url}` links.
@@ -115,6 +125,12 @@ Why:
 - A project may have a GitHub repository, live demo, case study, or documentation.
 - A label is more meaningful on a resume than exposing a raw URL.
 - Projects without links remain valid.
+
+## Store skills as labeled categories
+
+New master resumes represent skills as repeatable `{category, items}` entries. Imports preserve labels such as `Frontend`, `AI & LLMs`, and `Backend & Cloud`, and the saved-resume preview renders those labels in bold.
+
+The persistence API continues accepting the original plain string shape so existing saved records remain compatible.
 
 ## Preserve focused files and existing workflow contracts
 

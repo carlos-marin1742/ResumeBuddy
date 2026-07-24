@@ -28,7 +28,9 @@ def _request(name: str = "Jamie Rivera") -> MasterResumeSaveRequest:
             "summary": "Product leader.",
             "experience": [],
             "education": [],
-            "skills": "Roadmaps",
+            "skills": [
+                {"category": "Product", "items": "Roadmaps"},
+            ],
             "projects": [],
             "certifications": [],
         }
@@ -55,6 +57,18 @@ def test_create_and_fetch_master_resume():
     assert fetched.resume == created.resume
     assert record is not None
     assert record.target_role == "Product Manager"
+    assert created.resume["skills"] == [
+        {"category": "Product", "items": "Roadmaps"},
+    ]
+
+
+def test_master_resume_accepts_legacy_plain_text_skills():
+    payload = _request().model_dump()
+    payload["resume"]["skills"] = "Roadmaps"
+
+    request = MasterResumeSaveRequest.model_validate(payload)
+
+    assert request.resume.skills == "Roadmaps"
 
 
 def test_update_master_resume_preserves_record_identity():

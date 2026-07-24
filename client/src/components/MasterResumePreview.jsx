@@ -27,6 +27,9 @@ export default function MasterResumePreview({ onBack, onEdit, resume, savedAt })
   const education = resume.education.filter(hasValues);
   const projects = resume.projects.filter(hasValues);
   const certifications = resume.certifications.filter(hasValues);
+  const skillGroups = Array.isArray(resume.skills)
+    ? resume.skills.filter(hasValues)
+    : [];
 
   return (
     <div className="mrp-page fade-up">
@@ -58,10 +61,21 @@ export default function MasterResumePreview({ onBack, onEdit, resume, savedAt })
           </section>
         )}
 
-        {resume.skills && (
+        {(skillGroups.length > 0 || (typeof resume.skills === "string" && resume.skills)) && (
           <section className="mrp-section">
             <h2>Skills</h2>
-            <p>{resume.skills}</p>
+            {skillGroups.length > 0 ? (
+              <div className="mrp-skills">
+                {skillGroups.map((skillGroup, index) => (
+                  <p key={`${skillGroup.category}-${index}`}>
+                    {skillGroup.category && <strong>{skillGroup.category}: </strong>}
+                    {skillGroup.items}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p>{resume.skills}</p>
+            )}
           </section>
         )}
 

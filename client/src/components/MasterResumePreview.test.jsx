@@ -30,7 +30,10 @@ const resume = {
     field: "Information Systems",
     graduationDate: "2021-05",
   }],
-  skills: "Roadmaps, User research",
+  skills: [
+    { category: "Frontend", items: "React, TypeScript" },
+    { category: "AI & LLMs", items: "Claude API, LangChain" },
+  ],
   projects: [{
     name: "Accessibility Toolkit",
     technologies: "React",
@@ -61,6 +64,8 @@ describe("MasterResumePreview", () => {
     expect(screen.getByText("Example Co · Chicago, IL")).toBeInTheDocument();
     expect(screen.getByText("State University")).toBeInTheDocument();
     expect(screen.getByText("Scrum Product Owner")).toBeInTheDocument();
+    expect(screen.getByText("Frontend:").tagName).toBe("STRONG");
+    expect(screen.getByText("AI & LLMs:").tagName).toBe("STRONG");
     expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute(
       "href",
       "https://github.com/jamie/toolkit",

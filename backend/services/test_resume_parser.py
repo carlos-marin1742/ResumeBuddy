@@ -45,7 +45,10 @@ def test_docx_text_is_parsed_into_reviewable_resume_fields():
     assert draft["contact"]["linkedin"] == "https://linkedin.com/in/jamie"
     assert draft["targetRole"] == "Product Manager"
     assert draft["summary"] == "Product leader focused on accessible software."
-    assert draft["skills"] == "Roadmaps, User research"
+    assert draft["skills"] == [{
+        "category": "Skills",
+        "items": "Roadmaps, User research",
+    }]
     assert draft["projects"][0]["name"] == "Portfolio redesign"
     assert "Review all imported fields" in warnings[0]
 
@@ -140,7 +143,10 @@ Certified Scrum Product Owner | Scrum Alliance | March 2023
         "field": "Information Systems",
         "graduationDate": "2019-05",
     }]
-    assert draft["skills"] == "Roadmaps, User research, Jira, Figma"
+    assert draft["skills"] == [
+        {"category": "Product", "items": "Roadmaps, User research"},
+        {"category": "Tools", "items": "Jira, Figma"},
+    ]
     assert draft["projects"] == [{
         "name": "Accessibility Toolkit",
         "technologies": "",
@@ -210,7 +216,10 @@ Full Stack Engineer — Professional Certificate October 2023
     }
     assert draft["experience"][1]["company"] == "Community Hospital"
     assert draft["experience"][1]["title"] == "Research Coordinator"
-    assert draft["skills"] == "Claude API, LangChain, RAG, Python, FastAPI, PostgreSQL, AWS"
+    assert draft["skills"] == [
+        {"category": "AI & LLMs", "items": "Claude API, LangChain, RAG"},
+        {"category": "Backend & Cloud", "items": "Python, FastAPI, PostgreSQL, AWS"},
+    ]
     assert draft["projects"] == [
         {
             "name": "Document Checker",
