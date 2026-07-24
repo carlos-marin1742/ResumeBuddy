@@ -8,12 +8,14 @@ ResumeBuddy supports its established job-tailoring workflow and now has the firs
 
 - **Create a resume** appears above the existing profile list.
 - The builder contains contact information, target role, professional summary, work experience, education, skills, projects, and certifications.
+- Skills support repeatable labeled categories, and category names render in bold in the saved preview.
 - Experience, education, projects, and certifications support repeatable entries.
 - Projects support repeatable named links with validated URLs.
 - Name and email are required before saving.
 - Saving creates or updates a `MasterResumeRecord` in SQLite.
 - A successful save opens a dedicated read-only resume preview.
 - Users can return from the preview to edit and update the same record.
+- Client API requests use relative `/api` paths so Save & Preview works through the Vite development proxy and FastAPI production hosting.
 
 ### Implemented resume import
 
@@ -23,6 +25,7 @@ ResumeBuddy supports its established job-tailoring workflow and now has the firs
 - DOCX extraction uses ZIP/XML standard-library support.
 - Source documents are processed in memory and are not retained.
 - Parsed information autofills the builder.
+- Labeled skill groups from the provided Carlos Marin sample are preserved during import.
 - The user sees warnings and reviews the editable fields before selecting **Save draft**.
 - Failed imports preserve the current draft.
 

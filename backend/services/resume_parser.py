@@ -132,7 +132,7 @@ def _blank_draft() -> dict:
             "field": "",
             "graduationDate": "",
         }],
-        "skills": "",
+        "skills": [{"category": "", "items": ""}],
         "projects": [{
             "name": "",
             "technologies": "",
@@ -474,11 +474,18 @@ def parse_resume_text(text: str) -> tuple[dict, list[str]]:
         draft["targetRole"] = descriptive_lines[1]
 
     draft["summary"] = " ".join(sections["summary"] or descriptive_lines[2:])
-    skill_values = []
+    skill_groups = []
     for line in sections["skills"]:
-        value = line.split(":", 1)[1].strip() if ":" in line else line
-        skill_values.extend(part.strip() for part in value.split(",") if part.strip())
-    draft["skills"] = ", ".join(skill_values)
+        if ":" in line:
+            category, items = (part.strip() for part in line.split(":", 1))
+            skill_groups.append({"category": category, "items": items})
+        elif skill_groups:
+            skill_groups[-1]["items"] = ", ".join(
+                value for value in (skill_groups[-1]["items"], line) if value
+            )
+        else:
+            skill_groups.append({"category": "Skills", "items": line})
+    draft["skills"] = skill_groups or [{"category": "", "items": ""}]
     draft["experience"] = _parse_experience(sections["experience"])
     draft["education"] = _parse_education(sections["education"])
     draft["projects"] = _parse_projects(sections["projects"])

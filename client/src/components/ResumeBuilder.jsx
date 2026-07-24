@@ -4,6 +4,7 @@ import "./ResumeBuilder.css";
 const templates = {
   experience: { company: "", title: "", location: "", startDate: "", endDate: "", highlights: "" },
   education: { institution: "", degree: "", field: "", graduationDate: "" },
+  skills: { category: "", items: "" },
   projects: { name: "", technologies: "", description: "", links: [] },
   certifications: { name: "", issuer: "", date: "" },
 };
@@ -14,10 +15,22 @@ const emptyDraft = {
   summary: "",
   experience: [{ ...templates.experience }],
   education: [{ ...templates.education }],
-  skills: "",
+  skills: [{ ...templates.skills }],
   projects: [{ ...templates.projects }],
   certifications: [{ ...templates.certifications }],
 };
+
+function normalizeDraft(draft) {
+  const skills = Array.isArray(draft.skills)
+    ? draft.skills
+    : draft.skills
+      ? [{ category: "Skills", items: draft.skills }]
+      : [{ ...templates.skills }];
+  return {
+    ...draft,
+    skills: skills.length > 0 ? skills : [{ ...templates.skills }],
+  };
+}
 
 function RepeatingSection({ addLabel, children, items, name, number, onAdd, onRemove }) {
   const singular = name === "Work experience" ? "Experience" : name.replace(/s$/, "");
@@ -52,7 +65,7 @@ function RepeatingSection({ addLabel, children, items, name, number, onAdd, onRe
 }
 
 export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSave }) {
-  const [draft, setDraft] = useState(() => initialDraft ?? emptyDraft);
+  const [draft, setDraft] = useState(() => normalizeDraft(initialDraft ?? emptyDraft));
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -173,7 +186,7 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
       if (!response.ok) {
         throw new Error(data.detail || `Server error ${response.status}`);
       }
-      setDraft(data.draft);
+      setDraft(normalizeDraft(data.draft));
       setSaved(false);
       setImportResult({
         filename: data.filename,
@@ -276,8 +289,46 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
         </RepeatingSection>
 
         <section className="rb-section" aria-labelledby="rb-skills">
-          <h2 id="rb-skills">6. Skills</h2>
-          <label>Skills<textarea rows="4" value={draft.skills} onChange={(event) => updateField("skills", event.target.value)} placeholder="List skills separated by commas." /></label>
+          <div className="rb-section-heading">
+            <h2 id="rb-skills">6. Skills</h2>
+            <button className="rb-add-btn" type="button" onClick={() => addItem("skills")}>+ Add category</button>
+          </div>
+          {draft.skills.map((skillGroup, index) => (
+            <div className="rb-entry" key={index}>
+              <div className="rb-entry-heading">
+                <h3>Skill category {index + 1}</h3>
+                {draft.skills.length > 1 && (
+                  <button
+                    className="rb-remove-btn"
+                    type="button"
+                    onClick={() => removeItem("skills", index)}
+                    aria-label={`Remove skill category ${index + 1}`}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="rb-field-grid">
+                <label>
+                  Category name
+                  <input
+                    value={skillGroup.category}
+                    onChange={(event) => updateList("skills", index, "category", event.target.value)}
+                    placeholder="Frontend"
+                  />
+                </label>
+                <label className="rb-wide-field">
+                  Skills
+                  <textarea
+                    rows="3"
+                    value={skillGroup.items}
+                    onChange={(event) => updateList("skills", index, "items", event.target.value)}
+                    placeholder="React, TypeScript, JavaScript, Vite"
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
         </section>
 
         <RepeatingSection number="7" name="Projects" addLabel="Add project" items={draft.projects} onAdd={() => addItem("projects")} onRemove={(index) => removeItem("projects", index)}>

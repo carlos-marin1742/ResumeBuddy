@@ -10,7 +10,9 @@ import ResumeHistory from "./components/ResumeHistory";
 import CoverLetterStep from "./components/CoverLetterStep";
 import "./App.css";
 
-const API = "http://127.0.0.1:8000";
+// Use same-origin API paths. Vite proxies `/api` during development, while
+// FastAPI serves both the API and built client in production.
+const API = "";
 
 // Steps:
 //   0 = pick resume profile  (ResumePicker)

@@ -41,7 +41,7 @@ In development, Vite runs on port 5175 and proxies `/api` to FastAPI on port 800
 - Professional summary
 - Repeatable work experience
 - Repeatable education
-- Skills
+- Repeatable skill categories with a display label and comma-separated values
 - Repeatable projects with repeatable named links
 - Repeatable certifications
 - PDF or DOCX import
@@ -72,6 +72,8 @@ CoverLetterStep
 
 `backend/main.py` initializes SQLite, configures CORS, registers routers, exposes health information, and serves the production frontend.
 
+The client uses same-origin `/api` paths. Vite proxies those paths to FastAPI during development, and FastAPI serves both the built client and API in production. Do not hard-code a loopback backend address in browser code because it breaks deployed, containerized, and remote-client usage.
+
 ### Resume profiles
 
 `GET /api/resumes` discovers valid JSON profiles under `backend/data`. These profiles are the source material for the existing tailoring workflow.
@@ -95,6 +97,8 @@ User edits and explicitly saves session draft
 ```
 
 PDF text extraction uses `pypdf`. DOCX extraction reads `word/document.xml` through Python's ZIP and XML standard libraries. Source documents are not written to disk. Scanned PDFs are not supported because there is no OCR layer.
+
+Skill lines such as `Frontend: React, TypeScript` are preserved as structured category/value pairs. The category remains editable and renders in bold. Unlabeled legacy skill strings remain supported when older records are loaded.
 
 `backend/services/resume_parser.py` separates extraction and mapping from HTTP concerns. `backend/routes/resume_import.py` owns request validation and response handling.
 

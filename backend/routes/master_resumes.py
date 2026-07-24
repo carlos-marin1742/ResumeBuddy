@@ -84,13 +84,19 @@ class CertificationInput(BaseModel):
     date: str = Field(default="", max_length=7)
 
 
+class SkillCategoryInput(BaseModel):
+    category: str = Field(default="", max_length=100)
+    items: str = Field(default="", max_length=5000)
+
+
 class MasterResumeInput(BaseModel):
     contact: ContactInput
     targetRole: str = Field(default="", max_length=200)
     summary: str = Field(default="", max_length=10000)
     experience: list[ExperienceInput] = Field(default_factory=list, max_length=50)
     education: list[EducationInput] = Field(default_factory=list, max_length=20)
-    skills: str = Field(default="", max_length=10000)
+    # Keep accepting the original string shape for previously saved drafts.
+    skills: list[SkillCategoryInput] | str = Field(default_factory=list)
     projects: list[ProjectInput] = Field(default_factory=list, max_length=50)
     certifications: list[CertificationInput] = Field(default_factory=list, max_length=50)
 

@@ -23,7 +23,7 @@ describe("App workflow", () => {
       summary: "",
       experience: [{ company: "", title: "", location: "", startDate: "", endDate: "", highlights: "" }],
       education: [{ institution: "", degree: "", field: "", graduationDate: "" }],
-      skills: "",
+      skills: [{ category: "", items: "" }],
       projects: [{ name: "", technologies: "", description: "", links: [] }],
       certifications: [{ name: "", issuer: "", date: "" }],
     };
@@ -67,7 +67,7 @@ describe("App workflow", () => {
 
     expect(await screen.findByRole("main", { name: /jamie rivera's resume preview/i })).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(
-      "http://127.0.0.1:8000/api/master-resumes",
+      "/api/master-resumes",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ resume: savedResume }),
@@ -83,7 +83,7 @@ describe("App workflow", () => {
 
     expect(await screen.findByRole("main", { name: /jamie r\. rivera's resume preview/i })).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(
-      "http://127.0.0.1:8000/api/master-resumes/master-123",
+      "/api/master-resumes/master-123",
       expect.objectContaining({ method: "PUT" }),
     );
   });
@@ -155,7 +155,7 @@ describe("App workflow", () => {
     expect(await screen.findByText("Select keywords to target")).toBeInTheDocument();
     expect(screen.getByText("1 keyword selected")).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(
-      "http://127.0.0.1:8000/api/extract-keywords",
+      "/api/extract-keywords",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
