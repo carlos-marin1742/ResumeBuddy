@@ -63,10 +63,12 @@ ResumeBuddy/
 ├── backend/
 │   ├── main.py                       # FastAPI app, CORS, routers, static serving, health check
 │   ├── db.py                         # SQLite engine setup via SQLModel
-│   ├── models.py                     # TailoredResumeRecord SQLModel table
+│   ├── models.py                     # Tailored and master resume SQLModel tables
 │   ├── requirements.txt
 │   ├── routes/
 │   │   ├── resumes.py                # GET /api/resumes
+│   │   ├── resume_import.py          # Parse PDF/DOCX into an editable draft
+│   │   ├── master_resumes.py         # Create, fetch, and update reviewed resumes
 │   │   ├── extract.py                # POST /api/extract-keywords
 │   │   ├── generate.py               # POST /api/generate-resume, GET /api/download/{file}
 │   │   ├── preview.py                # HTML preview and custom PDF download
@@ -80,8 +82,9 @@ ResumeBuddy/
 │   │   ├── cover_letter_service.py   # Grounded cover-letter generation and formatting
 │   │   ├── build_cover_letter_pdf.py # 12pt Times New Roman letter PDF renderer
 │   │   ├── build_resume_pdf.py       # HTML/CSS resume renderer → PDF via Playwright
+│   │   ├── resume_parser.py          # Deterministic resume field extraction
 │   │   └── test_*.py                 # Service-level pytest tests
-│   └── data/                         # gitignored
+│   └── data/                         # Private profiles and runtime data are gitignored
 │       ├── base_resume.json          # Tech / AI profile
 │       ├── base_resume_clinical.json # Clinical research profile
 │       ├── base_resume_admin.json    # Administrative profile
@@ -95,6 +98,8 @@ ResumeBuddy/
         ├── test/setup.js             # Testing Library setup and cleanup
         └── components/
             ├── ResumePicker.jsx      # Step 0: select resume profile
+            ├── ResumeBuilder.jsx     # Create/import, review, and save a master resume
+            ├── MasterResumePreview.jsx # Read-only saved resume preview
             ├── JDInput.jsx           # Step 1: enter company, title, and job description
             ├── KeywordSelector.jsx   # Step 2: review and select keywords
             ├── ResumePreview.jsx     # Step 3: tailored preview + inline editing + ATS score
@@ -245,12 +250,31 @@ See `base_resume_schema.md` for the full JSON schema. Key sections:
 
 ---
 
+## Runtime data and Git
+
+`backend/data/resume_history.db` is created locally by the backend and stores personal resume and application data. It is intentionally gitignored and must not be committed.
+
+If the database was tracked before the ignore rule was added, remove it from the index once without deleting your local data:
+
+```bash
+git rm --cached backend/data/resume_history.db
+git ls-files backend/data/resume_history.db
+```
+
+The second command should produce no output. Once that index removal is committed, `git add .` will respect the ignore rule for the database. Always review `git status --short` before committing.
+
+---
+
 ## API
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/health` | Service health check |
 | `GET` | `/api/resumes` | List all available resume profiles |
+| `POST` | `/api/resumes/parse` | Parse a PDF or DOCX into an editable resume draft |
+| `POST` | `/api/master-resumes` | Save a reviewed master resume |
+| `GET` | `/api/master-resumes/{id}` | Fetch a saved master resume |
+| `PUT` | `/api/master-resumes/{id}` | Update a saved master resume |
 | `POST` | `/api/extract-keywords` | Extract and score keywords from a job description (Groq) |
 | `POST` | `/api/generate-resume` | Tailor resume, inject skills, score ATS, generate PDF (Claude Haiku) |
 | `GET` | `/api/download/{filename}` | Download a generated PDF (auto-fit spacing) |

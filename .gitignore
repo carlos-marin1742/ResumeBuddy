@@ -50,6 +50,8 @@ backend/data/base_resume.json
 backend/data/clinical_resume.json
 backend/data/admin_resume.json
 !backend/data/base_resume_schema.md
+backend/data/resume_history.db
+Carlos_Marin_Resume.pdf
 
 # ── OS ───────────────────────────────────────────────────────
 .DS_Store

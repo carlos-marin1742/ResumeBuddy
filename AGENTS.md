@@ -22,11 +22,14 @@ ResumeBuddy/
 │   ├── package.json
 │   └── vite.config.js          # Vite dev proxy and Vitest jsdom configuration
 ├── Dockerfile / docker-compose.yml
-├── README.md / CLAUDE.md
+├── README.md / CLAUDE.md / architecture.md
+├── decisions.md / backlog.md / handoff.md
 └── AGENTS.md
 ```
 
 `backend/main.py` registers the routers, initializes SQLite, configures CORS, and serves the built React app in production. Personal resume JSON, `backend/data/resume_history.db`, `backend/outputs/`, `client/node_modules/`, and build output are runtime artifacts and must not be committed.
+
+The SQLite ignore rule only affects untracked files. In a clone where `backend/data/resume_history.db` was previously committed, remove it from the Git index once with `git rm --cached backend/data/resume_history.db`; this preserves the local database. Before broad staging, confirm `git ls-files backend/data/resume_history.db` prints nothing and review `git status --short`.
 
 ## Architecture and Important Modules
 
@@ -50,10 +53,12 @@ Backend responsibilities:
 - `POST /api/regenerate-section`: regenerate summary, experience, or project bullets in a session.
 - `/api/history`: list/filter, fetch, delete, restore sessions, and download stored resume/cover-letter artifacts.
 - `POST /api/generate-cover-letter`, `POST /api/download-cover-letter`: generate, persist, and render cover letters.
+- `POST /api/resumes/parse`: temporarily parse a PDF or DOCX into a reviewable resume-builder draft.
+- `POST /api/master-resumes`, `PUT/GET /api/master-resumes/{id}`: persist, update, and retrieve user-reviewed master resumes.
 
 ## Data, Authentication, and Security
 
-`TailoredResumeRecord` stores job metadata, selected keywords, structured resume JSON, ATS scores, optional cover-letter text, and cached PDF path in `backend/data/resume_history.db`. `init_db()` creates tables and applies the additive cover-letter migration.
+`TailoredResumeRecord` stores job metadata, selected keywords, structured resume JSON, ATS scores, optional cover-letter text, and cached PDF paths. `MasterResumeRecord` separately stores user-reviewed builder data for editing and preview. Both use `backend/data/resume_history.db`; `init_db()` creates their tables and applies the additive cover-letter migration.
 
 There is currently **no authentication or authorization**; all API and history routes are open to any client that can reach the server. Do not imply per-user isolation. Preserve path validation, input limits, HTML escaping, and `Cache-Control: no-store` behavior.
 
@@ -77,6 +82,17 @@ Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testi
 Pytest files are named `test_*.py` beside services or under `backend/routes/`. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/test_extract.py` is a credential-dependent smoke script, not a unit test. Full pytest collection currently has two known blockers: `test_claude_service.py` imports removed `limit_character_count`, and the smoke script name collides with `routes/test_extract.py`. Run focused test paths until those are resolved.
 
 Frontend tests mock `fetch`, clipboard, and browser download boundaries. `CoverLetterStep.test.jsx` contains one `it.fails` regression: clearing the letter unmounts its textarea. Do not remove the marker without fixing and verifying the component. No coverage threshold is enforced.
+
+Resume imports are parsed in memory and must not retain source files. Preserve the 5 MB limit, PDF/DOCX signature checks, review-before-save behavior, and explicit scanned-PDF limitation.
+
+## Working Documents
+
+- `architecture.md`: current system design, boundaries, data flows, and major components.
+- `decisions.md`: important technical and product decisions with their rationale.
+- `backlog.md`: candidate work that is not yet implemented or committed.
+- `handoff.md`: current working state, validation evidence, limitations, and suggested next steps.
+
+Update these documents when a change materially affects their subject. Keep confirmed behavior separate from future ideas.
 
 ## Coding and Contribution Conventions
 

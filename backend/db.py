@@ -26,7 +26,7 @@ engine = create_engine(
 
 def init_db() -> None:
     """Create tables and apply additive migrations. Safe to call repeatedly."""
-    from models import TailoredResumeRecord  # noqa: F401  (registers metadata)
+    from models import MasterResumeRecord, TailoredResumeRecord  # noqa: F401
     SQLModel.metadata.create_all(engine)
     columns = {column["name"] for column in inspect(engine).get_columns("tailored_resumes")}
     if "cover_letter" not in columns:
