@@ -29,7 +29,7 @@ describe("ResumeBuilder", () => {
 
     [
       "1. Contact information",
-      "2. Target role",
+      "2. Resume title",
       "3. Professional summary",
       "4. Work experience",
       "5. Education",
@@ -48,7 +48,7 @@ describe("ResumeBuilder", () => {
 
     await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
     await user.type(screen.getByLabelText("Email"), "jamie@example.com");
-    await user.type(screen.getByLabelText("What kind of role are you looking for?"), "Product Manager");
+    await user.type(screen.getByLabelText("How should this resume appear in your resume list?"), "Product Manager");
     await user.click(screen.getByRole("button", { name: /add experience/i }));
 
     expect(screen.getByRole("heading", { name: "Experience 2" })).toBeInTheDocument();
@@ -161,7 +161,7 @@ describe("ResumeBuilder", () => {
     );
 
     expect(await screen.findByDisplayValue("Imported Person")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Designer")).toBeInTheDocument();
+    expect(screen.getByLabelText("How should this resume appear in your resume list?")).toHaveValue("Designer");
     expect(screen.getByText("resume.pdf was imported.")).toBeInTheDocument();
     expect(screen.getByText("Review imported fields.")).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();

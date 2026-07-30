@@ -22,7 +22,7 @@ const resume = {
     location: "Chicago, IL",
     startDate: "2022-01",
     endDate: "",
-    highlights: "Led product discovery and delivery.",
+    highlights: "Led product discovery and delivery.\nImproved customer retention.",
   }],
   education: [{
     institution: "State University",
@@ -60,8 +60,11 @@ describe("MasterResumePreview", () => {
     );
 
     expect(screen.getByRole("main", { name: /jamie rivera's resume preview/i })).toBeInTheDocument();
+    expect(screen.queryByText("Product Manager", { selector: ".mrp-role" })).not.toBeInTheDocument();
     expect(screen.getByText("Product leader focused on accessible software.")).toBeInTheDocument();
     expect(screen.getByText("Example Co · Chicago, IL")).toBeInTheDocument();
+    expect(screen.getByText("Led product discovery and delivery.").tagName).toBe("LI");
+    expect(screen.getByText("Improved customer retention.").tagName).toBe("LI");
     expect(screen.getByText("State University")).toBeInTheDocument();
     expect(screen.getByText("Scrum Product Owner")).toBeInTheDocument();
     expect(screen.getByText("Frontend:").tagName).toBe("STRONG");

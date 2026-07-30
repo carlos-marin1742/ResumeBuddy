@@ -19,7 +19,6 @@ from claude_service import (
     KeywordExtractionResult,
     TailoredResume,
     _extract_json,
-    limit_character_count,
     determine_skills_to_add,
     determine_skills_to_show,
     validate_keywords_in_text,
@@ -192,30 +191,6 @@ class TestValidateKeywordsInText:
         text = "Experience with Python, Docker, and Kubernetes."
         result = validate_keywords_in_text(text, ["Python", "Docker", "Kubernetes"])
         assert result == ["Python", "Docker", "Kubernetes"]
-
-
-# ---------------------------------------------------------------------------
-# limit_character_count
-# ---------------------------------------------------------------------------
-
-class TestLimitCharacterCount:
-    def test_no_truncation_when_under_limit(self):
-        text = "This is a short bullet."
-        assert limit_character_count(text) == text
-        assert len(limit_character_count(text)) < 165
-
-    def test_truncates_when_at_or_over_limit(self):
-        # Exactly 165 characters
-        text_165 = "a" * 165
-        result_165 = limit_character_count(text_165)
-        assert len(result_165) == 164
-        assert result_165 == "a" * 164
-
-        # 200 characters
-        text_200 = "b" * 200
-        result_200 = limit_character_count(text_200)
-        assert len(result_200) == 164
-        assert result_200 == "b" * 164
 
 
 # ---------------------------------------------------------------------------
@@ -446,8 +421,9 @@ class TestTailorResume:
         assert "Kubernetes" in user_content
 
     @patch("claude_service._get_anthropic_client")
-    def test_bullets_are_truncated(self, mock_get_client):
-        # Create a response where a tailored bullet is very long (180 chars)
+    def test_bullets_preserve_model_response(self, mock_get_client):
+        # Length is constrained in the prompt; service code must not silently
+        # truncate content or quantified details returned by the model.
         long_bullet = "A" * 180
         response = {
             "summary": "Summary",
@@ -469,8 +445,7 @@ class TestTailorResume:
         mock_get_client.return_value.messages.create.return_value = _mock_message(response)
         result = svc.tailor_resume(SAMPLE_RESUME, SAMPLE_JD, [])
         bullet = result.experiences[0].tailored_bullets[0]
-        assert len(bullet.tailored) == 164
-        assert bullet.tailored == "A" * 164
+        assert bullet.tailored == long_bullet
 
     @patch("claude_service._get_anthropic_client")
     def test_skills_to_add_populated_from_keywords(self, mock_get_client):

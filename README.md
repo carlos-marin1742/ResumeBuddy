@@ -198,7 +198,7 @@ cd backend
 pytest routes -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 ```
 
-Full backend collection currently has two known blockers: `services/test_claude_service.py` imports the removed `limit_character_count` helper, and the credential-dependent `backend/test_extract.py` smoke script shares a module name with `routes/test_extract.py`. A regression test also documents that summary variants are currently ignored.
+The credential-dependent `backend/smoke_extract_keywords.py` script is a manual smoke check and is not collected by pytest. A regression test documents that summary variants are currently ignored.
 
 Frontend validation:
 

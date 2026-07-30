@@ -252,11 +252,12 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
         </section>
 
         <section className="rb-section" aria-labelledby="rb-target-role">
-          <h2 id="rb-target-role">2. Target role</h2>
+          <h2 id="rb-target-role">2. Resume title</h2>
           <label>
-            What kind of role are you looking for?
-            <input value={draft.targetRole} onChange={(event) => updateField("targetRole", event.target.value)} placeholder="For example, Software Engineer" />
+            How should this resume appear in your resume list?
+            <input value={draft.targetRole} onChange={(event) => updateField("targetRole", event.target.value)} placeholder="For example, Software Engineering Resume" />
           </label>
+          <p className="rb-save-note">This title identifies the saved resume and is not printed on the resume itself.</p>
         </section>
 
         <section className="rb-section" aria-labelledby="rb-summary">
@@ -283,7 +284,7 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
               <label>Institution<input value={draft.education[index].institution} onChange={(event) => updateList("education", index, "institution", event.target.value)} /></label>
               <label>Degree<input value={draft.education[index].degree} onChange={(event) => updateList("education", index, "degree", event.target.value)} /></label>
               <label>Field of study<input value={draft.education[index].field} onChange={(event) => updateList("education", index, "field", event.target.value)} /></label>
-              <label>Graduation date<input type="month" value={draft.education[index].graduationDate} onChange={(event) => updateList("education", index, "graduationDate", event.target.value)} /></label>
+              <label>Graduation date<input type="text" placeholder="YYYY or YYYY-MM" value={draft.education[index].graduationDate} onChange={(event) => updateList("education", index, "graduationDate", event.target.value)} /></label>
             </div>
           )}
         </RepeatingSection>

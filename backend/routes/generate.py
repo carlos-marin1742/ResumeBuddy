@@ -17,10 +17,11 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from db import get_session
-from models import TailoredResumeRecord
+from models import MasterResumeRecord, TailoredResumeRecord
 from services.build_resume_pdf import build_pdf
 from services.claude_service import ATSScoreResult, TailoredResume, score_resume, tailor_resume
 from services.project_selection import select_relevant_projects
+from services.master_resume_adapter import master_resume_to_profile
 
 router = APIRouter()
 
@@ -54,6 +55,7 @@ class GenerateRequest(BaseModel):
     company: str = ""
     job_title: str = ""
     extracted_keywords_count: int = 0
+    master_resume_id: str | None = None
 
 
 class BulletPreview(BaseModel):
@@ -280,7 +282,13 @@ def generate_resume(
     if len(jd) > 20_000:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
-    base_resume = _load_resume(request.resume_id)
+    if request.master_resume_id:
+        master_record = db.get(MasterResumeRecord, request.master_resume_id)
+        if not master_record:
+            raise HTTPException(status_code=404, detail="Master resume not found.")
+        base_resume = master_resume_to_profile(master_record.resume_data)
+    else:
+        base_resume = _load_resume(request.resume_id)
     base_resume = _apply_summary_variant(base_resume, request.summary_variant)
     base_resume = {
         **base_resume,
@@ -301,6 +309,8 @@ def generate_resume(
         raise HTTPException(status_code=502, detail=f"Tailoring failed: {exc}")
 
     full_tailored_dict = _build_tailored_resume_dict(base_resume, tailored)
+    if request.job_title.strip():
+        full_tailored_dict["targetRole"] = request.job_title.strip()
 
     try:
         ats_result: ATSScoreResult = score_resume(
