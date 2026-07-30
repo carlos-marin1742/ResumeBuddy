@@ -27,3 +27,8 @@ backend/services/test_*.py
 # Misc
 *.md
 .DS_Store
+
+# Documents
+*.pdf
+*.docx
+*.doc

@@ -11,9 +11,13 @@ frontend can render directly into KeywordSelector.jsx.
 
 import json
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlmodel import Session
+from db import get_session
+from models import MasterResumeRecord
 from services.claude_service import extract_keywords as claude_extract_keywords
+from services.master_resume_adapter import master_resume_to_profile
 
 router = APIRouter()
 
@@ -25,6 +29,7 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 class ExtractRequest(BaseModel):
     job_description: str
     resume_id: str = "base_resume"
+    master_resume_id: str | None = None
 
 
 class Keyword(BaseModel):
@@ -106,7 +111,10 @@ def flatten_resume_keywords(resume: dict) -> set[str]:
 # ── Route ────────────────────────────────────────────────────────────────────
 
 @router.post("/api/extract-keywords", response_model=ExtractResponse)
-def extract_keywords_route(request: ExtractRequest) -> ExtractResponse:
+def extract_keywords_route(
+    request: ExtractRequest,
+    db: Session = Depends(get_session),
+) -> ExtractResponse:
     jd = request.job_description.strip()
 
     if not jd:
@@ -115,16 +123,21 @@ def extract_keywords_route(request: ExtractRequest) -> ExtractResponse:
     if len(jd) > 20_000:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
-    # Validate resume_id exists in data directory
-    valid_ids = [f.stem for f in DATA_DIR.glob("*.json")]
-    if request.resume_id not in valid_ids:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unknown resume_id '{request.resume_id}'. Available: {valid_ids}"
-        )
+    if request.master_resume_id:
+        record = db.get(MasterResumeRecord, request.master_resume_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="Master resume not found.")
+        resume = master_resume_to_profile(record.resume_data)
+    else:
+        valid_ids = [f.stem for f in DATA_DIR.glob("*.json")]
+        if request.resume_id not in valid_ids:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown resume_id '{request.resume_id}'. Available: {valid_ids}"
+            )
+        resume = load_resume(request.resume_id)
 
-    # 1. Load resume and flatten keywords for gap analysis
-    resume = load_resume(request.resume_id)
+    # 1. Flatten keywords for gap analysis
     resume_keywords = flatten_resume_keywords(resume)
 
     # 2. Call claude_service

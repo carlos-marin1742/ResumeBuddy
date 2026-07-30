@@ -88,19 +88,13 @@
 }
 
 .rpicker-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 1.4rem 1.5rem;
-  text-align: left;
-  cursor: pointer;
+  overflow: hidden;
   background: var(--white);
   border: 1.5px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   transition: all 0.15s;
   position: relative;
-  font-family: var(--font-body);
   width: 100%;
 }
 
@@ -108,6 +102,20 @@
   border-color: var(--accent);
   box-shadow: var(--shadow-lg);
   transform: translateY(-1px);
+}
+
+.rpicker-card-select {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-body);
+  gap: 0.6rem;
+  padding: 1.4rem 4.25rem 1.4rem 1.5rem;
+  position: relative;
+  text-align: left;
+  width: 100%;
 }
 
 .rpicker-card-name {
@@ -151,4 +159,40 @@
 .rpicker-card:hover .rpicker-card-arrow {
   color: var(--accent);
   transform: translateY(-50%) translateX(3px);
+}
+
+.rpicker-delete-btn {
+  background: transparent;
+  border: 0;
+  bottom: 0.65rem;
+  color: var(--error);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  position: absolute;
+  right: 0.65rem;
+}
+
+.rpicker-delete-confirm {
+  align-items: center;
+  background: #fff7f5;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  font-size: 0.8rem;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+}
+
+.rpicker-delete-confirm span {
+  color: var(--error);
+  flex: 1;
+}
+
+.rpicker-delete-confirm button {
+  cursor: pointer;
+}
+
+.rpicker-delete-confirm .rpicker-delete-yes {
+  color: var(--error);
+  font-weight: 700;
 }

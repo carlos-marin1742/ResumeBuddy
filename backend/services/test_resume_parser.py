@@ -43,7 +43,7 @@ def test_docx_text_is_parsed_into_reviewable_resume_fields():
     assert draft["contact"]["name"] == "Jamie Rivera"
     assert draft["contact"]["email"] == "jamie@example.com"
     assert draft["contact"]["linkedin"] == "https://linkedin.com/in/jamie"
-    assert draft["targetRole"] == "Product Manager"
+    assert draft["targetRole"] == ""
     assert draft["summary"] == "Product leader focused on accessible software."
     assert draft["skills"] == [{
         "category": "Skills",
@@ -118,7 +118,7 @@ Certified Scrum Product Owner | Scrum Alliance | March 2023
     draft, _ = parse_resume_text(text)
 
     assert draft["contact"]["location"] == "Chicago, IL"
-    assert draft["targetRole"] == "Product Manager"
+    assert draft["targetRole"] == ""
     assert draft["experience"] == [
         {
             "company": "Acme Corp",
@@ -251,4 +251,48 @@ Full Stack Engineer — Professional Certificate October 2023
             "issuer": "Professional Certificate",
             "date": "2023-10",
         },
+    ]
+
+
+def test_research_resume_layout_maps_into_editable_fields():
+    text = """
+Carlos Marin
+Houston, Texas | 713-791-3494 | carlosmarinjr1@gmail.com
+Dedicated Clinical Research professional with 4+ years of comprehensive experience in Phase II-IV trials, specializing in
+site management, regulatory compliance, and data integrity. Leverages a deep understanding of ICH-GCP and ALCOA+
+principles to transition into a Clinical Research Associate role focused on multi-site oversight.
+TECHNICAL SKILLS
+●\u200b Study Oversight: Site Initiation (SIV), Routine Monitoring (IMV), and Close-out (COV) Preparation. ●\u200b Regulatory Compliance: ICH-GCP, FDA Code of Federal Regulations, ALCOA+ Principles.
+EXPERIENCE
+Clinical Research Coordinator – Heart Failure | Houston Methodist Hospital
+04/2023 – 09/2025
+●\u200b Managed a portfolio of Phase II-IV trials.
+Clinical Research Coordinator | DM Clinical Research
+09/2021 – 03/2023
+●\u200b Oversaw execution of 12 clinical protocols.
+EDUCATION
+University of Houston - Downtown, Houston, Texas 2017
+B.S. - Biological and Physical Sciences
+Certifications & Systems
+Certifications: GCP & Human Subjects Research Training (CITI Program), IATA Dangerous Goods. Systems: CTMS, eTMF, EDC (Medidata Rave), EMR (Epic). Software: Microsoft Excel (Advanced), Word, PowerPoint.
+"""
+
+    draft, _ = parse_resume_text(text)
+
+    assert draft["contact"]["name"] == "Carlos Marin"
+    assert draft["summary"].startswith("Dedicated Clinical Research professional")
+    assert draft["skills"][0]["category"] == "Study Oversight"
+    assert draft["experience"][0]["title"] == "Clinical Research Coordinator – Heart Failure"
+    assert draft["experience"][0]["company"] == "Houston Methodist Hospital"
+    assert draft["experience"][1]["company"] == "DM Clinical Research"
+    assert draft["education"][0] == {
+        "institution": "University of Houston - Downtown, Houston, Texas",
+        "degree": "B.S.",
+        "field": "Biological and Physical Sciences",
+        "graduationDate": "2017",
+    }
+    assert {group["category"] for group in draft["skills"]} >= {"Systems", "Software"}
+    assert [item["name"] for item in draft["certifications"]] == [
+        "GCP & Human Subjects Research Training (CITI Program)",
+        "IATA Dangerous Goods.",
     ]

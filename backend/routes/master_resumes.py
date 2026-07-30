@@ -5,7 +5,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from db import get_session
 from models import MasterResumeRecord
@@ -112,6 +112,22 @@ class MasterResumeResponse(BaseModel):
     resume: dict
 
 
+class MasterResumeListItem(BaseModel):
+    id: str
+    name: str
+    title: str
+    updated_at: str
+
+
+class MasterResumeListResponse(BaseModel):
+    resumes: list[MasterResumeListItem]
+
+
+class MasterResumeDeleteResponse(BaseModel):
+    deleted: bool
+    id: str
+
+
 def _isoformat(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
@@ -148,6 +164,24 @@ def create_master_resume(
     return _to_response(record)
 
 
+@router.get("/api/master-resumes", response_model=MasterResumeListResponse)
+def list_master_resumes(
+    db: Session = Depends(get_session),
+) -> MasterResumeListResponse:
+    records = db.exec(
+        select(MasterResumeRecord).order_by(MasterResumeRecord.updated_at.desc())
+    ).all()
+    return MasterResumeListResponse(resumes=[
+        MasterResumeListItem(
+            id=record.id,
+            name=record.name,
+            title=record.target_role or record.name,
+            updated_at=_isoformat(record.updated_at),
+        )
+        for record in records
+    ])
+
+
 @router.put("/api/master-resumes/{record_id}", response_model=MasterResumeResponse)
 def update_master_resume(
     record_id: str,
@@ -165,6 +199,22 @@ def update_master_resume(
     db.commit()
     db.refresh(record)
     return _to_response(record)
+
+
+@router.delete(
+    "/api/master-resumes/{record_id}",
+    response_model=MasterResumeDeleteResponse,
+)
+def delete_master_resume(
+    record_id: str,
+    db: Session = Depends(get_session),
+) -> MasterResumeDeleteResponse:
+    record = db.get(MasterResumeRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Master resume not found.")
+    db.delete(record)
+    db.commit()
+    return MasterResumeDeleteResponse(deleted=True, id=record_id)
 
 
 @router.get("/api/master-resumes/{record_id}", response_model=MasterResumeResponse)

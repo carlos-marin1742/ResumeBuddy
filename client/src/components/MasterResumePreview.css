@@ -39,7 +39,8 @@
 .mrp-entry h3 { font-size: 0.88rem; line-height: 1.35; }
 .mrp-entry-heading p, .mrp-entry-heading span { color: var(--ink-soft); font-size: 0.76rem; }
 .mrp-entry-heading span { flex-shrink: 0; }
-.mrp-highlights { font-size: 0.79rem; line-height: 1.45; margin-top: 0.25rem; white-space: pre-line; }
+.mrp-highlights { font-size: 0.79rem; line-height: 1.45; margin: 0.25rem 0 0; padding-left: 1.1rem; }
+.mrp-highlights li + li { margin-top: 0.14rem; }
 .mrp-technologies { color: var(--ink-soft); font-size: 0.74rem; font-style: italic; }
 .mrp-project-heading > div { display: flex; font-size: 0.75rem; gap: 0.65rem; }
 

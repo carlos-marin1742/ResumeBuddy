@@ -22,6 +22,13 @@ function dateRange(startDate, endDate) {
   return `${formatDate(startDate)} – ${endDate ? formatDate(endDate) : "Present"}`;
 }
 
+function highlightBullets(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[\s•●▪◦*-]+/, "").trim())
+    .filter(Boolean);
+}
+
 export default function MasterResumePreview({ onBack, onEdit, resume, savedAt }) {
   const experience = resume.experience.filter(hasValues);
   const education = resume.education.filter(hasValues);
@@ -44,7 +51,6 @@ export default function MasterResumePreview({ onBack, onEdit, resume, savedAt })
       <main className="mrp-paper" aria-label={`${resume.contact.name}'s resume preview`}>
         <header className="mrp-header">
           <h1>{resume.contact.name}</h1>
-          {resume.targetRole && <p className="mrp-role">{resume.targetRole}</p>}
           <div className="mrp-contact">
             {resume.contact.location && <span>{resume.contact.location}</span>}
             {resume.contact.phone && <span>{resume.contact.phone}</span>}
@@ -91,7 +97,13 @@ export default function MasterResumePreview({ onBack, onEdit, resume, savedAt })
                   </div>
                   <span>{dateRange(item.startDate, item.endDate)}</span>
                 </div>
-                {item.highlights && <p className="mrp-highlights">{item.highlights}</p>}
+                {highlightBullets(item.highlights).length > 0 && (
+                  <ul className="mrp-highlights">
+                    {highlightBullets(item.highlights).map((highlight, highlightIndex) => (
+                      <li key={`${item.company}-highlight-${highlightIndex}`}>{highlight}</li>
+                    ))}
+                  </ul>
+                )}
               </article>
             ))}
           </section>

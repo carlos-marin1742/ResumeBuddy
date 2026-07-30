@@ -22,6 +22,7 @@ SECTION_ALIASES = {
     "projects": {"projects", "selected projects", "personal projects"},
     "certifications": {
         "certifications", "certificates", "licenses", "licenses & certifications",
+        "certifications & systems", "certifications and systems",
     },
 }
 
@@ -62,7 +63,11 @@ def extract_pdf_text(content: bytes) -> str:
         page_text = []
         annotation_urls = []
         for page in reader.pages:
-            page_text.append(page.extract_text() or "")
+            try:
+                extracted = page.extract_text(extraction_mode="layout")
+            except TypeError:
+                extracted = page.extract_text()
+            page_text.append(extracted or "")
             for annotation_reference in page.get("/Annots") or []:
                 annotation = annotation_reference.get_object()
                 action = annotation.get("/A")
@@ -100,6 +105,7 @@ def extract_docx_text(content: bytes) -> str:
 
 def _section_name(line: str) -> str | None:
     normalized = re.sub(r"[:\s]+$", "", line).strip().lower()
+    normalized = re.sub(r"\s+\d{4}$", "", normalized).strip()
     for section, aliases in SECTION_ALIASES.items():
         if normalized in aliases:
             return section
@@ -152,7 +158,8 @@ def _split_parts(line: str) -> list[str]:
 
 
 def _looks_like_location(value: str) -> bool:
-    return bool(LOCATION_PATTERN.fullmatch(value.strip()))
+    normalized = value.strip()
+    return len(normalized) <= 80 and bool(LOCATION_PATTERN.fullmatch(normalized))
 
 
 def _split_company_location(value: str) -> tuple[str, str] | None:
@@ -208,12 +215,37 @@ def _parse_experience(lines: list[str]) -> list[dict]:
         parts = _split_parts(remainder)
         previous_parts = _split_parts(lines[line_index - 1]) if line_index > 0 else []
         used_previous_header = len(parts) < 2 and bool(previous_parts)
+        previous_has_title_and_company = not parts and len(previous_parts) >= 2
         company_location = _split_company_location(remainder)
-        used_next_title = (not parts or company_location is not None) and line_index + 1 < len(lines)
+        used_next_title = (
+            (not parts or company_location is not None)
+            and not previous_has_title_and_company
+            and line_index + 1 < len(lines)
+        )
 
-        title = parts[0] if parts else (lines[line_index + 1] if used_next_title else "")
-        company = parts[1] if len(parts) > 1 else (previous_parts[0] if used_previous_header else "")
-        location_candidates = parts[2:] if len(parts) > 1 else previous_parts[1:]
+        title = (
+            parts[0]
+            if parts
+            else previous_parts[0]
+            if previous_has_title_and_company
+            else lines[line_index + 1]
+            if used_next_title
+            else ""
+        )
+        company = (
+            parts[1]
+            if len(parts) > 1
+            else previous_parts[1]
+            if previous_has_title_and_company
+            else previous_parts[0]
+            if used_previous_header
+            else ""
+        )
+        location_candidates = (
+            parts[2:] if len(parts) > 1
+            else previous_parts[2:] if previous_has_title_and_company
+            else previous_parts[1:]
+        )
         location = next((part for part in location_candidates if _looks_like_location(part)), "")
 
         if company_location:
@@ -253,6 +285,12 @@ def _parse_experience(lines: list[str]) -> list[dict]:
 
 
 def _parse_degree(value: str) -> tuple[str, str]:
+    value = re.sub(
+        r"^((?:B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|Ph\.?D\.?))\s*[-–—]\s*",
+        r"\1 in ",
+        value.strip(),
+        flags=re.IGNORECASE,
+    )
     degree_pattern = re.compile(
         r"^(?P<degree>Bachelor of (?:Science|Arts)|Master of (?:Science|Arts)|"
         r"Associate(?: of (?:Science|Arts))?|Doctor of [A-Za-z ]+|"
@@ -260,7 +298,7 @@ def _parse_degree(value: str) -> tuple[str, str]:
         r"(?:\s+in\s+(?P<field>.+))?$",
         re.IGNORECASE,
     )
-    match = degree_pattern.match(value.strip())
+    match = degree_pattern.match(value)
     if not match:
         return value.strip(), ""
     return match.group("degree"), (match.group("field") or "").strip()
@@ -276,22 +314,42 @@ def _parse_education(lines: list[str]) -> list[dict]:
         parts = _split_parts(remainder)
         institution = lines[index - 1] if index > 0 else ""
         degree_text = parts[0] if parts else ""
+        if remainder and index == 0 and index + 1 < len(lines):
+            institution = remainder
+            degree_text = lines[index + 1]
         if len(parts) > 1 and not institution:
             institution = parts[0]
             degree_text = parts[1]
         degree, field = _parse_degree(degree_text)
+        graduation_date = _parse_date(match.group(0))
+        if not graduation_date and re.fullmatch(r"\d{4}", match.group(0).strip()):
+            graduation_date = match.group(0).strip()
         entries.append({
             "institution": institution,
             "degree": degree,
             "field": field,
-            "graduationDate": _parse_date(match.group(0)),
+            "graduationDate": graduation_date,
         })
     if entries:
         return entries
+    institution = lines[0] if lines else ""
+    degree_text = lines[1] if len(lines) > 1 else ""
+    if len(lines) == 1:
+        degree_match = re.search(
+            r"(?:^|\s)(?:Bachelor of (?:Science|Arts)|Master of (?:Science|Arts)|"
+            r"Associate(?: of (?:Science|Arts))?|B\.?S\.?|B\.?A\.?|"
+            r"M\.?S\.?|M\.?A\.?|Ph\.?D\.?)(?=\s|$)",
+            institution,
+            re.IGNORECASE,
+        )
+        if degree_match:
+            degree_text = institution[degree_match.start():].strip()
+            institution = institution[:degree_match.start()].strip()
+    degree, field = _parse_degree(degree_text)
     return [{
-        "institution": lines[0] if lines else "",
-        "degree": lines[1] if len(lines) > 1 else "",
-        "field": " | ".join(lines[2:]),
+        "institution": institution,
+        "degree": degree,
+        "field": " | ".join(value for value in (field, *lines[2:]) if value),
         "graduationDate": "",
     }]
 
@@ -424,7 +482,13 @@ def _parse_combined_education_certifications(
 
 def parse_resume_text(text: str) -> tuple[dict, list[str]]:
     """Map extracted text into the editable builder shape without inventing facts."""
-    lines = [re.sub(r"^[\u2022\u25cf\u25aa\u25e6*\-–—]\s*", "", line).strip() for line in text.splitlines()]
+    lines = []
+    for raw_line in text.splitlines():
+        normalized_line = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", raw_line)
+        for segment in re.split(r"\s*[\u2022\u25cf\u25aa\u25e6]\s*", normalized_line):
+            cleaned = re.sub(r"^[*\-–—]\s*", "", segment).strip()
+            if cleaned:
+                lines.append(cleaned)
     lines = [line for line in lines if line]
     if not lines:
         raise ValueError("No readable text was found. Scanned resumes are not supported yet.")
@@ -470,10 +534,16 @@ def parse_resume_text(text: str) -> tuple[dict, list[str]]:
             descriptive_lines.append(line)
     if descriptive_lines:
         draft["contact"]["name"] = descriptive_lines[0]
-    if len(descriptive_lines) > 1:
-        draft["targetRole"] = descriptive_lines[1]
 
-    draft["summary"] = " ".join(sections["summary"] or descriptive_lines[2:])
+    unheaded_summary_start = 2
+    if len(descriptive_lines) > 1 and (
+        len(descriptive_lines[1]) > 100
+        or descriptive_lines[1].endswith((".", "!", "?"))
+    ):
+        unheaded_summary_start = 1
+    draft["summary"] = " ".join(
+        sections["summary"] or descriptive_lines[unheaded_summary_start:]
+    )
     skill_groups = []
     for line in sections["skills"]:
         if ":" in line:
@@ -490,6 +560,36 @@ def parse_resume_text(text: str) -> tuple[dict, list[str]]:
     draft["education"] = _parse_education(sections["education"])
     draft["projects"] = _parse_projects(sections["projects"])
     draft["certifications"] = _parse_certifications(sections["certifications"])
+    labeled_certifications = []
+    certification_lines = []
+    for line in sections["certifications"]:
+        certification_lines.extend(
+            part.strip()
+            for part in re.split(
+                r"(?=\b(?:Certifications?|Licenses|Systems|Software|Tools|Technologies):)",
+                line,
+                flags=re.IGNORECASE,
+            )
+            if part.strip()
+        )
+    for line in certification_lines:
+        if ":" not in line:
+            continue
+        label, value = (part.strip() for part in line.split(":", 1))
+        if label.casefold() in {"systems", "software", "tools", "technologies"}:
+            draft["skills"].append({"category": label, "items": value})
+        elif label.casefold() in {"certification", "certifications", "licenses"}:
+            labeled_certifications.extend(
+                {
+                    "name": item.strip(),
+                    "issuer": "",
+                    "date": "",
+                }
+                for item in value.split(",")
+                if item.strip()
+            )
+    if labeled_certifications:
+        draft["certifications"] = labeled_certifications
     if sections["education_certifications"]:
         draft["education"], draft["certifications"] = _parse_combined_education_certifications(
             sections["education_certifications"]

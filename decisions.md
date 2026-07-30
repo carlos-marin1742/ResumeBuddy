@@ -2,6 +2,22 @@
 
 This document records important choices and their rationale. It describes decisions already made, not future commitments.
 
+## Use Auth0 for public multi-user authentication
+
+ResumeBuddy will use Auth0 Universal Login for a future public multi-user application. The React SPA will use Authorization Code Flow with PKCE, send short-lived access tokens to FastAPI, and use the token's stable `sub` claim as the application-level owner identifier.
+
+Why:
+
+- Authentication, password storage, password reset, email verification, and social login should not be implemented locally.
+- Auth0 supports the existing React SPA and FastAPI API boundary without requiring a database-platform migration.
+- OAuth 2.0 and OpenID Connect provide a standard architecture suitable for a public application.
+
+FastAPI remains responsible for authorization. Every query for master resumes, tailored history, cover letters, generated files, and generation sessions must be scoped to the authenticated owner. Hiding records in the client is not an authorization control.
+
+The initial scope is individual accounts using email/password and Google login. Organizations, team sharing, roles, and an administrative UI are deferred. Existing unowned local records require an explicit one-time assignment to the developer's Auth0 `sub`; the application must not provide a public "claim unowned data" endpoint.
+
+No Auth0 client secret belongs in the browser bundle. The application must not claim multi-user isolation until token validation, record ownership, download authorization, and session isolation are all implemented and tested.
+
 ## Separate master facts from application versions
 
 The conceptual model distinguishes reusable career facts from job-specific generated resumes.
@@ -82,6 +98,8 @@ Why:
 
 Tradeoff: without authentication, records are local application data and cannot provide per-user privacy or ownership.
 
+The builder's `targetRole` field currently serves as the saved resume's user-defined title. It is retained for identifying the resume in the resume-selection UI and is not part of the rendered master-resume document. Resume imports leave this field blank so the user can name the saved resume explicitly.
+
 ## Preview master resumes in the client
 
 After a successful save, the client renders the persisted structured payload in a dedicated read-only preview.
@@ -93,6 +111,21 @@ Why:
 - Users can return directly to editing the same database record.
 
 Tradeoff: master-resume PDF export is not yet implemented.
+
+## Share master-resume typography between preview and generated output
+
+The saved master-resume preview and its future generated HTML/PDF output will use the same semantic formatting contract. This includes font families, font sizes, weights, italics, colors, capitalization, section rules, date formatting, link treatment, and field ordering.
+
+Page-fitting controls remain independent. PDF margins, paper padding, section spacing, entry spacing, and line spacing may differ from the browser preview and may be adjusted without changing the resume's visual identity.
+
+The master-resume schema differs from the existing tailored-resume schema, so master resumes will use a dedicated HTML renderer rather than being forced through `build_resume_pdf.py` unchanged. Shared typography tokens and equivalent semantic markup should keep `MasterResumePreview` and generated output aligned.
+
+Why:
+
+- Manual entry and uploaded resumes already converge on the same reviewed master-resume data.
+- The browser preview should accurately communicate the typography and hierarchy users will receive.
+- Separating typography from page fitting preserves a consistent design while allowing one-page PDF optimization.
+- A dedicated renderer avoids fragile conversions between master-resume fields and job-tailored fields.
 
 ## Keep runtime SQLite outside version control
 

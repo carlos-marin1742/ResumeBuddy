@@ -42,6 +42,7 @@ def _render_html(
         PDF rendering.
     """
     contact    = resume.get("contact", {})
+    target_role = resume.get("targetRole") or resume.get("target_role", "")
     skills     = resume.get("skills", {})
     experience = resume.get("experience", [])
     projects   = resume.get("projects", [])
@@ -309,6 +310,13 @@ def _render_html(
     margin-bottom: 4pt;
   }}
 
+  .role {{
+    text-align: center;
+    color: #555;
+    font-size: 10pt;
+    line-height: 1.2;
+  }}
+
   .contact {{
     text-align: center;
     font-size: 0.94em;
@@ -402,6 +410,7 @@ def _render_html(
 </head>
 <body>
   <div class="name">{contact.get('name','')}</div>
+  {f'<div class="role">{target_role}</div>' if target_role else ''}
   <div class="contact">{contact_html}</div>
   {sections}
 </body>

@@ -36,6 +36,10 @@ describe("App workflow", () => {
         })
         .mockResolvedValueOnce({
           ok: true,
+          json: async () => ({ resumes: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
           status: 201,
           json: async () => ({
             id: "master-123",
@@ -123,6 +127,10 @@ describe("App workflow", () => {
         })
         .mockResolvedValueOnce({
           ok: true,
+          json: async () => ({ resumes: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
           json: async () => ({
             keywords: [
               {
@@ -161,6 +169,7 @@ describe("App workflow", () => {
         body: JSON.stringify({
           job_description: validDescription,
           resume_id: "base_resume",
+          master_resume_id: null,
         }),
       }),
     );
@@ -180,6 +189,10 @@ describe("App workflow", () => {
               last_updated: "",
             }],
           }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ resumes: [] }),
         })
         .mockResolvedValueOnce({ ok: false, status: 502 }),
     );

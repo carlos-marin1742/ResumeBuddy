@@ -55,6 +55,13 @@ export default function App() {
     setStep(1);
   }
 
+  function handleCreateResume() {
+    setResumeDraft(null);
+    setMasterResumeId(null);
+    setSavedMasterResume(null);
+    setStep("create-resume");
+  }
+
   // ── Step 1 → 2: extract keywords ────────────────────────────────────────
   async function handleExtract(jd, co, title) {
     // JDInput passes (jobDescription, company, jobTitle)
@@ -71,6 +78,7 @@ export default function App() {
         body: JSON.stringify({
           job_description: jd,
           resume_id: selectedResume.id,
+          master_resume_id: selectedResume.source === "master" ? selectedResume.id : null,
         }),
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -103,6 +111,7 @@ export default function App() {
           job_description: jobDescription,
           selected_keywords: keywords,
           resume_id: selectedResume.id,
+          master_resume_id: selectedResume.source === "master" ? selectedResume.id : null,
           company,
           job_title: jobTitle,
           extracted_keywords_count: extractResult?.keywords?.length ?? 0,
@@ -230,7 +239,7 @@ export default function App() {
       {step === 0 && (
         <ResumePicker
           apiBase={API}
-          onCreate={() => setStep("create-resume")}
+          onCreate={handleCreateResume}
           onSelect={handleResumeSelect}
         />
       )}

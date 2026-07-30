@@ -4,10 +4,14 @@ These are candidate improvements, not committed scope. Prioritize them against u
 
 ## Highest priority
 
-- Add authentication and authorization.
-- List, rename, duplicate, edit, archive, and delete master resumes.
-- Connect a confirmed master resume to the existing tailoring workflow.
-- Add a general resume PDF download path that does not require a job description.
+- Integrate Auth0 Universal Login with the React SPA using Authorization Code Flow with PKCE.
+- Validate Auth0 access tokens in FastAPI and expose a reusable authenticated-user dependency.
+- Add `owner_id` fields based on the Auth0 `sub` claim and enforce ownership across master resumes, tailored history, cover letters, generated downloads, and in-memory sessions.
+- Provide a one-time, non-public migration path that assigns existing local records to the developer's Auth0 account.
+- Add rename, duplicate, and archive controls for listed master resumes.
+- Add a dedicated master-resume HTML/PDF renderer and download path that does not require a job description.
+- Share typography tokens and semantic formatting between `MasterResumePreview` and generated master-resume output while keeping margins and spacing independent.
+- Cover the shared formatting contract with renderer and component tests.
 - Add autosave and recovery after refresh.
 
 ## Import improvements
@@ -45,9 +49,6 @@ These are candidate improvements, not committed scope. Prioritize them against u
 
 ## Technical health
 
-- Complete the one-time removal of `backend/data/resume_history.db` from the Git index, then verify it no longer appears in `git ls-files`.
-- Resolve the removed `limit_character_count` import in `test_claude_service.py`.
-- Rename or isolate the credential-dependent `backend/test_extract.py` smoke script to avoid pytest collection collision.
 - Fix the `CoverLetterStep` textarea-clearing regression and remove `it.fails` only after verification.
 - Resolve existing React hook dependency warnings in `PDFPreview.jsx` and `ResumePreview.jsx`.
 - Add backend CI with Python, Chromium, and focused pytest commands.

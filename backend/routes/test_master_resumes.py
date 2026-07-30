@@ -8,7 +8,9 @@ from models import MasterResumeRecord
 from routes.master_resumes import (
     MasterResumeSaveRequest,
     create_master_resume,
+    delete_master_resume,
     get_master_resume,
+    list_master_resumes,
     update_master_resume,
 )
 
@@ -60,6 +62,28 @@ def test_create_and_fetch_master_resume():
     assert created.resume["skills"] == [
         {"category": "Product", "items": "Roadmaps"},
     ]
+
+
+def test_list_master_resumes_uses_saved_title_for_profile_selection():
+    with _session() as db:
+        created = create_master_resume(_request(), db)
+        result = list_master_resumes(db)
+
+    assert len(result.resumes) == 1
+    assert result.resumes[0].id == created.id
+    assert result.resumes[0].title == "Product Manager"
+    assert result.resumes[0].name == "Jamie Rivera"
+
+
+def test_delete_master_resume_removes_record():
+    with _session() as db:
+        created = create_master_resume(_request(), db)
+        result = delete_master_resume(created.id, db)
+        remaining = list_master_resumes(db)
+
+    assert result.deleted is True
+    assert result.id == created.id
+    assert remaining.resumes == []
 
 
 def test_master_resume_accepts_legacy_plain_text_skills():
