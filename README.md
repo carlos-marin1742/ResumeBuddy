@@ -8,7 +8,8 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 
 ## How it works
 
-1. **Select your resume profile** — choose from Tech, Clinical Research, or Administrative. Profiles are loaded dynamically from JSON files in `backend/data/`
+0. **Build or import a resume (optional)** — no JSON profile yet? Create one from scratch or upload an existing PDF/DOCX to auto-fill a draft, review and edit every field, then save it as a reusable master resume
+1. **Select your resume profile** — choose from Tech, Clinical Research, Administrative, or a resume you built/imported. Profiles are loaded dynamically from JSON files in `backend/data/`
 2. **Paste a job description** — enter the company name, job title, and description. Groq (Llama 3.3 70B) extracts hard skills, tools, soft skills, and role signals, scores each by ATS weight, and flags gaps against your base resume
 3. **Select your keywords** — review what's already in your resume vs. what's missing, then confirm the keywords you want to target
 4. **Generate** — Claude Haiku rewrites your bullets to naturally incorporate your selected keywords, injects missing skills into the correct categories, scores the result with a heuristic ATS engine, and produces a polished single-page PDF
@@ -20,6 +21,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 
 ## Features
 
+- **Resume builder & import** — create a master resume from scratch or upload a PDF/DOCX (parsed in memory, never stored) to auto-fill a draft; review and edit before saving
 - **Multi-profile support** — separate resume profiles for tech, clinical research, and administrative roles, each with role-specific bullet strategies and skill categories
 - **Dynamic resume loading** — profiles are discovered automatically from `backend/data/*.json` — add new profiles without touching code
 - **Intelligent keyword extraction** — Groq free tier handles fast, structured keyword extraction from job descriptions
@@ -45,6 +47,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 | Backend | Python, FastAPI |
 | Keyword extraction | Groq API (Llama 3.3 70B — free tier) |
 | Resume tailoring | Anthropic API (Claude Haiku) |
+| Cover letter generation | LangChain + Anthropic API |
 | ATS scoring | Heuristic Python function (no API) |
 | PDF generation | Playwright (HTML/CSS → PDF) + pypdf |
 | Persistence | SQLite via SQLModel |
@@ -86,8 +89,8 @@ ResumeBuddy/
 │   │   └── test_*.py                 # Service-level pytest tests
 │   └── data/                         # Private profiles and runtime data are gitignored
 │       ├── base_resume.json          # Tech / AI profile
-│       ├── base_resume_clinical.json # Clinical research profile
-│       ├── base_resume_admin.json    # Administrative profile
+│       ├── clinical_resume.json      # Clinical research profile
+│       ├── admin_resume.json         # Administrative profile
 │       ├── base_resume_schema.md     # Schema reference
 │       └── resume_history.db         # SQLite database (auto-created on first run)
 └── client/
@@ -234,8 +237,10 @@ Resume profiles live in `backend/data/` and are gitignored. Profiles are discove
 | File | Profile |
 |---|---|
 | `base_resume.json` | Tech / AI / Full-Stack |
-| `base_resume_clinical.json` | Clinical Research |
-| `base_resume_admin.json` | Administrative |
+| `clinical_resume.json` | Clinical Research |
+| `admin_resume.json` | Administrative |
+
+Don't have a JSON profile yet? Use the in-app resume builder to create one, or upload an existing PDF/DOCX (max 5 MB) to auto-fill a draft — the source file is parsed in memory and never saved. Scanned/image-only PDFs are not supported since text can't be extracted from them.
 
 See `base_resume_schema.md` for the full JSON schema. Key sections:
 
@@ -361,6 +366,7 @@ Same body as `/api/preview-html`. Returns a PDF file with the exact spacing over
 |---|---|---|
 | Keyword extraction | Groq (Llama 3.3 70B) | Free |
 | Resume tailoring | Claude Haiku | ~$0.01/generation |
+| Cover letter generation | Claude Haiku (via LangChain) | ~$0.01/letter |
 | ATS scoring | Heuristic (local) | Free |
 | PDF preview | Playwright (local) | Free |
 | Custom PDF download | Playwright (local) | Free |

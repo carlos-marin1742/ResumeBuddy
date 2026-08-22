@@ -24,7 +24,8 @@ ResumeBuddy/
 │   ├── package.json
 │   └── vite.config.js          # Vite dev proxy and Vitest jsdom configuration
 ├── Dockerfile / docker-compose.yml
-├── README.md / CLAUDE.md
+├── README.md / CLAUDE.md / architecture.md
+├── decisions.md / backlog.md / handoff.md
 └── AGENTS.md
 ```
 
@@ -83,6 +84,17 @@ Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testi
 Pytest files are named `test_*.py` beside services or under `backend/routes/`. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test.
 
 Frontend tests mock `fetch`, clipboard, and browser download boundaries. `CoverLetterStep.test.jsx` contains one `it.fails` regression: clearing the letter unmounts its textarea. Do not remove the marker without fixing and verifying the component. No coverage threshold is enforced.
+
+Resume imports (`POST /api/resumes/parse`) are parsed in memory and must not retain the source file. Preserve the 5 MB upload limit (`MAX_UPLOAD_BYTES` in `resume_import.py`), PDF/DOCX signature checks, review-before-save behavior, and the explicit scanned-PDF limitation.
+
+## Working Documents
+
+- `architecture.md`: current system design, boundaries, data flows, and major components.
+- `decisions.md`: important technical and product decisions with their rationale.
+- `backlog.md`: candidate work that is not yet implemented or committed.
+- `handoff.md`: current working state, validation evidence, limitations, and suggested next steps.
+
+Update these documents when a change materially affects their subject. Keep confirmed behavior separate from future ideas.
 
 ## Coding and Contribution Conventions
 
