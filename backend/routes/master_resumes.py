@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import re
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
@@ -9,10 +10,12 @@ from sqlmodel import Session, select
 
 from db import get_session
 from models import MasterResumeRecord
+from services.master_resume_adapter import split_skill_items
 
 
 router = APIRouter()
-EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
+SkillItem = Annotated[str, Field(max_length=300)]
 
 
 class ContactInput(BaseModel):
@@ -85,8 +88,20 @@ class CertificationInput(BaseModel):
 
 
 class SkillCategoryInput(BaseModel):
+    key: str = Field(default="", max_length=100)
     category: str = Field(default="", max_length=100)
-    items: str = Field(default="", max_length=5000)
+    # Accept the pre-array string shape (legacy drafts, or non-browser clients)
+    # and split it into separate items so only the array shape is persisted.
+    items: list[SkillItem] = Field(default_factory=list, max_length=200)
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def normalize_items(cls, value):
+        if isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            return split_skill_items(value)
+        return []
 
 
 class MasterResumeInput(BaseModel):

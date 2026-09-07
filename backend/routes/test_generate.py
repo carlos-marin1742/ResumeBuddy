@@ -1,9 +1,14 @@
-from unittest.mock import MagicMock
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi import HTTPException
 
 from routes.generate import (
     GenerateRequest,
     _apply_summary_variant,
     _build_tailored_resume_dict,
+    _load_resume,
     _pdf_display_name,
     _pdf_storage_name,
     _persist_generation,
@@ -161,3 +166,28 @@ def test_pdf_names_are_safe_and_displayable():
     assert _pdf_display_name(storage_name) == (
         "Candidate Name-Example Co-SoftwareEngineer Resume.pdf"
     )
+
+
+def test_load_resume_rejects_path_traversal(tmp_path):
+    outside_file = tmp_path.parent / "outside_secret.json"
+    outside_file.write_text(json.dumps({"leaked": True}))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    with patch("routes.generate.DATA_DIR", data_dir):
+        with pytest.raises(HTTPException) as exc_info:
+            _load_resume(f"../{outside_file.stem}")
+
+    assert exc_info.value.status_code == 404
+    outside_file.unlink()
+
+
+def test_load_resume_loads_whitelisted_profile(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "sample_resume.json").write_text(json.dumps({"contact": {"name": "Jamie"}}))
+
+    with patch("routes.generate.DATA_DIR", data_dir):
+        resume = _load_resume("sample_resume")
+
+    assert resume == {"contact": {"name": "Jamie"}}

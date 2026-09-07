@@ -14,11 +14,29 @@ Public API:
 """
 
 import concurrent.futures
+import html
 import json
 import shutil
 import sys
 import tempfile
 from pathlib import Path
+
+
+def _esc(value) -> str:
+    """HTML-escape any resume-supplied text before it reaches the template."""
+    if value is None:
+        return ""
+    return html.escape(str(value), quote=True)
+
+
+def _esc_href(url) -> str:
+    """Escape a URL for use in an href/mailto attribute, dropping unsafe schemes."""
+    if not url:
+        return ""
+    text = str(url).strip()
+    if not text.lower().startswith(("http://", "https://", "mailto:")):
+        return ""
+    return html.escape(text, quote=True)
 
 
 def _render_html(
@@ -95,11 +113,17 @@ def _render_html(
 
     # Contact row
     contact_parts = []
-    if contact.get("location"): contact_parts.append(contact["location"])
-    if contact.get("phone"):    contact_parts.append(contact["phone"])
-    if contact.get("email"):    contact_parts.append(f'<a href="mailto:{contact["email"]}">{contact["email"]}</a>')
+    if contact.get("location"): contact_parts.append(_esc(contact["location"]))
+    if contact.get("phone"):    contact_parts.append(_esc(contact["phone"]))
+    if contact.get("email"):
+        mailto = _esc_href(f"mailto:{contact['email']}")
+        if mailto:
+            contact_parts.append(f'<a href="{mailto}">{_esc(contact["email"])}</a>')
+        else:
+            contact_parts.append(_esc(contact["email"]))
     for label, key in [("Portfolio","portfolio"),("GitHub","github"),("LinkedIn","linkedin")]:
-        if contact.get(key): contact_parts.append(f'<a href="{contact[key]}">{label}</a>')
+        link = _esc_href(contact.get(key))
+        if link: contact_parts.append(f'<a href="{link}">{label}</a>')
     contact_html = "  <span class='sep'>|</span>  ".join(contact_parts)
 
     # Skills
@@ -112,24 +136,24 @@ def _render_html(
         for i, skill in enumerate(items):
             comma = ", " if i > 0 else ""
             hl = " class='hl'" if skill.lower() in highlights else ""
-            items_html += f"{comma}<span{hl}>{skill}</span>"
-        skills_html += f"<div class='skill-row'><span class='skill-cat'>{label}:</span> {items_html}</div>"
+            items_html += f"{comma}<span{hl}>{_esc(skill)}</span>"
+        skills_html += f"<div class='skill-row'><span class='skill-cat'>{_esc(label)}:</span> {items_html}</div>"
 
     # Experience
     exp_html = ""
     for exp in experience:
-        bullets_html = "".join(f"<li>{bullet_text(b)}</li>" for b in exp.get("bullets",[]) if bullet_text(b))
-        location = f" <span class='dot'>•</span> {exp['location']}" if exp.get("location") else ""
+        bullets_html = "".join(f"<li>{_esc(bullet_text(b))}</li>" for b in exp.get("bullets",[]) if bullet_text(b))
+        location = f" <span class='dot'>•</span> {_esc(exp['location'])}" if exp.get("location") else ""
         date_text = exp.get("date_range") or (
             f"{fmt_date(exp.get('start_date'))}&ndash;{fmt_date(exp.get('end_date'))}"
         )
         exp_html += f"""
         <div class='entry'>
           <div class='entry-header'>
-            <span class='entry-title'>{exp.get('title','')}</span>
-            <span class='entry-date'>{date_text}</span>
+            <span class='entry-title'>{_esc(exp.get('title',''))}</span>
+            <span class='entry-date'>{_esc(date_text)}</span>
           </div>
-          <div class='entry-sub'>{exp.get('company','')}{location}</div>
+          <div class='entry-sub'>{_esc(exp.get('company',''))}{location}</div>
           <ul>{bullets_html}</ul>
         </div>"""
 
@@ -149,16 +173,16 @@ def _render_html(
             links = raw_links
         else:
             links = {}
-        github  = links.get("github") or links.get("repo")
-        preview = links.get("preview") or links.get("demo")
-        name_html    = f'<a href="{github}">{name}</a>' if github else name
+        github  = _esc_href(links.get("github") or links.get("repo"))
+        preview = _esc_href(links.get("preview") or links.get("demo"))
+        name_html    = f'<a href="{github}">{_esc(name)}</a>' if github else _esc(name)
         preview_html = f' <span class="dot">·</span> <a href="{preview}">Live Demo</a>' if preview else ""
-        bullets_html = "".join(f"<li>{bullet_text(b)}</li>" for b in proj.get("bullets",[]) if bullet_text(b))
+        bullets_html = "".join(f"<li>{_esc(bullet_text(b))}</li>" for b in proj.get("bullets",[]) if bullet_text(b))
         proj_html += f"""
         <div class='entry'>
           <div class='entry-header'>
             <span class='entry-title'>{name_html}{preview_html}</span>
-            <span class='entry-date entry-tech'>{tech}</span>
+            <span class='entry-date entry-tech'>{_esc(tech)}</span>
           </div>
           <ul>{bullets_html}</ul>
         </div>"""
@@ -177,8 +201,8 @@ def _render_html(
         edu_html += f"""
         <div class='entry'>
           <div class='entry-header'>
-            <span class='entry-title'>{degree_text}&ensp;<span class='entry-sub-inline'>{institution}</span></span>
-            <span class='entry-date'>{grad}</span>
+            <span class='entry-title'>{_esc(degree_text)}&ensp;<span class='entry-sub-inline'>{_esc(institution)}</span></span>
+            <span class='entry-date'>{_esc(grad)}</span>
           </div>
         </div>"""
 
@@ -192,8 +216,8 @@ def _render_html(
         cert_html += f"""
         <div class='entry'>
           <div class='entry-header'>
-            <span class='entry-title'>{cert.get('name','')}&ensp;<span class='entry-sub-inline'>{sub}</span></span>
-            <span class='entry-date'>{year}</span>
+            <span class='entry-title'>{_esc(cert.get('name',''))}&ensp;<span class='entry-sub-inline'>{_esc(sub)}</span></span>
+            <span class='entry-date'>{_esc(year)}</span>
           </div>
         </div>"""
 
@@ -201,7 +225,7 @@ def _render_html(
         return f"<div class='section'><div class='section-title'>{title}</div>{body}</div>"
 
     sections = ""
-    if summary_text: sections += section("SUMMARY",        f"<p class='summary'>{summary_text}</p>")
+    if summary_text: sections += section("SUMMARY",        f"<p class='summary'>{_esc(summary_text)}</p>")
     if skills_html:  sections += section("SKILLS",         skills_html)
     if exp_html:     sections += section("EXPERIENCE",     exp_html)
     if proj_html:    sections += section("PROJECTS",       proj_html)
@@ -409,8 +433,8 @@ def _render_html(
 </style>
 </head>
 <body>
-  <div class="name">{contact.get('name','')}</div>
-  {f'<div class="role">{target_role}</div>' if target_role else ''}
+  <div class="name">{_esc(contact.get('name',''))}</div>
+  {f'<div class="role">{_esc(target_role)}</div>' if target_role else ''}
   <div class="contact">{contact_html}</div>
   {sections}
 </body>

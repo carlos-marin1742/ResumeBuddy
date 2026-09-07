@@ -101,9 +101,10 @@ class GenerateResponse(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _load_resume(resume_id: str) -> dict:
-    path = DATA_DIR / f"{resume_id}.json"
-    if not path.exists():
+    valid_ids = {f.stem for f in DATA_DIR.glob("*.json")}
+    if resume_id not in valid_ids:
         raise HTTPException(status_code=404, detail=f"Resume '{resume_id}' not found.")
+    path = DATA_DIR / f"{resume_id}.json"
     try:
         return json.loads(path.read_text())
     except json.JSONDecodeError as exc:

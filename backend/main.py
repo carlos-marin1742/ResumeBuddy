@@ -6,12 +6,14 @@ FastAPI application entry point for the ATS Resume Builder.
 
 import json
 import os
+import time
+from collections import defaultdict, deque
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from db import init_db
@@ -54,6 +56,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Rate limiting for AI-backed routes ────────────────────────────────────
+# These endpoints call paid Groq/Claude APIs. There is no authentication, so
+# without a limit any client that can reach the server can drive up API
+# costs or exhaust provider rate limits with unlimited requests.
+_RATE_LIMITED_PATHS = {
+    "/api/extract-keywords",
+    "/api/generate-resume",
+    "/api/regenerate-section",
+    "/api/generate-cover-letter",
+}
+RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "20"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "300"))
+_rate_limit_hits: dict[str, deque] = defaultdict(deque)
+
+
+@app.middleware("http")
+async def rate_limit_ai_routes(request: Request, call_next):
+    if request.method == "POST" and request.url.path in _RATE_LIMITED_PATHS:
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        hits = _rate_limit_hits[client_ip]
+        while hits and now - hits[0] > RATE_LIMIT_WINDOW_SECONDS:
+            hits.popleft()
+        if len(hits) >= RATE_LIMIT_MAX_REQUESTS:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Please wait a few minutes and try again."},
+            )
+        hits.append(now)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
 
 app.include_router(resumes_router)
 app.include_router(extract_router)

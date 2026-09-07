@@ -56,7 +56,7 @@ Backend responsibilities:
 - `/api/history`: list/filter, fetch, delete, restore sessions, and download stored resume/cover-letter artifacts.
 - `POST /api/generate-cover-letter`, `POST /api/download-cover-letter`: generate, persist, and render cover letters.
 - `POST /api/resumes/parse`: parse PDF or DOCX content into a reviewable builder draft without retaining the source file.
-- `POST /api/master-resumes`, `PUT/GET /api/master-resumes/{id}`: persist, update, and retrieve reviewed master resumes.
+- `POST /api/master-resumes`, `PUT/GET /api/master-resumes/{id}`: persist, update, and retrieve reviewed master resumes. Each skill group is `{key, category, items[]}`; `key` is generated once from `category` at save time and is stable across renames — it is what future keyword-classification caching will key on, and must never be regenerated or collapsed back into `category`. `items` accepts an array (passed through unchanged) or a string on input; a string is split server-side by `split_skill_items` in `services/master_resume_adapter.py` — newline anywhere splits on lines with commas kept literal, otherwise splits on commas except commas nested inside `()`/`[]`, trimming each item and dropping blanks. The array shape is always what gets persisted.
 
 ## Data, Authentication, and Security
 
@@ -64,24 +64,28 @@ Backend responsibilities:
 
 There is currently **no authentication or authorization**; all API and history routes are open to any client that can reach the server. Do not imply per-user isolation. Preserve path validation, input limits, HTML escaping, and `Cache-Control: no-store` behavior.
 
+Because there is no auth, `main.py` rate-limits the AI-backed POST routes (`/api/extract-keywords`, `/api/generate-resume`, `/api/regenerate-section`, `/api/generate-cover-letter`) per client IP via an in-memory sliding window (`RATE_LIMIT_MAX_REQUESTS`, default 20; `RATE_LIMIT_WINDOW_SECONDS`, default 300; both env-overridable), returning 429 once exceeded. Add any new paid-API route to `_RATE_LIMITED_PATHS` in `main.py`. A second middleware adds `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` headers to every response; do not remove either middleware.
+
 Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, and optional comma-separated `ALLOWED_ORIGINS`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
 
 ## Development and Validation
 
-```powershell
+```bash
 pip install -r backend/requirements.txt
 pip install pytest
 playwright install chromium
-cd backend; fastapi dev main.py
-cd client; npm install; npm run dev
-cd client; npm test; npm run lint; npm run build
-cd backend; pytest routes -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
+cd backend && fastapi dev main.py
+cd client && npm install && npm run dev
+cd client && npm test && npm run lint && npm run build
+cd backend && pytest -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 docker compose up --build
 ```
 
 Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
 
-Pytest files are named `test_*.py` beside services or under `backend/routes/`. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test.
+To run a single test: `cd backend && pytest routes/test_master_resumes.py::test_create_and_fetch_master_resume -v` (must run from `backend/` — imports like `from models import ...` assume it's on `sys.path`) or `cd client && npx vitest run src/components/ResumeBuilder.test.jsx -t "adds and saves labeled skill categories"`.
+
+Pytest files are named `test_*.py` beside services, under `backend/routes/`, or at the backend package root (e.g. `backend/test_main.py`, which covers the rate-limit and security-header middleware) — plain `pytest` from `backend/` collects all of them. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test.
 
 Frontend tests mock `fetch`, clipboard, and browser download boundaries. `CoverLetterStep.test.jsx` contains one `it.fails` regression: clearing the letter unmounts its textarea. Do not remove the marker without fixing and verifying the component. No coverage threshold is enforced.
 
