@@ -11,6 +11,44 @@ def _lines(value: str) -> list[str]:
     ]
 
 
+def split_skill_items(value) -> list[str]:
+    """Split a raw skills string into individual items.
+
+    Rule (shared with the frontend's splitSkillItems, pinned by a fixture
+    list in tests rather than shared code across the JS/Python boundary):
+    a newline anywhere means split on lines, with commas on those lines kept
+    literal; with no newline, split on commas except commas nested inside
+    ( ) or [ ]. Each item is trimmed and blanks are dropped. A non-string
+    value yields [].
+    """
+    if not isinstance(value, str):
+        return []
+    if "\n" in value:
+        parts = value.splitlines()
+    else:
+        parts = []
+        current: list[str] = []
+        depth = 0
+        for char in value:
+            if char in "([":
+                depth += 1
+            elif char in ")]":
+                depth = max(0, depth - 1)
+            if char == "," and depth == 0:
+                parts.append("".join(current))
+                current = []
+            else:
+                current.append(char)
+        parts.append("".join(current))
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _skill_items(value) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return split_skill_items(value)
+
+
 def master_resume_to_profile(resume: dict) -> dict:
     skill_groups = resume.get("skills", [])
     if isinstance(skill_groups, str):
@@ -22,11 +60,7 @@ def master_resume_to_profile(resume: dict) -> dict:
         if not isinstance(group, dict) or not group.get("category", "").strip():
             continue
         category = f"builder_{index}"
-        skills[category] = [
-            item.strip()
-            for item in str(group.get("items", "")).split(",")
-            if item.strip()
-        ]
+        skills[category] = _skill_items(group.get("items", ""))
         skill_labels[category] = group["category"].strip()
 
     experience = []

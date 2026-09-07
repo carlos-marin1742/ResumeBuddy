@@ -242,6 +242,8 @@ Resume profiles live in `backend/data/` and are gitignored. Profiles are discove
 
 Don't have a JSON profile yet? Use the in-app resume builder to create one, or upload an existing PDF/DOCX (max 5 MB) to auto-fill a draft — the source file is parsed in memory and never saved. Scanned/image-only PDFs are not supported since text can't be extracted from them.
 
+Builder-created (and imported) master resumes represent skills separately from the JSON profile shape above: each skill group is `{key, category, items[]}`, where `items` is an array of individual skill strings. `key` is a slug generated once from the category name at save time and never regenerated, so a later rename of the category (e.g. `Frontend` → `Front-end Development`) does not change the key that keyword-classification caching will point at. The `POST`/`PUT /api/master-resumes` endpoints accept `items` as either an array (kept unchanged) or a string; a string is split into separate items server-side using the same newline/comma/bracket rule as the builder UI, and the array shape is always what gets persisted. `POST /api/resumes/parse` still emits `items` as a string for now (see `backlog.md`).
+
 See `base_resume_schema.md` for the full JSON schema. Key sections:
 
 - `meta` — `label`, `target_roles`, `last_updated` (shown in the resume picker)

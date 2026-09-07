@@ -75,6 +75,82 @@ describe("MasterResumePreview", () => {
     );
   });
 
+  it("joins array-shaped skill items for display", () => {
+    render(
+      <MasterResumePreview
+        resume={{
+          ...resume,
+          skills: [{ key: "frontend", category: "Frontend", items: ["React", "TypeScript"] }],
+        }}
+        savedAt="2026-07-24T12:00:00Z"
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("React, TypeScript")).toBeInTheDocument();
+  });
+
+  it("renders a comma-containing skill as one skill", () => {
+    render(
+      <MasterResumePreview
+        resume={{
+          ...resume,
+          skills: [{
+            key: "tools",
+            category: "",
+            items: ["Microsoft Office (Word, Excel, Outlook)", "Slack"],
+          }],
+        }}
+        savedAt="2026-07-24T12:00:00Z"
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Microsoft Office (Word, Excel, Outlook), Slack"),
+    ).toBeInTheDocument();
+  });
+
+  it("still renders a legacy plain-string skills value", () => {
+    render(
+      <MasterResumePreview
+        resume={{
+          ...resume,
+          skills: [{ category: "Legacy", items: "Python, SQL" }],
+        }}
+        savedAt="2026-07-24T12:00:00Z"
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Legacy:").tagName).toBe("STRONG");
+    expect(screen.getByText("Python, SQL")).toBeInTheDocument();
+  });
+
+  it("does not render an empty heading or a stray separator for an empty skill group", () => {
+    const { container } = render(
+      <MasterResumePreview
+        resume={{
+          ...resume,
+          skills: [
+            { key: "", category: "", items: [] },
+            { key: "frontend", category: "Frontend", items: ["React"] },
+          ],
+        }}
+        savedAt="2026-07-24T12:00:00Z"
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    const skillRows = container.querySelectorAll(".mrp-skills p");
+    expect(skillRows).toHaveLength(1);
+    expect(skillRows[0]).toHaveTextContent("Frontend: React");
+  });
+
   it("returns to editing", async () => {
     const onEdit = vi.fn();
     const user = userEvent.setup();

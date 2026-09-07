@@ -74,7 +74,7 @@ describe("App workflow", () => {
       "/api/master-resumes",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ resume: savedResume }),
+        body: JSON.stringify({ resume: { ...savedResume, skills: [] } }),
       }),
     );
 

@@ -20,6 +20,20 @@ const emptyDraft = {
   certifications: [{ ...templates.certifications }],
 };
 
+function joinSkillItems(items) {
+  if (!Array.isArray(items)) return items ?? "";
+  if (items.some((item) => String(item).includes(","))) return items.join("\n");
+  return items.join(", ");
+}
+
+function normalizeSkillGroup(group) {
+  return {
+    ...(group.key ? { key: group.key } : {}),
+    category: group.category ?? "",
+    items: joinSkillItems(group.items),
+  };
+}
+
 function normalizeDraft(draft) {
   const skills = Array.isArray(draft.skills)
     ? draft.skills
@@ -28,8 +42,76 @@ function normalizeDraft(draft) {
       : [{ ...templates.skills }];
   return {
     ...draft,
-    skills: skills.length > 0 ? skills : [{ ...templates.skills }],
+    skills: (skills.length > 0 ? skills : [{ ...templates.skills }]).map(normalizeSkillGroup),
   };
+}
+
+function slugifySkillCategory(category) {
+  const slug = String(category ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "skill";
+}
+
+function generateSkillKey(category, existingKeys) {
+  const base = slugifySkillCategory(category);
+  let key = base;
+  let suffix = 2;
+  while (existingKeys.has(key)) {
+    key = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return key;
+}
+
+function isSkillGroupEmpty(group) {
+  return !String(group.category ?? "").trim() && !String(group.items ?? "").trim();
+}
+
+function assignSkillKeys(skills) {
+  const existingKeys = new Set(skills.filter((group) => group.key).map((group) => group.key));
+  return skills.map((group) => {
+    if (group.key || isSkillGroupEmpty(group)) return group;
+    const key = generateSkillKey(group.category, existingKeys);
+    existingKeys.add(key);
+    return { ...group, key };
+  });
+}
+
+function splitSkillItemsOnCommas(text) {
+  const items = [];
+  let current = "";
+  let depth = 0;
+  for (const char of text) {
+    if (char === "(" || char === "[") depth += 1;
+    else if (char === ")" || char === "]") depth = Math.max(0, depth - 1);
+    if (char === "," && depth === 0) {
+      items.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  items.push(current);
+  return items;
+}
+
+function splitSkillItems(value) {
+  const text = String(value ?? "");
+  const lines = text.includes("\n") ? text.split(/\r?\n/) : splitSkillItemsOnCommas(text);
+  return lines.map((item) => item.trim()).filter(Boolean);
+}
+
+function skillsForPayload(skills) {
+  return skills
+    .filter((group) => !isSkillGroupEmpty(group))
+    .map((group) => ({
+      key: group.key,
+      category: group.category ?? "",
+      items: splitSkillItems(group.items),
+    }));
 }
 
 function RepeatingSection({ addLabel, children, items, name, number, onAdd, onRemove }) {
@@ -157,8 +239,11 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
     event.preventDefault();
     setSaving(true);
     setSaveError("");
+    const keyedSkills = assignSkillKeys(draft.skills);
+    const payload = { ...draft, skills: skillsForPayload(keyedSkills) };
     try {
-      await onSave(draft);
+      await onSave(payload);
+      setDraft((current) => ({ ...current, skills: keyedSkills }));
       setSaved(true);
     } catch (error) {
       setSaveError(error.message);
@@ -324,7 +409,7 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
                     rows="3"
                     value={skillGroup.items}
                     onChange={(event) => updateList("skills", index, "items", event.target.value)}
-                    placeholder="React, TypeScript, JavaScript, Vite"
+                    placeholder={"React, TypeScript, JavaScript, Vite\nSkill with a comma? Put it on its own line."}
                   />
                 </label>
               </div>

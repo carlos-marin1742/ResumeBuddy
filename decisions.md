@@ -161,9 +161,25 @@ Why:
 
 ## Store skills as labeled categories
 
-New master resumes represent skills as repeatable `{category, items}` entries. Imports preserve labels such as `Frontend`, `AI & LLMs`, and `Backend & Cloud`, and the saved-resume preview renders those labels in bold.
+New master resumes represent skills as repeatable `{key, category, items}` entries, with `items` as an array of individual skill strings rather than a comma-joined string. Imports preserve labels such as `Frontend`, `AI & LLMs`, and `Backend & Cloud`, and the saved-resume preview renders those labels in bold.
 
-The persistence API continues accepting the original plain string shape so existing saved records remain compatible.
+The persistence API continues accepting the original plain string shape (both the whole-`skills`-as-string legacy form and a per-group string `items` value) so existing saved records remain compatible; both are normalized to the array shape before anything is persisted.
+
+Splitting a skills textarea value into individual items happens once, in `ResumeBuilder`, on the way out of the component at save time — never in the backend and never while typing. A newline anywhere in the value means one skill per line, with commas inside those lines kept literal; with no newline, the value splits on commas that are not enclosed in `()` or `[]`, so a value like `Microsoft Office (Word, Excel, Outlook)` survives as one item. A skill whose only comma is unbracketed (e.g. `Phlebotomy, adult and pediatric`) still requires the newline escape to stay intact — this is a known limitation, not a bug, and the textarea placeholder calls it out.
+
+## The server owns skills splitting; the frontend splitter is UI feedback only
+
+`backend/routes/master_resumes.py`'s `SkillCategoryInput.normalize_items` validator is the authoritative place a raw skills string becomes an array of items. It delegates to `split_skill_items` in `backend/services/master_resume_adapter.py`: a newline anywhere means split on lines with commas kept literal on those lines; with no newline, split on commas except commas nested inside `()` or `[]`; each item is trimmed and blanks are dropped. An already-array payload passes through unchanged. `master_resume_adapter.py::_skill_items` delegates to the same function for its string branch, so there is exactly one comma-splitting rule in the Python codebase.
+
+`ResumeBuilder.jsx`'s `splitSkillItems` implements the identical rule in JavaScript and is kept deliberately, for immediate feedback while typing in the builder UI — it is not the source of truth and must not be removed. Because the boundary between the two is JS/Python, not a shared module, the two implementations are pinned together by an identical fixture list asserted in both test suites (`SKILL_ITEMS_FIXTURES` in `backend/services/test_master_resume_adapter.py` and `client/src/components/ResumeBuilder.test.jsx`) rather than by sharing code.
+
+Why: before this decision, the validator only wrapped a raw string into a single-element array instead of splitting it. A payload like `"React, TypeScript, Vite"` persisted as one item, `_skill_items`'s list branch stripped but never split it, and `/api/extract-keywords` gap-matching compared it as one string against JD keywords like `react` — an exact-match failure. Skills that were genuinely on the resume silently reported as missing, with no exception and no log line. This is reachable via `PUT /api/master-resumes/{id}` on a legacy or hand-posted record, not only through the builder UI, so the server has to be the one that gets it right.
+
+## Give each skill category a stable key
+
+Each skill group carries a `key` alongside its user-facing `category` label. The key is generated once, at save, by slugifying the category name at that moment; once a group has a key it is never regenerated, even if the category is later renamed. Collisions get a numeric suffix, and a group with an empty category still gets a usable key.
+
+Why: a later pass will cache keyword-to-category classifications, and that cache has to point at something stable. The `category` field is a user-facing display label the user can rename at any time (`Frontend` → `Front-end Development`); if a cache were keyed on the label, every rename would silently orphan its cached data. The key exists specifically so category renames are free. Do not collapse `key` and `category` back into a single field — that reintroduces the exact problem this decision solves.
 
 ## Preserve focused files and existing workflow contracts
 

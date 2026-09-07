@@ -1,8 +1,32 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import ResumeBuilder from "./ResumeBuilder";
+
+// Shared with backend/services/test_master_resume_adapter.py's
+// SKILL_ITEMS_FIXTURES. The two splitters are pinned together by this
+// identical input/output list rather than shared code, since the boundary
+// is JS/Python.
+const SKILL_ITEMS_FIXTURES = [
+  ["React, TypeScript, Vite", ["React", "TypeScript", "Vite"]],
+  [
+    "Microsoft Office (Word, Excel, Outlook)",
+    ["Microsoft Office (Word, Excel, Outlook)"],
+  ],
+  [
+    "Phlebotomy, adult and pediatric\nVenipuncture",
+    ["Phlebotomy, adult and pediatric", "Venipuncture"],
+  ],
+  [
+    "IV Insertion [peripheral, central], Wound Care",
+    ["IV Insertion [peripheral, central]", "Wound Care"],
+  ],
+  ["Python,,SQL", ["Python", "SQL"]],
+  ["  React ,  Vite  ", ["React", "Vite"]],
+  [", ", []],
+  ["", []],
+];
 
 
 describe("ResumeBuilder", () => {
@@ -85,10 +109,177 @@ describe("ResumeBuilder", () => {
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       skills: [
-        { category: "Frontend", items: "React, TypeScript" },
-        { category: "AI & LLMs", items: "Claude API, LangChain" },
+        { key: "frontend", category: "Frontend", items: ["React", "TypeScript"] },
+        { key: "ai-llms", category: "AI & LLMs", items: ["Claude API", "LangChain"] },
       ],
     }));
+  });
+
+  it("keeps a parenthesized skill with internal commas as one item", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.type(screen.getByLabelText("Category name"), "Tools");
+    await user.type(
+      screen.getByLabelText("Skills"),
+      "Microsoft Office (Word, Excel, Outlook), Slack",
+    );
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      skills: [
+        {
+          key: "tools",
+          category: "Tools",
+          items: ["Microsoft Office (Word, Excel, Outlook)", "Slack"],
+        },
+      ],
+    }));
+  });
+
+  it("splits a newline-separated skill list on lines, keeping in-line commas literal", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.type(screen.getByLabelText("Category name"), "Clinical");
+    await user.type(
+      screen.getByLabelText("Skills"),
+      "Phlebotomy, adult and pediatric{Enter}Venipuncture",
+    );
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      skills: [
+        {
+          key: "clinical",
+          category: "Clinical",
+          items: ["Phlebotomy, adult and pediatric", "Venipuncture"],
+        },
+      ],
+    }));
+  });
+
+  it.each(SKILL_ITEMS_FIXTURES)(
+    "splits %j into %j via splitSkillItems, matching the shared backend fixture",
+    async (raw, expected) => {
+      const onSave = vi.fn();
+      const user = userEvent.setup();
+      render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+      await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+      await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+      await user.type(screen.getByLabelText("Category name"), "Category");
+      fireEvent.change(screen.getByLabelText("Skills"), { target: { value: raw } });
+      await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+        skills: [expect.objectContaining({ items: expected })],
+      }));
+    },
+  );
+
+  it("loads a draft whose skill items are already an array and re-saves it unchanged", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    const draft = {
+      contact: { name: "Jamie Rivera", email: "jamie@example.com", phone: "", location: "", linkedin: "", portfolio: "" },
+      targetRole: "",
+      summary: "",
+      experience: [{ company: "", title: "", location: "", startDate: "", endDate: "", highlights: "" }],
+      education: [{ institution: "", degree: "", field: "", graduationDate: "" }],
+      skills: [{ key: "frontend", category: "Frontend", items: ["React", "TypeScript"] }],
+      projects: [{ name: "", technologies: "", description: "", links: [] }],
+      certifications: [{ name: "", issuer: "", date: "" }],
+    };
+    render(<ResumeBuilder initialDraft={draft} onBack={vi.fn()} onSave={onSave} />);
+
+    expect(screen.getByLabelText("Skills")).toHaveValue("React, TypeScript");
+
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      skills: [{ key: "frontend", category: "Frontend", items: ["React", "TypeScript"] }],
+    }));
+  });
+
+  it("keeps a group with a category but no items, and drops a fully empty group", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.type(screen.getByLabelText("Category name"), "Frontend");
+    await user.click(screen.getByRole("button", { name: /add category/i }));
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      skills: [{ key: "frontend", category: "Frontend", items: [] }],
+    }));
+  });
+
+  it("assigns a key to every skill group and gives distinct keys to same-named categories", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.type(screen.getByLabelText("Category name"), "Frontend");
+    await user.click(screen.getByRole("button", { name: /add category/i }));
+    const categoryInputs = screen.getAllByLabelText("Category name");
+    await user.type(categoryInputs[1], "Frontend");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    const [{ skills }] = onSave.mock.calls[0];
+    expect(skills).toHaveLength(2);
+    expect(skills[0].key).toBe("frontend");
+    expect(skills[1].key).toBe("frontend-2");
+    expect(skills[0].key).not.toBe(skills[1].key);
+  });
+
+  it("gives an empty-category skill group a usable key", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.type(screen.getByLabelText("Skills"), "React");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    const [{ skills }] = onSave.mock.calls[0];
+    expect(skills).toEqual([{ key: expect.any(String), category: "", items: ["React"] }]);
+    expect(skills[0].key.length).toBeGreaterThan(0);
+  });
+
+  it("keeps a skill category's key stable after the category is renamed", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.type(screen.getByLabelText("Category name"), "Frontend");
+    await user.type(screen.getByLabelText("Skills"), "React");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    const firstKey = onSave.mock.calls[0][0].skills[0].key;
+    expect(firstKey).toBe("frontend");
+
+    await user.clear(screen.getByLabelText("Category name"));
+    await user.type(screen.getByLabelText("Category name"), "Front-end Development");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    const secondCall = onSave.mock.calls[1][0];
+    expect(secondCall.skills[0].category).toBe("Front-end Development");
+    expect(secondCall.skills[0].key).toBe(firstKey);
   });
 
   it("does not save when required contact details are missing", async () => {
@@ -171,7 +362,10 @@ describe("ResumeBuilder", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Save & preview" }));
-    expect(onSave).toHaveBeenCalledWith(importedDraft);
+    expect(onSave).toHaveBeenCalledWith({
+      ...importedDraft,
+      skills: [{ key: "design", category: "Design", items: ["Research"] }],
+    });
   });
 
   it("shows a persistence error and keeps the editable resume", async () => {

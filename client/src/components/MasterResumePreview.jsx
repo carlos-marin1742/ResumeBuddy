@@ -73,9 +73,9 @@ export default function MasterResumePreview({ onBack, onEdit, resume, savedAt })
             {skillGroups.length > 0 ? (
               <div className="mrp-skills">
                 {skillGroups.map((skillGroup, index) => (
-                  <p key={`${skillGroup.category}-${index}`}>
+                  <p key={skillGroup.key ?? `${skillGroup.category}-${index}`}>
                     {skillGroup.category && <strong>{skillGroup.category}: </strong>}
-                    {skillGroup.items}
+                    {Array.isArray(skillGroup.items) ? skillGroup.items.join(", ") : skillGroup.items}
                   </p>
                 ))}
               </div>
