@@ -9,6 +9,7 @@ Run:
 """
 
 import json
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -345,6 +346,61 @@ class TestExtractKeywords:
 # ---------------------------------------------------------------------------
 
 class TestTailorResume:
+    @staticmethod
+    def _system_prompt(mock_get_client, resume):
+        mock_create = mock_get_client.return_value.messages.create
+        mock_create.return_value = _mock_message(TAILORING_RESPONSE)
+        svc.tailor_resume(resume, SAMPLE_JD, [])
+        return mock_create.call_args.kwargs["system"]
+
+    @patch("claude_service._get_anthropic_client")
+    def test_system_prompt_uses_explicit_profile_occupation(self, mock_get_client):
+        resume = {**SAMPLE_RESUME, "meta": {"occupation": "Registered Nurse"}}
+
+        assert "expert Registered Nurse resume writer" in self._system_prompt(
+            mock_get_client, resume
+        )
+
+    @patch("claude_service._get_anthropic_client")
+    def test_system_prompt_uses_profile_target_role_when_occupation_is_absent(self, mock_get_client):
+        resume = {**SAMPLE_RESUME, "meta": {"target_roles": ["Phlebotomist"]}}
+
+        assert "expert Phlebotomist resume writer" in self._system_prompt(
+            mock_get_client, resume
+        )
+
+    @patch("claude_service._get_anthropic_client")
+    def test_system_prompt_uses_neutral_fallback_without_profile_data(self, mock_get_client):
+        resume = {**SAMPLE_RESUME, "meta": {}}
+        system_prompt = self._system_prompt(mock_get_client, resume)
+
+        assert "expert professional resume writer" in system_prompt
+        for tech_word in ("software", "engineering", "technical", "AI"):
+            assert not re.search(rf"\\b{re.escape(tech_word)}\\b", system_prompt, re.IGNORECASE)
+
+    @patch("claude_service._get_anthropic_client")
+    def test_builder_resume_title_uses_the_same_fallback_chain(self, mock_get_client):
+        resume = {**SAMPLE_RESUME, "meta": {"label": "Electrician"}}
+
+        assert "expert Electrician resume writer" in self._system_prompt(
+            mock_get_client, resume
+        )
+
+    @patch("claude_service._get_anthropic_client")
+    def test_system_prompt_preserves_occupation_independent_rules_verbatim(self, mock_get_client):
+        resume = {**SAMPLE_RESUME, "meta": {"occupation": "Project Manager"}}
+        system_prompt = self._system_prompt(mock_get_client, resume)
+
+        assert """You rewrite resume bullets to emphasize relevance to a specific job description while:
+  - Preserving all factual accuracy (never invent metrics or experiences)
+  - Keeping bullets concise (1–2 lines, action-verb first)
+  - Naturally weaving in the provided keywords
+  - Maintaining strong impact framing (STAR-adjacent: action → scale → result)
+  - Never using em-dashes (—) or en-dashes (–) anywhere in the output; use commas, colons, or rephrase instead
+
+Always respond with ONLY valid JSON — no preamble, no markdown fences, no explanation.
+""" in system_prompt
+
     @patch("claude_service._get_anthropic_client")
     def test_returns_tailored_resume(self, mock_get_client):
         mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)

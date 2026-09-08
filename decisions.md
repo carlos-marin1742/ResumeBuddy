@@ -181,6 +181,16 @@ Each skill group carries a `key` alongside its user-facing `category` label. The
 
 Why: a later pass will cache keyword-to-category classifications, and that cache has to point at something stable. The `category` field is a user-facing display label the user can rename at any time (`Frontend` → `Front-end Development`); if a cache were keyed on the label, every rename would silently orphan its cached data. The key exists specifically so category renames are free. Do not collapse `key` and `category` back into a single field — that reintroduces the exact problem this decision solves.
 
+## Derive the tailoring persona from profile data
+
+The tailoring system prompt identifies the writer using the profile's optional `meta.occupation`; when that is absent, it uses the first `meta.target_roles` value, then the resume title. If none is available, it uses a neutral `professional` descriptor.
+
+Why:
+
+- The product supports occupations beyond technology and must not assign an unrecognized profile a technology persona.
+- This data-driven chain avoids a fixed role-type branch and works for static profiles and reviewed builder resumes alike.
+- The neutral fallback keeps tailoring industry-agnostic when profile metadata is incomplete.
+
 ## Preserve focused files and existing workflow contracts
 
 Resume creation and parsing were added through focused components, services, and routes rather than rewriting the tailoring workflow.
