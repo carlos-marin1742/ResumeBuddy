@@ -89,6 +89,8 @@ To run a single test: `cd backend && pytest routes/test_master_resumes.py::test_
 
 Pytest files are named `test_*.py` beside services, under `backend/routes/`, or at the backend package root (e.g. `backend/test_main.py`, which covers the rate-limit and security-header middleware) — plain `pytest` from `backend/` collects all of them. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test.
 
+Profile-fixture skills HTML goldens live in `backend/services/golden/`; regenerate them deliberately (never during a normal test run) with `cd backend && $env:UPDATE_SKILLS_HTML_GOLDENS=1; python -m pytest services/test_profile_skills_golden.py`.
+
 Frontend tests mock `fetch`, clipboard, and browser download boundaries. `CoverLetterStep.test.jsx` contains one `it.fails` regression: clearing the letter unmounts its textarea. Do not remove the marker without fixing and verifying the component. No coverage threshold is enforced.
 
 Resume imports (`POST /api/resumes/parse`) are parsed in memory and must not retain the source file. Preserve the 5 MB upload limit (`MAX_UPLOAD_BYTES` in `resume_import.py`), PDF/DOCX signature checks, review-before-save behavior, and the explicit scanned-PDF limitation.

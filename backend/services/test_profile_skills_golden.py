@@ -1,0 +1,84 @@
+import copy
+import difflib
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+from build_resume_pdf import _render_html
+from claude_service import STANDARD_TECH_CATEGORIES, determine_skills_to_show
+
+
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "data" / "fixtures"
+GOLDEN_DIR = Path(__file__).resolve().parent / "golden"
+UPDATE_GOLDENS_ENV = "UPDATE_SKILLS_HTML_GOLDENS"
+
+FILTER_INPUT = {
+    "job_description": "A backend role using FastAPI.",
+    "selected_keywords": ["Python", "FastAPI"],
+}
+EXPECTED_VISIBLE_CATEGORIES = {
+    "tech_fixture": ["languages", "backend"],
+    "clinical_fixture": [
+        "clinical_skills",
+        "patient_care",
+        "systems",
+        "certifications_licenses",
+    ],
+    "trades_fixture": ["technical_skills", "safety_compliance", "equipment"],
+}
+
+
+def _load_fixture(name: str) -> dict:
+    return json.loads((FIXTURES_DIR / f"{name}.json").read_text())
+
+
+def _render_fixture_skills(name: str) -> tuple[str, list[str]]:
+    resume = copy.deepcopy(_load_fixture(name))
+    visible_categories = determine_skills_to_show(
+        FILTER_INPUT["job_description"],
+        FILTER_INPUT["selected_keywords"],
+        resume["skills"],
+    )
+    current_order = resume["ats_config"]["skills_order"]
+    resume["ats_config"]["skills_order"] = [
+        category for category in current_order if category in visible_categories
+    ]
+    html = _render_html(resume)
+
+    skills_start = "<div class='section'><div class='section-title'>SKILLS</div>"
+    _, separator, after_skills = html.partition(skills_start)
+    assert separator, "Rendered resume did not contain a SKILLS section."
+    skills_body, _, _ = after_skills.partition("<div class='section'>")
+    return skills_start + skills_body.removesuffix("</div>"), visible_categories
+
+
+@pytest.mark.parametrize("name", EXPECTED_VISIBLE_CATEGORIES)
+def test_fixture_skills_html_matches_current_golden(name):
+    actual, visible_categories = _render_fixture_skills(name)
+    fixture_categories = list(_load_fixture(name)["skills"])
+
+    if name == "tech_fixture":
+        assert set(fixture_categories).intersection(STANDARD_TECH_CATEGORIES)
+        assert visible_categories == EXPECTED_VISIBLE_CATEGORIES[name]
+        assert set(visible_categories) < set(fixture_categories)
+    else:
+        assert not set(fixture_categories).intersection(STANDARD_TECH_CATEGORIES)
+        assert set(visible_categories) == set(fixture_categories)
+
+    golden_path = GOLDEN_DIR / f"{name}_skills.html"
+    if os.environ.get(UPDATE_GOLDENS_ENV) == "1":
+        GOLDEN_DIR.mkdir(exist_ok=True)
+        golden_path.write_text(actual, encoding="utf-8")
+
+    expected = golden_path.read_text(encoding="utf-8")
+    diff = "".join(
+        difflib.unified_diff(
+            expected.splitlines(keepends=True),
+            actual.splitlines(keepends=True),
+            fromfile=str(golden_path),
+            tofile=f"rendered/{name}_skills.html",
+        )
+    )
+    assert actual == expected, f"Skills HTML golden mismatch:\n{diff}"
