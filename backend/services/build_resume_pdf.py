@@ -91,6 +91,7 @@ def _render_html(
     skill_labels = {
         "languages": "Languages", "ai_ml": "AI / ML", "backend": "Backend",
         "frontend": "Frontend", "databases_cloud": "Data & Cloud", "tools": "Tools",
+        "additional_skills": "Additional Skills",
     }
 
     MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]

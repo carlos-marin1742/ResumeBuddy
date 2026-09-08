@@ -40,6 +40,17 @@ def test_resume_html_escapes_skill_and_project_fields():
     assert "<script>alert(2)</script>" not in html
 
 
+def test_resume_html_labels_additional_skills_without_raw_category_key():
+    html = _render_html({
+        "contact": {"name": "Jamie Rivera"},
+        "skills": {"additional_skills": ["Venipuncture"]},
+        "ats_config": {"skills_order": ["additional_skills"]},
+    })
+
+    assert "Additional Skills:" in html
+    assert "additional_skills:" not in html
+
+
 def test_resume_html_drops_javascript_scheme_links():
     html = _render_html({
         "contact": {
