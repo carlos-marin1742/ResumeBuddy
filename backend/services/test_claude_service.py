@@ -222,11 +222,11 @@ class TestDetermineSkillsToAdd:
         result = determine_skills_to_add(base_skills, selected_keywords)
         assert result == {}
 
-    def test_ignores_unmapped_skills(self):
+    def test_adds_unmapped_skills_to_fallback_category(self):
         base_skills = {}
         selected_keywords = ["ArbitrarySkill123"]
         result = determine_skills_to_add(base_skills, selected_keywords)
-        assert result == {}
+        assert result == {"additional_skills": ["ArbitrarySkill123"]}
 
     def test_applies_preferred_casing(self):
         base_skills = {}
@@ -234,6 +234,45 @@ class TestDetermineSkillsToAdd:
         result = determine_skills_to_add(base_skills, ["fastapi", "postgresql"])
         assert result["backend"] == ["FastAPI"]
         assert result["databases_cloud"] == ["PostgreSQL"]
+
+    def test_skips_already_present_mapped_and_unmapped_skills(self):
+        base_skills = {"clinical_skills": ["IV Insertion"], "languages": ["Python"]}
+
+        assert determine_skills_to_add(base_skills, ["python", "IV Insertion"]) == {}
+
+    def test_mixed_mapped_unmapped_and_existing_keywords(self):
+        base_skills = {"languages": ["Python"]}
+
+        result = determine_skills_to_add(
+            base_skills,
+            ["FastAPI", "Venipuncture", "Python"],
+        )
+
+        assert result == {
+            "backend": ["FastAPI"],
+            "additional_skills": ["Venipuncture"],
+        }
+
+    def test_no_unmapped_keywords_does_not_create_fallback_category(self):
+        result = determine_skills_to_add({}, ["FastAPI"])
+
+        assert result == {"backend": ["FastAPI"]}
+        assert "additional_skills" not in result
+
+    def test_fallback_preserves_selected_keyword_casing(self):
+        assert determine_skills_to_add({}, ["IV Insertion"]) == {
+            "additional_skills": ["IV Insertion"],
+        }
+
+    def test_user_named_builder_categories_receive_fallback_skills(self):
+        base_skills = {
+            "clinical_skills": ["Venipuncture"],
+            "patient_care": ["Specimen Handling"],
+        }
+
+        assert determine_skills_to_add(base_skills, ["IV Insertion"]) == {
+            "additional_skills": ["IV Insertion"],
+        }
 
 
 # ---------------------------------------------------------------------------

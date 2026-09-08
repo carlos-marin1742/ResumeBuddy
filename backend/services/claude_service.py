@@ -542,7 +542,10 @@ def determine_skills_to_add(
         kw_clean = kw.strip()
         kw_lower = kw_clean.lower()
 
-        if kw_lower in SKILL_TO_CATEGORY and kw_lower not in existing_skills_lower:
+        if kw_lower in existing_skills_lower:
+            continue
+
+        if kw_lower in SKILL_TO_CATEGORY:
             category = SKILL_TO_CATEGORY[kw_lower]
             display_category = category_aliases.get(category, category)
             category = existing_category_names.get(
@@ -555,6 +558,12 @@ def determine_skills_to_add(
 
             if presentation_name not in skills_to_add[category]:
                 skills_to_add[category].append(presentation_name)
+        else:
+            if "additional_skills" not in skills_to_add:
+                skills_to_add["additional_skills"] = []
+
+            if kw_clean not in skills_to_add["additional_skills"]:
+                skills_to_add["additional_skills"].append(kw_clean)
 
     return skills_to_add
 
