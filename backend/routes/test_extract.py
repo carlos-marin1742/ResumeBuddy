@@ -101,6 +101,50 @@ def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkey
     assert by_keyword["Microsoft Office (Word, Excel, Outlook)"] is True
 
 
+def test_extract_keywords_route_matches_skill_in_user_named_builder_category(monkeypatch):
+    monkeypatch.setattr(
+        extract_module,
+        "claude_extract_keywords",
+        lambda jd: KeywordExtractionResult(
+            hard_skills=["Venipuncture"],
+            soft_skills=[],
+            tools_and_technologies=[],
+            job_titles=[],
+            certifications=[],
+            priority_keywords=[],
+            raw_response="",
+        ),
+    )
+
+    with _session() as db:
+        record = MasterResumeRecord(
+            name="Jamie Rivera",
+            target_role="Phlebotomist",
+            resume_data={
+                "contact": {"name": "Jamie Rivera", "email": "jamie@example.com"},
+                "skills": [{
+                    "key": "clinical_skills",
+                    "category": "Clinical Skills",
+                    "items": ["Venipuncture"],
+                }],
+            },
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+
+        response = extract_keywords_route(
+            ExtractRequest(
+                job_description="Looking for venipuncture experience.",
+                master_resume_id=record.id,
+            ),
+            db,
+        )
+
+    assert response.keywords[0].keyword == "Venipuncture"
+    assert response.keywords[0].present_in_resume is True
+
+
 def test_extract_keywords_route_matches_skill_saved_as_a_raw_comma_string(monkeypatch):
     """Regression: a master resume saved with items as a raw comma string
     (e.g. a legacy record, or a non-browser client posting directly) must

@@ -49,19 +49,32 @@ def _skill_items(value) -> list[str]:
     return split_skill_items(value)
 
 
+def _skill_category_slug(category) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(category or "").lower()).strip("_")
+
+
 def master_resume_to_profile(resume: dict) -> dict:
     skill_groups = resume.get("skills", [])
     if isinstance(skill_groups, str):
         skill_groups = [{"category": "Skills", "items": skill_groups}]
 
     skills = {}
-    skill_labels = {}
     for index, group in enumerate(skill_groups):
-        if not isinstance(group, dict) or not group.get("category", "").strip():
+        if not isinstance(group, dict):
             continue
-        category = f"builder_{index}"
+        category = str(group.get("key", "")).strip()
+        if not category:
+            category = _skill_category_slug(group.get("category", ""))
+        if not category:
+            category = f"skill_{index}"
+
+        base_category = category
+        suffix = 2
+        while category in skills:
+            category = f"{base_category}_{suffix}"
+            suffix += 1
+
         skills[category] = _skill_items(group.get("items", ""))
-        skill_labels[category] = group["category"].strip()
 
     experience = []
     for index, item in enumerate(resume.get("experience", [])):
@@ -132,6 +145,5 @@ def master_resume_to_profile(resume: dict) -> dict:
         ],
         "ats_config": {
             "skills_order": list(skills),
-            "skill_labels": skill_labels,
         },
     }

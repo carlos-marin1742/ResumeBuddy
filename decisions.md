@@ -167,6 +167,12 @@ The persistence API continues accepting the original plain string shape (both th
 
 Splitting a skills textarea value into individual items happens once, in `ResumeBuilder`, on the way out of the component at save time — never in the backend and never while typing. A newline anywhere in the value means one skill per line, with commas inside those lines kept literal; with no newline, the value splits on commas that are not enclosed in `()` or `[]`, so a value like `Microsoft Office (Word, Excel, Outlook)` survives as one item. A skill whose only comma is unbracketed (e.g. `Phlebotomy, adult and pediatric`) still requires the newline escape to stay intact — this is a known limitation, not a bug, and the textarea placeholder calls it out.
 
+## Builder skill keys remain stable in the adapted profile
+
+`master_resume_to_profile` uses a builder skill group's stable `key` as the adapted profile's skill-dict key. For legacy or incomplete groups it falls back to an underscore slug of `category`, then `skill_{index}`; duplicate derived keys receive numeric suffixes. Positional `builder_{index}` keys were removed because a reorder or deletion changed downstream identifiers despite the builder already preserving a stable key.
+
+The adapter no longer writes `ats_config.skill_labels`. No consumer read that side channel: PDF rendering maintains its own display-label mapping and reads `skills_order`, so retaining the adapter write would only preserve stale, unused data.
+
 ## The server owns skills splitting; the frontend splitter is UI feedback only
 
 `backend/routes/master_resumes.py`'s `SkillCategoryInput.normalize_items` validator is the authoritative place a raw skills string becomes an array of items. It delegates to `split_skill_items` in `backend/services/master_resume_adapter.py`: a newline anywhere means split on lines with commas kept literal on those lines; with no newline, split on commas except commas nested inside `()` or `[]`; each item is trimmed and blanks are dropped. An already-array payload passes through unchanged. `master_resume_adapter.py::_skill_items` delegates to the same function for its string branch, so there is exactly one comma-splitting rule in the Python codebase.
