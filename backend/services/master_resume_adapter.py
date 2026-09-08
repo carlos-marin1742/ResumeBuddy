@@ -2,6 +2,8 @@
 
 import re
 
+from services.profile_skills import normalize_profile_skills
+
 
 def _lines(value: str) -> list[str]:
     return [
@@ -58,7 +60,8 @@ def master_resume_to_profile(resume: dict) -> dict:
     if isinstance(skill_groups, str):
         skill_groups = [{"category": "Skills", "items": skill_groups}]
 
-    skills = {}
+    normalized_groups = []
+    used_keys = set()
     for index, group in enumerate(skill_groups):
         if not isinstance(group, dict):
             continue
@@ -70,11 +73,21 @@ def master_resume_to_profile(resume: dict) -> dict:
 
         base_category = category
         suffix = 2
-        while category in skills:
+        while category in used_keys:
             category = f"{base_category}_{suffix}"
             suffix += 1
 
-        skills[category] = _skill_items(group.get("items", ""))
+        used_keys.add(category)
+        normalized_groups.append({
+            "key": category,
+            "label": str(group.get("category") or category),
+            "items": _skill_items(group.get("items", "")),
+        })
+
+    skills = {
+        group["key"]: group["items"]
+        for group in normalize_profile_skills(normalized_groups)
+    }
 
     experience = []
     for index, item in enumerate(resume.get("experience", [])):
