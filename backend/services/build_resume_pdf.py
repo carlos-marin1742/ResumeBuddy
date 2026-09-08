@@ -21,6 +21,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from services.profile_skills import normalize_profile_skills
+
 
 def _esc(value) -> str:
     """HTML-escape any resume-supplied text before it reaches the template."""
@@ -61,7 +63,10 @@ def _render_html(
     """
     contact    = resume.get("contact", {})
     target_role = resume.get("targetRole") or resume.get("target_role", "")
-    skills     = resume.get("skills", {})
+    skill_groups = normalize_profile_skills(
+        resume.get("skills", {}), resume.get("ats_config", {}).get("skills_order")
+    )
+    skills     = {group["key"]: group["items"] for group in skill_groups}
     experience = resume.get("experience", [])
     projects   = resume.get("projects", [])
     education  = resume.get("education", [])
@@ -87,7 +92,7 @@ def _render_html(
         base_summary = ""
     summary_text = resume.get("tailored_summary") or base_summary
 
-    skills_order = ats_config.get("skills_order") or list(skills.keys())
+    skills_order = [group["key"] for group in skill_groups]
     skill_labels = {
         "languages": "Languages", "ai_ml": "AI / ML", "backend": "Backend",
         "frontend": "Frontend", "databases_cloud": "Data & Cloud", "tools": "Tools",

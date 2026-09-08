@@ -22,6 +22,7 @@ from services.build_resume_pdf import build_pdf
 from services.claude_service import ATSScoreResult, TailoredResume, score_resume, tailor_resume
 from services.project_selection import select_relevant_projects
 from services.master_resume_adapter import master_resume_to_profile
+from services.profile_skills import normalize_profile_skills
 
 router = APIRouter()
 
@@ -151,15 +152,14 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
     output = dict(base_resume)
     output["tailored_summary"] = tailored.summary
 
-    # Normalize the current list-based resume schema to the dictionary shape
-    # consumed by skill merging and the PDF renderer.
-    raw_skills = output.get("skills", {})
-    if isinstance(raw_skills, list):
-        output["skills"] = {
-            section.get("category", ""): list(section.get("items", []))
-            for section in raw_skills
-            if isinstance(section, dict) and section.get("category")
-        }
+    # The current output remains a keyed dictionary until profile writers move
+    # to ordered groups. Normalize here so builder groups use their stable key.
+    skill_groups = normalize_profile_skills(
+        output.get("skills", {}), output.get("ats_config", {}).get("skills_order")
+    )
+    output["skills"] = {
+        group["key"]: group["items"] for group in skill_groups
+    }
 
     # ── Merge tailored experience bullets ─────────────────────────────────────
     tailored_exp_map = {exp.company: exp for exp in tailored.experiences}

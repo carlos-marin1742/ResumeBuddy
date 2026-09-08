@@ -18,6 +18,7 @@ from db import get_session
 from models import MasterResumeRecord
 from services.claude_service import extract_keywords as claude_extract_keywords
 from services.master_resume_adapter import master_resume_to_profile
+from services.profile_skills import normalize_profile_skills
 
 router = APIRouter()
 
@@ -66,18 +67,12 @@ def flatten_resume_keywords(resume: dict) -> set[str]:
     """
     keywords: set[str] = set()
 
-    skills = resume.get("skills", {})
-    if isinstance(skills, dict):
-        skill_lists = skills.values()
-    elif isinstance(skills, list):
-        # Current resume schema: [{"category": "Languages", "items": [...]}]
-        skill_lists = (
-            section.get("items", [])
-            for section in skills
-            if isinstance(section, dict)
+    skill_lists = (
+        group["items"]
+        for group in normalize_profile_skills(
+            resume.get("skills", {}), resume.get("ats_config", {}).get("skills_order")
         )
-    else:
-        skill_lists = []
+    )
 
     for skill_list in skill_lists:
         if isinstance(skill_list, list):

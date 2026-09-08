@@ -26,6 +26,8 @@ import anthropic
 from groq import Groq
 from pydantic import BaseModel
 
+from services.profile_skills import normalize_profile_skills
+
 
 # ---------------------------------------------------------------------------
 # Pydantic response models
@@ -505,16 +507,10 @@ def determine_skills_to_add(
     Identifies selected keywords not present in base skills that map to known
     categories, and returns them structured by category.
     """
-    if isinstance(base_skills, dict):
-        skills_by_category = base_skills
-    elif isinstance(base_skills, list):
-        skills_by_category = {
-            section.get("category", ""): section.get("items", [])
-            for section in base_skills
-            if isinstance(section, dict) and section.get("category")
-        }
-    else:
-        skills_by_category = {}
+    skills_by_category = {
+        group["key"]: group["items"]
+        for group in normalize_profile_skills(base_skills)
+    }
 
     existing_skills_lower = set()
     for skill_list in skills_by_category.values():
@@ -584,16 +580,9 @@ def determine_skills_to_show(
     # "Administrative Operations", "Software Data", "Communication Leadership"),
     # return all of them as-is — the tech filter logic doesn't apply.
     if base_skills:
-        if isinstance(base_skills, dict):
-            resume_cats = set(base_skills.keys())
-        elif isinstance(base_skills, list):
-            resume_cats = {
-                section.get("category")
-                for section in base_skills
-                if isinstance(section, dict) and section.get("category")
-            }
-        else:
-            resume_cats = set()
+        resume_cats = {
+            group["key"] for group in normalize_profile_skills(base_skills)
+        }
         if not resume_cats.intersection(STANDARD_TECH_CATEGORIES):
             return list(resume_cats)
 
@@ -992,9 +981,12 @@ def score_resume(
     corpus_parts = []
     corpus_parts.append(tailored_resume.get("tailored_summary", ""))
 
-    for skill_list in tailored_resume.get("skills", {}).values():
-        if isinstance(skill_list, list):
-            corpus_parts.extend(skill_list)
+    skill_groups = normalize_profile_skills(
+        tailored_resume.get("skills", {}),
+        tailored_resume.get("ats_config", {}).get("skills_order"),
+    )
+    for group in skill_groups:
+        corpus_parts.extend(group["items"])
 
     for exp in tailored_resume.get("experience", []):
         corpus_parts.append(exp.get("title", ""))
@@ -1054,10 +1046,7 @@ def score_resume(
     if not tailored_resume.get("tailored_summary"):
         suggestions.append("Add a targeted summary section to improve ATS matching.")
 
-    skill_count = sum(
-        len(v) for v in tailored_resume.get("skills", {}).values()
-        if isinstance(v, list)
-    )
+    skill_count = sum(len(group["items"]) for group in skill_groups)
     if skill_count < 10:
         suggestions.append(
             "Expand your skills section — more relevant skills improve ATS keyword density."
