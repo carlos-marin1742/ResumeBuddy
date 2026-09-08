@@ -56,7 +56,7 @@ Backend responsibilities:
 - `/api/history`: list/filter, fetch, delete, restore sessions, and download stored resume/cover-letter artifacts.
 - `POST /api/generate-cover-letter`, `POST /api/download-cover-letter`: generate, persist, and render cover letters.
 - `POST /api/resumes/parse`: parse PDF or DOCX content into a reviewable builder draft without retaining the source file.
-- `POST /api/master-resumes`, `PUT/GET /api/master-resumes/{id}`: persist, update, and retrieve reviewed master resumes. Each skill group is `{key, category, items[]}`; `key` is generated once from `category` at save time and is stable across renames — it is what future keyword-classification caching will key on, and must never be regenerated or collapsed back into `category`. `items` accepts an array (passed through unchanged) or a string on input; a string is split server-side by `split_skill_items` in `services/master_resume_adapter.py` — newline anywhere splits on lines with commas kept literal, otherwise splits on commas except commas nested inside `()`/`[]`, trimming each item and dropping blanks. The array shape is always what gets persisted.
+- `POST /api/master-resumes`, `PUT/GET /api/master-resumes/{id}`: persist, update, and retrieve reviewed master resumes. Each skill group is `{key, category, items[]}`; the adapter uses `key` as the profile skill-dict key, falling back to an underscore slug of `category`, then `skill_{index}`. `items` accepts an array (passed through unchanged) or a string on input; a string is split server-side by `split_skill_items` in `services/master_resume_adapter.py` — newline anywhere splits on lines with commas kept literal, otherwise splits on commas except commas nested inside `()`/`[]`, trimming each item and dropping blanks. The array shape is always what gets persisted.
 
 ## Data, Authentication, and Security
 
@@ -79,7 +79,7 @@ playwright install chromium
 cd backend && fastapi dev main.py
 cd client && npm install && npm run dev
 cd client && npm test && npm run lint && npm run build
-cd backend && pytest -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
+cd backend && python -m pytest -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 docker compose up --build
 ```
 
