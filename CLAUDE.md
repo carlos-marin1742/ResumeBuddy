@@ -68,6 +68,8 @@ Because there is no auth, `main.py` rate-limits the AI-backed POST routes (`/api
 
 Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, and optional comma-separated `ALLOWED_ORIGINS`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
 
+Tailoring derives its occupation descriptor from optional `meta.occupation`, then `meta.target_roles`, then the resume title, with a neutral fallback; do not branch the persona on fixed role types.
+
 ## Development and Validation
 
 ```bash

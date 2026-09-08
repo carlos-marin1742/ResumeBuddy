@@ -666,8 +666,36 @@ JOB DESCRIPTION:
 # 2. Resume tailoring — Claude Haiku
 # ---------------------------------------------------------------------------
 
+_NEUTRAL_OCCUPATION = "professional"
+
+
+def _occupation_descriptor(base_resume: dict) -> str:
+    """Return the profile-supplied occupation for the tailoring persona."""
+    meta = base_resume.get("meta", {})
+    if not isinstance(meta, dict):
+        meta = {}
+
+    occupation = meta.get("occupation")
+    if isinstance(occupation, str) and occupation.strip():
+        return occupation.strip()
+
+    target_roles = meta.get("target_roles", [])
+    if isinstance(target_roles, str):
+        target_roles = [target_roles]
+    if isinstance(target_roles, list):
+        for role in target_roles:
+            if isinstance(role, str) and role.strip():
+                return role.strip()
+
+    for title in (meta.get("label"), base_resume.get("title"), base_resume.get("targetRole")):
+        if isinstance(title, str) and title.strip():
+            return title.strip()
+
+    return _NEUTRAL_OCCUPATION
+
+
 _TAILORING_SYSTEM = """\
-You are an expert resume writer with deep experience tailoring resumes across technical, clinical, and administrative roles.
+You are an expert {occupation} resume writer.
 You rewrite resume bullets to emphasize relevance to a specific job description while:
   - Preserving all factual accuracy (never invent metrics or experiences)
   - Keeping bullets concise (1–2 lines, action-verb first)
@@ -763,7 +791,10 @@ Rules:
 - Never use fewer bullets than specified — a short resume wastes space.
 - Keep every bullet to a maximum of 165 characters. For project bullets where the original is already near the limit, skip the keyword append rather than truncating.
 """
-    raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=CLAUDE_MAX_TOKENS)
+    system_prompt = _TAILORING_SYSTEM.format(
+        occupation=_occupation_descriptor(base_resume),
+    )
+    raw = _call_claude(system_prompt, user_prompt, max_tokens=CLAUDE_MAX_TOKENS)
 
     try:
         parsed = _extract_json(raw)

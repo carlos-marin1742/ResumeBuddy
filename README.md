@@ -246,7 +246,7 @@ Builder-created (and imported) master resumes represent skills separately from t
 
 See `base_resume_schema.md` for the full JSON schema. Key sections:
 
-- `meta` — `label`, `target_roles`, `last_updated` (shown in the resume picker)
+- `meta` — optional `occupation` for the tailoring persona; otherwise the first `target_roles` value, then the resume title, then a neutral descriptor; plus `label` and `last_updated` (shown in the resume picker)
 - `contact` — name, email, phone, links (portfolio, GitHub, LinkedIn)
 - `summary` — default text + optional role-specific variants
 - `skills` — categorized lists; render order set by `ats_config.skills_order`

@@ -29,6 +29,7 @@ Bookkeeping block. Not rendered in the output resume.
 |---|---|---|
 | `version` | string | Schema version number |
 | `last_updated` | string (YYYY-MM-DD) | Date the file was last modified |
+| `occupation` | string (optional) | Tailoring-persona occupation descriptor; when absent, tailoring uses the first `target_roles` value, then the resume title, then a neutral descriptor |
 | `target_roles` | string[] | Role types this resume is optimized for |
 
 ---
