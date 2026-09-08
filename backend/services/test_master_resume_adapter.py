@@ -3,6 +3,10 @@ import pytest
 from services.master_resume_adapter import master_resume_to_profile, split_skill_items
 
 
+def _skills_by_key(profile):
+    return {group["key"]: group["items"] for group in profile["skills"]}
+
+
 # Shared with client/src/components/ResumeBuilder.test.jsx's splitSkillItems
 # fixture list. The two splitters are pinned together by this identical
 # input/output list rather than shared code, since the boundary is JS/Python.
@@ -57,7 +61,7 @@ def test_master_resume_adapter_preserves_experience_bullets_and_builder_fields()
     })
 
     assert profile["summary"]["default"] == "Clinical research professional."
-    assert profile["skills"] == {"systems": ["CTMS", "EDC"]}
+    assert profile["skills"] == [{"key": "systems", "label": "Systems", "items": ["CTMS", "EDC"]}]
     assert [bullet["text"] for bullet in profile["experience"][0]["bullets"]] == [
         "Managed trials.",
         "Resolved queries.",
@@ -76,7 +80,7 @@ def test_master_resume_adapter_accepts_array_skill_items():
         "certifications": [],
     })
 
-    assert profile["skills"] == {"systems": ["CTMS", "EDC"]}
+    assert profile["skills"] == [{"key": "systems", "label": "Systems", "items": ["CTMS", "EDC"]}]
 
 
 def _profile_with_skill_items(items):
@@ -93,13 +97,13 @@ def _profile_with_skill_items(items):
 def test_array_skill_items_adapt_as_separate_entries_not_a_stringified_list():
     profile = _profile_with_skill_items(["CTMS", "EDC", "Python"])
 
-    assert profile["skills"]["systems"] == ["CTMS", "EDC", "Python"]
+    assert _skills_by_key(profile)["systems"] == ["CTMS", "EDC", "Python"]
 
 
 def test_no_adapted_skill_contains_stray_list_syntax_characters():
     profile = _profile_with_skill_items(["React", "Node.js"])
 
-    for skill in profile["skills"]["systems"]:
+    for skill in _skills_by_key(profile)["systems"]:
         assert "[" not in skill
         assert "]" not in skill
         assert "'" not in skill
@@ -110,7 +114,7 @@ def test_comma_containing_skill_survives_adaptation_as_one_skill():
         ["Microsoft Office (Word, Excel, Outlook)", "Slack"]
     )
 
-    assert profile["skills"]["systems"] == [
+    assert _skills_by_key(profile)["systems"] == [
         "Microsoft Office (Word, Excel, Outlook)",
         "Slack",
     ]
@@ -119,13 +123,13 @@ def test_comma_containing_skill_survives_adaptation_as_one_skill():
 def test_legacy_string_skill_items_adapt_without_error():
     profile = _profile_with_skill_items("Python, SQL")
 
-    assert profile["skills"]["systems"] == ["Python", "SQL"]
+    assert _skills_by_key(profile)["systems"] == ["Python", "SQL"]
 
 
 def test_empty_skill_items_list_adapts_without_raising():
     profile = _profile_with_skill_items([])
 
-    assert profile["skills"]["systems"] == []
+    assert _skills_by_key(profile)["systems"] == []
 
 
 def test_missing_skill_items_key_adapts_without_raising():
@@ -138,7 +142,7 @@ def test_missing_skill_items_key_adapts_without_raising():
         "certifications": [],
     })
 
-    assert profile["skills"]["systems"] == []
+    assert _skills_by_key(profile)["systems"] == []
 
 
 def test_skill_group_key_is_used_verbatim_when_it_differs_from_category_slug():
@@ -146,7 +150,7 @@ def test_skill_group_key_is_used_verbatim_when_it_differs_from_category_slug():
         "skills": [{"key": "clinical_platforms", "category": "Clinical Tools", "items": ["CTMS"]}],
     })
 
-    assert profile["skills"] == {"clinical_platforms": ["CTMS"]}
+    assert profile["skills"] == [{"key": "clinical_platforms", "label": "Clinical Tools", "items": ["CTMS"]}]
 
 
 def test_reordering_skill_groups_keeps_their_profile_keys():
@@ -158,8 +162,8 @@ def test_reordering_skill_groups_keeps_their_profile_keys():
     first = master_resume_to_profile({"skills": groups})
     reordered = master_resume_to_profile({"skills": list(reversed(groups))})
 
-    assert set(first["skills"]) == {"clinical_skills", "tools"}
-    assert set(reordered["skills"]) == {"clinical_skills", "tools"}
+    assert [group["key"] for group in first["skills"]] == ["clinical_skills", "tools"]
+    assert [group["key"] for group in reordered["skills"]] == ["tools", "clinical_skills"]
 
 
 def test_deleting_a_middle_skill_group_keeps_remaining_profile_keys():
@@ -171,7 +175,7 @@ def test_deleting_a_middle_skill_group_keeps_remaining_profile_keys():
 
     profile = master_resume_to_profile({"skills": [groups[0], groups[2]]})
 
-    assert set(profile["skills"]) == {"clinical_skills", "certifications"}
+    assert [group["key"] for group in profile["skills"]] == ["clinical_skills", "certifications"]
 
 
 def test_missing_key_falls_back_to_an_underscore_category_slug():
@@ -179,7 +183,7 @@ def test_missing_key_falls_back_to_an_underscore_category_slug():
         "skills": [{"category": "Clinical & Patient Care", "items": ["Venipuncture"]}],
     })
 
-    assert profile["skills"] == {"clinical_patient_care": ["Venipuncture"]}
+    assert profile["skills"] == [{"key": "clinical_patient_care", "label": "Clinical & Patient Care", "items": ["Venipuncture"]}]
 
 
 def test_missing_key_and_category_uses_unique_index_fallback_and_keeps_items():
@@ -190,10 +194,10 @@ def test_missing_key_and_category_uses_unique_index_fallback_and_keeps_items():
         ],
     })
 
-    assert profile["skills"] == {
-        "skill_0": ["Venipuncture"],
-        "skill_1": ["Specimen handling"],
-    }
+    assert profile["skills"] == [
+        {"key": "skill_0", "label": "skill_0", "items": ["Venipuncture"]},
+        {"key": "skill_1", "label": "skill_1", "items": ["Specimen handling"]},
+    ]
 
 
 def test_colliding_derived_skill_keys_get_numeric_suffixes():
@@ -204,7 +208,10 @@ def test_colliding_derived_skill_keys_get_numeric_suffixes():
         ],
     })
 
-    assert profile["skills"] == {"systems": ["CTMS"], "systems_2": ["EDC"]}
+    assert profile["skills"] == [
+        {"key": "systems", "label": "Systems", "items": ["CTMS"]},
+        {"key": "systems_2", "label": "Other Systems", "items": ["EDC"]},
+    ]
 
 
 def test_legacy_groups_without_key_fields_adapt_without_error():
@@ -215,12 +222,18 @@ def test_legacy_groups_without_key_fields_adapt_without_error():
         ],
     })
 
-    assert profile["skills"] == {"systems": ["CTMS"], "clinical_skills": ["GCP"]}
+    assert profile["skills"] == [
+        {"key": "systems", "label": "Systems", "items": ["CTMS"]},
+        {"key": "clinical_skills", "label": "Clinical Skills", "items": ["GCP"]},
+    ]
 
 
-def test_adapter_does_not_write_unread_skill_labels():
+def test_adapter_preserves_distinct_skill_key_and_label():
     profile = master_resume_to_profile({
         "skills": [{"key": "systems", "category": "Systems", "items": ["CTMS"]}],
     })
 
-    assert "skill_labels" not in profile["ats_config"]
+    assert profile["skills"] == [
+        {"key": "systems", "label": "Systems", "items": ["CTMS"]}
+    ]
+    assert "skills_order" not in profile["ats_config"]

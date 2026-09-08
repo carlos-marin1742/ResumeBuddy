@@ -18,12 +18,12 @@
     "default": "Clinical support professional experienced in safe, accurate patient care.",
     "variants": {}
   },
-  "skills": {
-    "clinical_skills": ["Venipuncture", "Specimen handling (serum, plasma)"],
-    "patient_care": ["Vital signs", "Patient intake/discharge"],
-    "systems": ["Fictional EHR"],
-    "certifications_licenses": ["CPR/AED"]
-  },
+  "skills": [
+    {"key": "clinical_skills", "label": "clinical_skills", "items": ["Venipuncture", "Specimen handling (serum, plasma)"]},
+    {"key": "patient_care", "label": "patient_care", "items": ["Vital signs", "Patient intake/discharge"]},
+    {"key": "systems", "label": "systems", "items": ["Fictional EHR"]},
+    {"key": "certifications_licenses", "label": "certifications_licenses", "items": ["CPR/AED"]}
+  ],
   "experience": [
     {
       "id": "fictional-clinical-role",
@@ -64,7 +64,6 @@
     "keyword_injection_targets": ["summary", "skills", "bullets"],
     "max_bullets_per_project": 3,
     "max_bullets_per_role": 3,
-    "preferred_bullet_strength": "high",
-    "skills_order": ["clinical_skills", "patient_care", "systems", "certifications_licenses"]
+    "preferred_bullet_strength": "high"
   }
 }

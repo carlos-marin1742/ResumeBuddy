@@ -60,3 +60,9 @@ These are candidate improvements, not committed scope. Prioritize them against u
 - Add backend CI with Python, Chromium, and focused pytest commands.
 - Add end-to-end browser coverage for create, import, review, save, tailor, and download.
 - Define a versioned database migration strategy for schema changes beyond the current additive startup migrations.
+# Profile skills data migration
+
+Real profiles under `backend/data/` remain on the legacy keyed-dictionary
+shape with `ats_config.skills_order`. They continue to load through the
+read-time compatibility shim in `backend/services/profile_skills.py`; migrate
+them separately when their private data can be reviewed.
