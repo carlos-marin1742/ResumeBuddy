@@ -67,6 +67,7 @@ def _render_html(
         resume.get("skills", {}), resume.get("ats_config", {}).get("skills_order")
     )
     skills     = {group["key"]: group["items"] for group in skill_groups}
+    skill_labels = {group["key"]: group.get("label") for group in skill_groups}
     experience = resume.get("experience", [])
     projects   = resume.get("projects", [])
     education  = resume.get("education", [])
@@ -93,12 +94,6 @@ def _render_html(
     summary_text = resume.get("tailored_summary") or base_summary
 
     skills_order = [group["key"] for group in skill_groups]
-    skill_labels = {
-        "languages": "Languages", "ai_ml": "AI / ML", "backend": "Backend",
-        "frontend": "Frontend", "databases_cloud": "Data & Cloud", "tools": "Tools",
-        "additional_skills": "Additional Skills",
-    }
-
     MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
     def fmt_date(d):
@@ -137,7 +132,7 @@ def _render_html(
     for cat in skills_order:
         items = skills.get(cat)
         if not items: continue
-        label = skill_labels.get(cat, cat)
+        label = skill_labels.get(cat) or cat
         items_html = ""
         for i, skill in enumerate(items):
             comma = ", " if i > 0 else ""

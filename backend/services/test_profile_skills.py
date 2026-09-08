@@ -7,8 +7,8 @@ def test_normalize_profile_skills_keeps_legacy_order_and_array_labels():
         ["languages", "backend"],
     )
     assert legacy == [
-        {"key": "languages", "label": "languages", "items": ["Python"]},
-        {"key": "backend", "label": "backend", "items": ["FastAPI"]},
+        {"key": "languages", "label": "Languages", "items": ["Python"]},
+        {"key": "backend", "label": "Backend", "items": ["FastAPI"]},
     ]
 
     ordered = normalize_profile_skills([
@@ -24,5 +24,12 @@ def test_normalize_profile_skills_respects_legacy_skills_order():
         {"languages": ["Python"], "tools": ["Git"]}, ["languages"]
     )
     assert groups == [
-        {"key": "languages", "label": "languages", "items": ["Python"]}
+        {"key": "languages", "label": "Languages", "items": ["Python"]}
     ]
+
+
+def test_array_group_without_label_falls_back_to_its_key_in_renderer():
+    from services.build_resume_pdf import _render_html
+
+    html = _render_html({"skills": [{"key": "custom_tools", "items": ["Tool"]}]})
+    assert "custom_tools:" in html
