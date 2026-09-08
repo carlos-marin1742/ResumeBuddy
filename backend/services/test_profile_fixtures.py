@@ -48,7 +48,9 @@ def test_fixture_is_valid_json_with_required_top_level_keys(name):
 
 @pytest.mark.parametrize(("name", "categories"), EXPECTED_CATEGORIES.items())
 def test_fixture_skills_use_the_expected_current_keyed_dict_shape(name, categories):
-    assert list(_load_fixture(name)["skills"]) == categories
+    skills = _load_fixture(name)["skills"]
+    assert [group["key"] for group in skills] == categories
+    assert all(group["label"] and isinstance(group["items"], list) for group in skills)
 
 
 @pytest.mark.parametrize("name", ["clinical_fixture", "trades_fixture"])
@@ -93,8 +95,8 @@ def test_fixture_documents_current_per_role_category_filter_behavior(name, expec
     )
 
     if name == "tech_fixture":
-        assert set(skills).intersection(STANDARD_TECH_CATEGORIES)
+        assert {group["key"] for group in skills}.intersection(STANDARD_TECH_CATEGORIES)
         assert result == expected_categories
     else:
-        assert not set(skills).intersection(STANDARD_TECH_CATEGORIES)
+        assert not {group["key"] for group in skills}.intersection(STANDARD_TECH_CATEGORIES)
         assert set(result) == set(expected_categories)

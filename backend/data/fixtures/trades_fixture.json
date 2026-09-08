@@ -17,11 +17,11 @@
     "default": "Industrial electrician focused on safe installation and maintenance work.",
     "variants": {}
   },
-  "skills": {
-    "technical_skills": ["Motor controls", "480V systems"],
-    "safety_compliance": ["OSHA-10", "Lockout/tagout"],
-    "equipment": ["Conduit benders", "Multimeters"]
-  },
+  "skills": [
+    {"key": "technical_skills", "label": "technical_skills", "items": ["Motor controls", "480V systems"]},
+    {"key": "safety_compliance", "label": "safety_compliance", "items": ["OSHA-10", "Lockout/tagout"]},
+    {"key": "equipment", "label": "equipment", "items": ["Conduit benders", "Multimeters"]}
+  ],
   "experience": [
     {
       "id": "fictional-trades-role",
@@ -62,7 +62,6 @@
     "keyword_injection_targets": ["summary", "skills", "bullets"],
     "max_bullets_per_project": 3,
     "max_bullets_per_role": 3,
-    "preferred_bullet_strength": "high",
-    "skills_order": ["technical_skills", "safety_compliance", "equipment"]
+    "preferred_bullet_strength": "high"
   }
 }

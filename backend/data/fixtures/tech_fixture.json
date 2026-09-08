@@ -18,13 +18,13 @@
     "default": "Platform engineer focused on reliable application services.",
     "variants": {}
   },
-  "skills": {
-    "languages": ["Python", "TypeScript"],
-    "ai_ml": ["RAG (Retrieval-Augmented Generation)"],
-    "backend": ["FastAPI", "REST APIs"],
-    "frontend": ["React"],
-    "tools": ["Docker", "Git"]
-  },
+  "skills": [
+    {"key": "languages", "label": "Languages", "items": ["Python", "TypeScript"]},
+    {"key": "ai_ml", "label": "AI / ML", "items": ["RAG (Retrieval-Augmented Generation)"]},
+    {"key": "backend", "label": "Backend", "items": ["FastAPI", "REST APIs"]},
+    {"key": "frontend", "label": "Frontend", "items": ["React"]},
+    {"key": "tools", "label": "Tools", "items": ["Docker", "Git"]}
+  ],
   "projects": [
     {
       "id": "sample-platform",
@@ -75,7 +75,6 @@
     "keyword_injection_targets": ["summary", "skills", "bullets"],
     "max_bullets_per_project": 3,
     "max_bullets_per_role": 3,
-    "preferred_bullet_strength": "high",
-    "skills_order": ["languages", "ai_ml", "backend", "frontend", "tools"]
+    "preferred_bullet_strength": "high"
   }
 }

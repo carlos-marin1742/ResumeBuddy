@@ -84,10 +84,7 @@ def master_resume_to_profile(resume: dict) -> dict:
             "items": _skill_items(group.get("items", "")),
         })
 
-    skills = {
-        group["key"]: group["items"]
-        for group in normalize_profile_skills(normalized_groups)
-    }
+    skills = normalize_profile_skills(normalized_groups)
 
     experience = []
     for index, item in enumerate(resume.get("experience", [])):
@@ -156,7 +153,5 @@ def master_resume_to_profile(resume: dict) -> dict:
             }
             for item in resume.get("certifications", [])
         ],
-        "ats_config": {
-            "skills_order": list(skills),
-        },
+        "ats_config": {},
     }

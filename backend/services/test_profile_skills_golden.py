@@ -41,9 +41,9 @@ def _render_fixture_skills(name: str) -> tuple[str, list[str]]:
         FILTER_INPUT["selected_keywords"],
         resume["skills"],
     )
-    current_order = resume["ats_config"]["skills_order"]
-    resume["ats_config"]["skills_order"] = [
-        category for category in current_order if category in visible_categories
+    resume["skills"] = [
+        group for group in resume["skills"]
+        if group["key"] in visible_categories
     ]
     html = _render_html(resume)
 
@@ -57,7 +57,7 @@ def _render_fixture_skills(name: str) -> tuple[str, list[str]]:
 @pytest.mark.parametrize("name", EXPECTED_VISIBLE_CATEGORIES)
 def test_fixture_skills_html_matches_current_golden(name):
     actual, visible_categories = _render_fixture_skills(name)
-    fixture_categories = list(_load_fixture(name)["skills"])
+    fixture_categories = [group["key"] for group in _load_fixture(name)["skills"]]
 
     if name == "tech_fixture":
         assert set(fixture_categories).intersection(STANDARD_TECH_CATEGORIES)
