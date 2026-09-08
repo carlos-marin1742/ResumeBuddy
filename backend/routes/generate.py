@@ -152,14 +152,11 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
     output = dict(base_resume)
     output["tailored_summary"] = tailored.summary
 
-    # The current output remains a keyed dictionary until profile writers move
-    # to ordered groups. Normalize here so builder groups use their stable key.
+    # Normalize all inputs into ordered groups. This preserves stable keys and
+    # labels for builder and profile data alike.
     skill_groups = normalize_profile_skills(
         output.get("skills", {}), output.get("ats_config", {}).get("skills_order")
     )
-    output["skills"] = {
-        group["key"]: group["items"] for group in skill_groups
-    }
 
     # ── Merge tailored experience bullets ─────────────────────────────────────
     tailored_exp_map = {exp.company: exp for exp in tailored.experiences}
@@ -202,40 +199,46 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
 
     # ── Merge new skills ──────────────────────────────────────────────────────
     if tailored.skills_to_add:
-        skills = {k: list(v) for k, v in output.get("skills", {}).items()}
+        skills = {group["key"]: group for group in skill_groups}
+        appended_groups = []
         for category, new_skills in tailored.skills_to_add.items():
             if category in skills:
-                existing_lower = {s.lower() for s in skills[category]}
+                group = skills[category]
+                existing_lower = {s.lower() for s in group["items"]}
                 added_count = 0
                 for skill in new_skills:
                     if added_count >= 3:
                         break
                     if skill.lower() not in existing_lower:
-                        skills[category].append(skill)
+                        group["items"].append(skill)
                         existing_lower.add(skill.lower())
                         added_count += 1
-        output["skills"] = skills
+            else:
+                appended_groups.append({
+                    "key": category,
+                    "label": "Additional Skills" if category == "additional_skills" else category,
+                    "items": list(new_skills[:3]),
+                })
 
     # ── Filter skills within categories ───────────────────────────────────────
     if tailored.skills_to_filter:
-        skills = {k: list(v) for k, v in output.get("skills", {}).items()}
+        skills = {group["key"]: group for group in skill_groups}
         for category, keep_skills in tailored.skills_to_filter.items():
             if category in skills and keep_skills:
                 keep_lower = {s.lower() for s in keep_skills}
-                filtered = [s for s in skills[category] if s.lower() in keep_lower]
+                filtered = [s for s in skills[category]["items"] if s.lower() in keep_lower]
                 if len(filtered) >= 3:
-                    skills[category] = filtered
-        output["skills"] = skills
+                    skills[category]["items"] = filtered
 
     # ── Filter skills_order to relevant categories ────────────────────────────
     if tailored.skills_to_show:
-        current_order = output.get("ats_config", {}).get("skills_order", [])
-        filtered_order = [cat for cat in current_order if cat in tailored.skills_to_show]
-        if filtered_order:
-            output["ats_config"] = {
-                **output.get("ats_config", {}),
-                "skills_order": filtered_order,
-            }
+        visible = set(tailored.skills_to_show)
+        skill_groups = [group for group in skill_groups if group["key"] in visible]
+
+    # New categories are appended after relevance filtering so an injected
+    # fallback cannot be immediately hidden by skills_to_show.
+    skill_groups.extend(appended_groups if tailored.skills_to_add else [])
+    output["skills"] = skill_groups
 
     output["skills_to_highlight"] = tailored.skills_to_highlight
     return output

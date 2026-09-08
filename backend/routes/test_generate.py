@@ -95,10 +95,27 @@ def test_build_tailored_resume_merges_content_without_dropping_metadata():
     ]
     assert result["projects"][0]["links"] == {"github": "https://example.test/repo"}
     assert result["projects"][0]["bullets"][0]["text"] == "Shipped a React project."
-    assert result["skills"]["Languages"] == ["Python", "SQL", "Go"]
-    assert result["skills"]["Backend"] == ["Django", "FastAPI", "Python"]
-    assert result["ats_config"]["skills_order"] == ["Languages", "Backend"]
+    assert result["skills"] == [
+        {"key": "Languages", "label": "Languages", "items": ["Python", "SQL", "Go"]},
+        {"key": "Backend", "label": "Backend", "items": ["Django", "FastAPI", "Python"]},
+    ]
     assert result["contact"] == {"name": "Candidate"}
+
+
+def test_unmapped_skill_injection_reaches_rendered_additional_skills_heading():
+    from services.build_resume_pdf import _render_html
+    from services.claude_service import determine_skills_to_add
+
+    base = {"skills": [{"key": "languages", "label": "Languages", "items": ["Python"]}]}
+    tailored = _tailored_resume()
+    tailored.skills_to_add = determine_skills_to_add(base["skills"], ["ArbitrarySkill123"])
+    tailored.skills_to_show = ["languages"]
+
+    result = _build_tailored_resume_dict(base, tailored)
+    html = _render_html(result)
+
+    assert "Additional Skills:" in html
+    assert "ArbitrarySkill123" in html
 
 
 def test_summary_variant_changes_only_the_default_summary():
