@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "version": "1.1",
+    "last_updated": "2026-09-08",
+    "label": "Industrial Electrician Fixture"
+  },
+  "contact": {
+    "name": "Jordan Fixture",
+    "location": "Example City, EX",
+    "phone": "555-0102",
+    "email": "jordan.fixture@example.com",
+    "portfolio": "https://portfolio.example.com/jordan",
+    "github": "https://github.com/example-jordan",
+    "linkedin": "https://linkedin.com/in/example-jordan"
+  },
+  "summary": {
+    "default": "Industrial electrician focused on safe installation and maintenance work.",
+    "variants": {}
+  },
+  "skills": {
+    "technical_skills": ["Motor controls", "480V systems"],
+    "safety_compliance": ["OSHA-10", "Lockout/tagout"],
+    "equipment": ["Conduit benders", "Multimeters"]
+  },
+  "experience": [
+    {
+      "id": "fictional-trades-role",
+      "company": "Made-Up Grid Works",
+      "location": "Example City, EX",
+      "title": "Industrial Electrician",
+      "start_date": "2021-03",
+      "end_date": "present",
+      "bullets": [
+        {
+          "id": "fictional-trades-maintenance",
+          "text": "Maintained simulated electrical equipment using documented safety procedures.",
+          "keywords": ["OSHA-10", "Motor controls"],
+          "strength": "high"
+        }
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Fictional Learning Institute",
+      "degree": "Certificate",
+      "field": "Industrial Electrical Systems",
+      "graduation_date": "2021-02"
+    }
+  ],
+  "certifications": [
+    {
+      "id": "fictional-osha-10",
+      "name": "OSHA-10",
+      "issuer": "Example Safety Council",
+      "type": "Safety Certificate",
+      "date": "2025-04",
+      "keywords": ["OSHA-10"]
+    }
+  ],
+  "ats_config": {
+    "keyword_injection_targets": ["summary", "skills", "bullets"],
+    "max_bullets_per_project": 3,
+    "max_bullets_per_role": 3,
+    "preferred_bullet_strength": "high",
+    "skills_order": ["technical_skills", "safety_compliance", "equipment"]
+  }
+}

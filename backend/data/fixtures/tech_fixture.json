@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "version": "1.1",
+    "last_updated": "2026-09-08",
+    "label": "Technology Fixture",
+    "target_roles": ["Platform Engineer"]
+  },
+  "contact": {
+    "name": "Alex Example",
+    "location": "Example City, EX",
+    "phone": "555-0100",
+    "email": "alex.example@example.com",
+    "portfolio": "https://portfolio.example.com/alex",
+    "github": "https://github.com/example-alex",
+    "linkedin": "https://linkedin.com/in/example-alex"
+  },
+  "summary": {
+    "default": "Platform engineer focused on reliable application services.",
+    "variants": {}
+  },
+  "skills": {
+    "languages": ["Python", "TypeScript"],
+    "ai_ml": ["RAG (Retrieval-Augmented Generation)"],
+    "backend": ["FastAPI", "REST APIs"],
+    "frontend": ["React"],
+    "tools": ["Docker", "Git"]
+  },
+  "projects": [
+    {
+      "id": "sample-platform",
+      "name": "Sample Platform",
+      "tech_stack": ["Python", "FastAPI"],
+      "links": {
+        "github": "https://github.com/example/sample-platform",
+        "preview": "https://sample-platform.example.com"
+      },
+      "bullets": [
+        {
+          "id": "sample-platform-api",
+          "text": "Built a sample API for fictional workflow data.",
+          "keywords": ["FastAPI"],
+          "strength": "high"
+        }
+      ]
+    }
+  ],
+  "experience": [
+    {
+      "id": "fictional-platform-role",
+      "company": "Fictional Horizon Labs",
+      "location": "Example City, EX",
+      "title": "Platform Engineer",
+      "start_date": "2023-01",
+      "end_date": "present",
+      "bullets": [
+        {
+          "id": "fictional-platform-service",
+          "text": "Developed reliable internal services for simulated workflows.",
+          "keywords": ["Python", "FastAPI"],
+          "strength": "high"
+        }
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Fictional Learning Institute",
+      "degree": "BS",
+      "field": "Computer Studies",
+      "graduation_date": "2022-05"
+    }
+  ],
+  "certifications": [],
+  "ats_config": {
+    "keyword_injection_targets": ["summary", "skills", "bullets"],
+    "max_bullets_per_project": 3,
+    "max_bullets_per_role": 3,
+    "preferred_bullet_strength": "high",
+    "skills_order": ["languages", "ai_ml", "backend", "frontend", "tools"]
+  }
+}

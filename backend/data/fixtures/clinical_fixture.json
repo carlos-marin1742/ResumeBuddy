@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "version": "1.1",
+    "last_updated": "2026-09-08",
+    "label": "Clinical Fixture",
+    "target_roles": ["Clinical Laboratory Technician"]
+  },
+  "contact": {
+    "name": "Casey Sample",
+    "location": "Example City, EX",
+    "phone": "555-0101",
+    "email": "casey.sample@example.com",
+    "portfolio": "https://portfolio.example.com/casey",
+    "github": "https://github.com/example-casey",
+    "linkedin": "https://linkedin.com/in/example-casey"
+  },
+  "summary": {
+    "default": "Clinical support professional experienced in safe, accurate patient care.",
+    "variants": {}
+  },
+  "skills": {
+    "clinical_skills": ["Venipuncture", "Specimen handling (serum, plasma)"],
+    "patient_care": ["Vital signs", "Patient intake/discharge"],
+    "systems": ["Fictional EHR"],
+    "certifications_licenses": ["CPR/AED"]
+  },
+  "experience": [
+    {
+      "id": "fictional-clinical-role",
+      "company": "ExampleCare Simulation Clinic",
+      "location": "Example City, EX",
+      "title": "Clinical Support Technician",
+      "start_date": "2022-06",
+      "end_date": "present",
+      "bullets": [
+        {
+          "id": "fictional-clinical-patient-care",
+          "text": "Supported simulated patient intake and specimen workflows.",
+          "keywords": ["Venipuncture", "Patient care"],
+          "strength": "high"
+        }
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Fictional Learning Institute",
+      "degree": "Certificate",
+      "field": "Clinical Support",
+      "graduation_date": "2022-05"
+    }
+  ],
+  "certifications": [
+    {
+      "id": "fictional-cpr",
+      "name": "CPR/AED",
+      "issuer": "Example Training Council",
+      "type": "Professional Certificate",
+      "date": "2026-01",
+      "keywords": ["CPR", "AED"]
+    }
+  ],
+  "ats_config": {
+    "keyword_injection_targets": ["summary", "skills", "bullets"],
+    "max_bullets_per_project": 3,
+    "max_bullets_per_role": 3,
+    "preferred_bullet_strength": "high",
+    "skills_order": ["clinical_skills", "patient_care", "systems", "certifications_licenses"]
+  }
+}
