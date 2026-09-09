@@ -54,6 +54,26 @@ def _render_fixture_skills(name: str) -> tuple[str, list[str]]:
     return skills_start + skills_body.removesuffix("</div>"), visible_categories
 
 
+def _assert_skills_html_matches_golden(name: str, actual: str, golden_name: str) -> None:
+    golden_path = GOLDEN_DIR / golden_name
+    if os.environ.get(UPDATE_GOLDENS_ENV) == "1":
+        GOLDEN_DIR.mkdir(exist_ok=True)
+        golden_path.write_text(actual, encoding="utf-8")
+
+    # Goldens may use the conventional final newline while the renderer returns
+    # the section as a fragment without one; it is not rendered HTML content.
+    expected = golden_path.read_text(encoding="utf-8").rstrip("\r\n")
+    diff = "".join(
+        difflib.unified_diff(
+            expected.splitlines(keepends=True),
+            actual.splitlines(keepends=True),
+            fromfile=str(golden_path),
+            tofile=f"rendered/{golden_name}",
+        )
+    )
+    assert actual == expected, f"Skills HTML golden mismatch:\n{diff}"
+
+
 @pytest.mark.parametrize("name", EXPECTED_VISIBLE_CATEGORIES)
 def test_fixture_skills_html_matches_current_golden(name):
     actual, visible_categories = _render_fixture_skills(name)
@@ -67,18 +87,4 @@ def test_fixture_skills_html_matches_current_golden(name):
         assert not set(fixture_categories).intersection(STANDARD_TECH_CATEGORIES)
         assert set(visible_categories) == set(fixture_categories)
 
-    golden_path = GOLDEN_DIR / f"{name}_skills.html"
-    if os.environ.get(UPDATE_GOLDENS_ENV) == "1":
-        GOLDEN_DIR.mkdir(exist_ok=True)
-        golden_path.write_text(actual, encoding="utf-8")
-
-    expected = golden_path.read_text(encoding="utf-8")
-    diff = "".join(
-        difflib.unified_diff(
-            expected.splitlines(keepends=True),
-            actual.splitlines(keepends=True),
-            fromfile=str(golden_path),
-            tofile=f"rendered/{name}_skills.html",
-        )
-    )
-    assert actual == expected, f"Skills HTML golden mismatch:\n{diff}"
+    _assert_skills_html_matches_golden(name, actual, f"{name}_skills.html")
