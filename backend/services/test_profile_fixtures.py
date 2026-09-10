@@ -80,17 +80,36 @@ def test_fixture_occupation_uses_the_existing_profile_data_fallback_chain(name, 
 
 
 @pytest.mark.parametrize(
-    ("name", "expected_categories"),
+    ("name", "job_description", "selected_keywords", "expected_categories"),
     [
-        ("tech_fixture", ["languages", "backend"]),
-        ("clinical_fixture", ["clinical_skills", "patient_care"]),
-        ("trades_fixture", ["technical_skills", "safety_compliance"]),
+        (
+            "tech_fixture",
+            "A backend role using FastAPI.",
+            ["Python", "FastAPI"],
+            ["languages", "backend"],
+        ),
+        (
+            "clinical_fixture",
+            "Clinical Laboratory Technician needed to perform venipuncture, "
+            "record vital signs, and document patient encounters in Fictional EHR.",
+            [],
+            ["clinical_skills", "patient_care", "systems"],
+        ),
+        (
+            "trades_fixture",
+            "Industrial electrician needed to install and troubleshoot motor "
+            "controls while following Lockout/tagout procedures and using Multimeters.",
+            [],
+            ["technical_skills", "safety_compliance", "equipment"],
+        ),
     ],
 )
-def test_fixture_documents_current_per_role_category_filter_behavior(name, expected_categories):
+def test_fixture_documents_current_per_role_category_filter_behavior(
+    name, job_description, selected_keywords, expected_categories
+):
     skills = _load_fixture(name)["skills"]
     result = determine_skills_to_show(
-        "A backend role using FastAPI.", ["Python", "FastAPI"], skills
+        job_description, selected_keywords, skills
     )
 
     assert result == expected_categories
