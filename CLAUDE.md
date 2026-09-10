@@ -79,7 +79,7 @@ playwright install chromium
 cd backend && fastapi dev main.py
 cd client && npm install && npm run dev
 cd client && npm test && npm run lint && npm run build
-cd backend && python -m pytest -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
+cd backend && python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 docker compose up --build
 ```
 
@@ -87,7 +87,7 @@ Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testi
 
 To run a single test: `cd backend && pytest routes/test_master_resumes.py::test_create_and_fetch_master_resume -v` (must run from `backend/` — imports like `from models import ...` assume it's on `sys.path`) or `cd client && npx vitest run src/components/ResumeBuilder.test.jsx -t "adds and saves labeled skill categories"`.
 
-Pytest files are named `test_*.py` beside services, under `backend/routes/`, or at the backend package root (e.g. `backend/test_main.py`, which covers the rate-limit and security-header middleware) — plain `pytest` from `backend/` collects all of them. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test.
+Pytest files are named `test_*.py` beside services, under `backend/routes/`, or at the backend package root (e.g. `backend/test_main.py`, which covers the rate-limit and security-header middleware) — plain `pytest` from `backend/` collects all of them. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test. The full backend suite currently has one known regression: `_apply_summary_variant` finds a requested `summary.variants` entry but returns the original resume, so `test_summary_variant_changes_only_the_default_summary` fails. Use the documented `--deselect` command for the green baseline; when fixing it, return the copied resume after changing only `summary.default` and remove the deselection.
 
 Profile-fixture skills HTML goldens live in `backend/services/golden/`; regenerate them deliberately (never during a normal test run) with `cd backend && $env:UPDATE_SKILLS_HTML_GOLDENS=1; python -m pytest services/test_profile_skills_golden.py`.
 

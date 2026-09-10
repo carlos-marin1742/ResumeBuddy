@@ -73,13 +73,13 @@ playwright install chromium
 cd backend; fastapi dev main.py
 cd client; npm install; npm run dev
 cd client; npm test; npm run lint; npm run build
-cd backend; pytest routes -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
+cd backend; python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 docker compose up --build
 ```
 
 Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
 
-Pytest files are named `test_*.py` beside services or under `backend/routes/`. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test.
+Pytest files are named `test_*.py` beside services or under `backend/routes/`. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test. The full backend suite currently has one known regression: `_apply_summary_variant` finds a requested `summary.variants` entry but returns the original resume, so `test_summary_variant_changes_only_the_default_summary` fails. Use the documented `--deselect` command for the green baseline; when fixing it, return the copied resume after changing only `summary.default` and remove the deselection.
 
 Frontend tests mock `fetch`, clipboard, and browser download boundaries. `CoverLetterStep.test.jsx` contains one `it.fails` regression: clearing the letter unmounts its textarea. Do not remove the marker without fixing and verifying the component. No coverage threshold is enforced.
 
