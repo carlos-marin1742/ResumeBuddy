@@ -18,9 +18,9 @@
     "variants": {}
   },
   "skills": [
-    {"key": "technical_skills", "label": "technical_skills", "items": ["Motor controls", "480V systems"]},
-    {"key": "safety_compliance", "label": "safety_compliance", "items": ["OSHA-10", "Lockout/tagout"]},
-    {"key": "equipment", "label": "equipment", "items": ["Conduit benders", "Multimeters"]}
+    {"key": "technical_skills", "label": "Technical Skills", "items": ["Motor controls", "480V systems"]},
+    {"key": "safety_compliance", "label": "Safety & Compliance", "items": ["OSHA-10", "Lockout/tagout"]},
+    {"key": "equipment", "label": "Equipment", "items": ["Conduit benders", "Multimeters"]}
   ],
   "experience": [
     {
