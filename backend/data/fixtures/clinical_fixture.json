@@ -19,10 +19,10 @@
     "variants": {}
   },
   "skills": [
-    {"key": "clinical_skills", "label": "clinical_skills", "items": ["Venipuncture", "Specimen handling (serum, plasma)"]},
-    {"key": "patient_care", "label": "patient_care", "items": ["Vital signs", "Patient intake/discharge"]},
-    {"key": "systems", "label": "systems", "items": ["Fictional EHR"]},
-    {"key": "certifications_licenses", "label": "certifications_licenses", "items": ["CPR/AED"]}
+    {"key": "clinical_skills", "label": "Clinical Skills", "items": ["Venipuncture", "Specimen handling (serum, plasma)"]},
+    {"key": "patient_care", "label": "Patient Care", "items": ["Vital signs", "Patient intake/discharge"]},
+    {"key": "systems", "label": "Systems", "items": ["Fictional EHR"]},
+    {"key": "certifications_licenses", "label": "Certifications & Licenses", "items": ["CPR/AED"]}
   ],
   "experience": [
     {
