@@ -198,10 +198,10 @@ Install backend test tooling separately because `pytest` is not in the runtime r
 ```bash
 pip install pytest
 cd backend
-python -m pytest -v --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
+python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 ```
 
-The credential-dependent `backend/smoke_extract_keywords.py` script is a manual smoke check and is not collected by pytest. A regression test documents that summary variants are currently ignored.
+The credential-dependent `backend/smoke_extract_keywords.py` script is a manual smoke check and is not collected by pytest. The deselected summary-variant regression is intentional documentation of a current defect: `_apply_summary_variant` identifies the requested `summary.variants` entry, but returns the original resume instead of the copied resume with only `summary.default` replaced. Remove the deselection when that behavior is fixed and the regression passes.
 
 Frontend validation:
 
