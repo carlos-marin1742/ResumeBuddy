@@ -67,6 +67,12 @@ These are candidate improvements, not committed scope. Prioritize them against u
 - Define a versioned database migration strategy for schema changes beyond the current additive startup migrations.
 # Profile skills data migration
 
+- `CATEGORY_KEYWORDS` remains a tech-only supplemental relevance signal, so
+  tech profiles have a signal that other occupations may not. This is a known
+  asymmetry, not a bug to fix by hand-authoring clinical or trades vocabulary:
+  direct matching against a profile category's own items is the
+  occupation-neutral signal.
+
 Real profiles under `backend/data/` remain on the legacy keyed-dictionary
 shape with `ats_config.skills_order`. They continue to load through the
 read-time compatibility shim in `backend/services/profile_skills.py`; migrate
