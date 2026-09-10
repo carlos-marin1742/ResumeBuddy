@@ -25,11 +25,21 @@ GENERATION_CASES = [
     # A mapped-existing case is unrepresentable here: SKILL_TO_CATEGORY has no
     # target for clinical_skills, patient_care, systems, or certifications_licenses.
     # Injection retargeting onto user-defined categories will change this behavior.
-    ("clinical_fixture", ["Venipuncture", "Python", "Specimen Workflow"], [], {}),
+    (
+        "clinical_fixture",
+        ["Venipuncture", "Python", "Specimen Workflow"],
+        ["clinical_skills", "patient_care"],
+        {"clinical_skills": ["Venipuncture", "Specimen handling (serum, plasma)"]},
+    ),
     # A mapped-existing case is unrepresentable here: SKILL_TO_CATEGORY has no
     # target for technical_skills, safety_compliance, or equipment. Injection
     # retargeting onto user-defined categories will change this behavior.
-    ("trades_fixture", ["OSHA-10", "Python", "Arc Flash Analysis"], [], {}),
+    (
+        "trades_fixture",
+        ["OSHA-10", "Python", "Arc Flash Analysis"],
+        ["technical_skills", "safety_compliance"],
+        {"technical_skills": ["Motor controls", "480V systems"]},
+    ),
 ]
 
 
