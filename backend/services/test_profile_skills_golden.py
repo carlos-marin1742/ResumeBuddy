@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from build_resume_pdf import _render_html
-from claude_service import STANDARD_TECH_CATEGORIES, determine_skills_to_show
+from claude_service import determine_skills_to_show
 
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "data" / "fixtures"
@@ -20,13 +20,8 @@ FILTER_INPUT = {
 }
 EXPECTED_VISIBLE_CATEGORIES = {
     "tech_fixture": ["languages", "backend"],
-    "clinical_fixture": [
-        "clinical_skills",
-        "patient_care",
-        "systems",
-        "certifications_licenses",
-    ],
-    "trades_fixture": ["technical_skills", "safety_compliance", "equipment"],
+    "clinical_fixture": ["clinical_skills", "patient_care"],
+    "trades_fixture": ["technical_skills", "safety_compliance"],
 }
 
 
@@ -79,12 +74,7 @@ def test_fixture_skills_html_matches_current_golden(name):
     actual, visible_categories = _render_fixture_skills(name)
     fixture_categories = [group["key"] for group in _load_fixture(name)["skills"]]
 
-    if name == "tech_fixture":
-        assert set(fixture_categories).intersection(STANDARD_TECH_CATEGORIES)
-        assert visible_categories == EXPECTED_VISIBLE_CATEGORIES[name]
-        assert set(visible_categories) < set(fixture_categories)
-    else:
-        assert not set(fixture_categories).intersection(STANDARD_TECH_CATEGORIES)
-        assert set(visible_categories) == set(fixture_categories)
+    assert visible_categories == EXPECTED_VISIBLE_CATEGORIES[name]
+    assert set(visible_categories) <= set(fixture_categories)
 
     _assert_skills_html_matches_golden(name, actual, f"{name}_skills.html")

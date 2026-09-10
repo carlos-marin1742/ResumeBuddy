@@ -2,6 +2,24 @@
 
 This document records important choices and their rationale. It describes decisions already made, not future commitments.
 
+## Apply skill relevance gating to every profile
+
+`determine_skills_to_show` now gates categories for every profile rather than
+returning every category for profiles outside the standard tech keys. Its
+primary signal compares each category's own complete skill items with the job
+description on case-insensitive word boundaries, so a profile can establish
+relevance without an occupational taxonomy. Exact selected-keyword item matches
+remain another profile-local signal, while the existing taxonomy and category
+keyword signals remain supplemental.
+
+If fewer than two categories match, the renderer receives the profile's first
+two categories (or its only category). This ordinal floor prevents a resume
+from rendering with no skills while preserving the profile's author-defined
+order.
+
+The former tech-only early return was removed because it made relevance gating
+inert for every non-tech user, including clinical and trades profiles.
+
 ## Only inject skills into categories a profile already has
 
 Injected skills can enter a mapped category only when that key already exists

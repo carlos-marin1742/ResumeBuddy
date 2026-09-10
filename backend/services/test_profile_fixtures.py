@@ -6,7 +6,6 @@ import pytest
 
 from routes.extract import load_resume
 from services.claude_service import (
-    STANDARD_TECH_CATEGORIES,
     _occupation_descriptor,
     determine_skills_to_show,
 )
@@ -84,8 +83,8 @@ def test_fixture_occupation_uses_the_existing_profile_data_fallback_chain(name, 
     ("name", "expected_categories"),
     [
         ("tech_fixture", ["languages", "backend"]),
-        ("clinical_fixture", EXPECTED_CATEGORIES["clinical_fixture"]),
-        ("trades_fixture", EXPECTED_CATEGORIES["trades_fixture"]),
+        ("clinical_fixture", ["clinical_skills", "patient_care"]),
+        ("trades_fixture", ["technical_skills", "safety_compliance"]),
     ],
 )
 def test_fixture_documents_current_per_role_category_filter_behavior(name, expected_categories):
@@ -94,9 +93,4 @@ def test_fixture_documents_current_per_role_category_filter_behavior(name, expec
         "A backend role using FastAPI.", ["Python", "FastAPI"], skills
     )
 
-    if name == "tech_fixture":
-        assert {group["key"] for group in skills}.intersection(STANDARD_TECH_CATEGORIES)
-        assert result == expected_categories
-    else:
-        assert not {group["key"] for group in skills}.intersection(STANDARD_TECH_CATEGORIES)
-        assert set(result) == set(expected_categories)
+    assert result == expected_categories

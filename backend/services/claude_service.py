@@ -560,44 +560,52 @@ def determine_skills_to_show(
     base_skills: dict | None = None,
 ) -> list[str]:
     """
-    Determines which skill categories should be shown on the resume.
+    Determine which profile skill categories are relevant to a job description.
 
-    For admin/clinical resumes (non-standard category keys), returns all
-    existing categories unchanged. For tech resumes, filters by JD relevance.
+    A category can match its own listed items without depending on a shared
+    occupational taxonomy. The first two profile categories provide a minimum
+    skills section when the relevance signals are sparse.
     """
-    # ── Non-tech resume detection ─────────────────────────────────────────
-    # If the resume uses categories outside the standard tech set (e.g.
-    # "Administrative Operations", "Software Data", "Communication Leadership"),
-    # return all of them as-is — the tech filter logic doesn't apply.
-    if base_skills:
-        resume_cats = {
-            group["key"] for group in normalize_profile_skills(base_skills)
-        }
-        if not resume_cats.intersection(STANDARD_TECH_CATEGORIES):
-            return list(resume_cats)
-
-    # ── Tech resume logic ─────────────────────────────────────────────────
+    skill_groups = normalize_profile_skills(base_skills or {})
     jd_lower = job_description.lower()
-    skills_to_show = ["languages"]
-    categories_to_check = ["ai_ml", "backend", "frontend", "databases_cloud", "tools"]
+    matching_categories = set()
 
-    for category in categories_to_check:
-        has_keyword_match = any(
+    for group in skill_groups:
+        category = group["key"]
+        items = [item for item in group["items"] if isinstance(item, str)]
+        has_direct_item_match = any(
+            re.search(rf"\b{re.escape(item.lower())}\b", jd_lower)
+            for item in items
+        )
+        has_selected_item_match = any(
+            keyword.lower() == item.lower()
+            for keyword in selected_keywords
+            if isinstance(keyword, str)
+            for item in items
+        )
+        has_taxonomy_match = any(
             SKILL_TO_CATEGORY.get(kw.lower()) == category
             for kw in selected_keywords
         )
-        if has_keyword_match:
-            skills_to_show.append(category)
-            continue
-
-        has_jd_match = any(
+        has_category_keyword_match = any(
             re.search(rf"\b{re.escape(term)}\b", jd_lower)
             for term in CATEGORY_KEYWORDS.get(category, [])
         )
-        if has_jd_match:
-            skills_to_show.append(category)
+        if (
+            has_direct_item_match
+            or has_selected_item_match
+            or has_taxonomy_match
+            or has_category_keyword_match
+        ):
+            matching_categories.add(category)
 
-    return skills_to_show
+    if len(matching_categories) < 2:
+        matching_categories.update(group["key"] for group in skill_groups[:2])
+
+    return [
+        group["key"] for group in skill_groups
+        if group["key"] in matching_categories
+    ]
 
 
 # ---------------------------------------------------------------------------

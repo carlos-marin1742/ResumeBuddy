@@ -124,35 +124,82 @@ def _mock_groq_response(response_dict: dict) -> MagicMock:
 # ---------------------------------------------------------------------------
 
 class TestDetermineSkillsToShow:
-    def test_languages_always_included(self):
-        result = determine_skills_to_show("We need a great communicator.", [])
-        assert "languages" in result
+    TECH_SKILLS = {
+        "languages": ["Python", "TypeScript"],
+        "ai_ml": ["PyTorch"],
+        "backend": ["FastAPI"],
+        "frontend": ["React"],
+        "tools": ["Docker"],
+    }
 
-    def test_ai_ml_included_when_keyword_maps_to_it(self):
-        result = determine_skills_to_show("Generic job description.", ["pytorch"])
-        assert "ai_ml" in result
+    def test_tech_profile_shows_directly_relevant_categories_only(self):
+        result = determine_skills_to_show(
+            "Build APIs with Python and FastAPI.", [], self.TECH_SKILLS
+        )
+        assert result == ["languages", "backend"]
 
-    def test_ai_ml_included_when_jd_mentions_it(self):
-        result = determine_skills_to_show("Must have machine learning experience.", [])
-        assert "ai_ml" in result
+    def test_clinical_profile_matches_its_own_item_without_taxonomy(self):
+        skills = {
+            "patient_care": ["Vital signs"],
+            "systems": ["Fictional EHR"],
+            "clinical_skills": ["Venipuncture"],
+        }
+        assert determine_skills_to_show(
+            "Perform venipuncture accurately.", [], skills
+        ) == ["patient_care", "systems", "clinical_skills"]
 
-    def test_category_excluded_when_no_match(self):
-        result = determine_skills_to_show("We need a project manager.", [])
+    def test_trades_profile_matches_its_own_safety_item(self):
+        skills = {
+            "technical_skills": ["Motor controls"],
+            "equipment": ["Multimeters"],
+            "safety_compliance": ["OSHA-10"],
+        }
+        assert determine_skills_to_show(
+            "OSHA-10 certification required.", [], skills
+        ) == ["technical_skills", "equipment", "safety_compliance"]
+
+    def test_unmatched_category_is_hidden_after_two_categories_match(self):
+        result = determine_skills_to_show(
+            "Python and FastAPI experience required.", [], self.TECH_SKILLS
+        )
         assert "ai_ml" not in result
+        assert "frontend" not in result
+        assert "tools" not in result
 
-    def test_multiple_categories_from_keywords(self):
-        result = determine_skills_to_show("Build great products.", ["react", "fastapi", "postgresql"])
-        assert "frontend" in result
-        assert "backend" in result
-        assert "databases_cloud" in result
+    def test_floor_shows_first_two_categories_in_profile_order(self):
+        skills = {"third": ["Gamma"], "first": ["Alpha"], "second": ["Beta"]}
+        assert determine_skills_to_show("No listed skills here.", [], skills) == [
+            "third", "first"
+        ]
 
-    def test_keyword_match_takes_priority_over_jd_scan(self):
-        # Even with an empty JD, a keyword match should include the category
-        result = determine_skills_to_show("", ["docker"])
-        assert "databases_cloud" in result
+    def test_floor_shows_the_only_category(self):
+        assert determine_skills_to_show("No listed skills here.", [], {"only": ["Alpha"]}) == [
+            "only"
+        ]
+
+    def test_returned_categories_follow_profile_order_not_match_order(self):
+        skills = {"first": ["Alpha"], "second": ["Beta"], "third": ["Gamma"]}
+        assert determine_skills_to_show("Gamma and Alpha are required.", [], skills) == [
+            "first", "third"
+        ]
+
+    def test_item_match_uses_word_boundaries(self):
+        skills = {"first": ["First"], "second": ["Second"], "languages": ["R"]}
+        assert determine_skills_to_show("React experience required.", [], skills) == [
+            "first", "second"
+        ]
+
+    def test_selected_keyword_item_match_requires_exact_equality(self):
+        skills = {"first": ["Other"], "second": ["Another"], "languages": ["Python"]}
+        assert determine_skills_to_show("No listed skills here.", ["Python"], skills) == [
+            "first", "second", "languages"
+        ]
+        assert determine_skills_to_show("No listed skills here.", ["Pyth"], skills) == [
+            "first", "second"
+        ]
 
     def test_returns_list_of_strings(self):
-        result = determine_skills_to_show(SAMPLE_JD, ["Python", "PyTorch"])
+        result = determine_skills_to_show(SAMPLE_JD, ["Python", "PyTorch"], self.TECH_SKILLS)
         assert isinstance(result, list)
         assert all(isinstance(s, str) for s in result)
 
