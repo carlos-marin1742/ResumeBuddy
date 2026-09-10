@@ -145,12 +145,29 @@ def test_missing_skill_items_key_adapts_without_raising():
     assert _skills_by_key(profile)["systems"] == []
 
 
-def test_skill_group_key_is_used_verbatim_when_it_differs_from_category_slug():
+def test_already_slugged_skill_group_key_is_unchanged():
     profile = master_resume_to_profile({
         "skills": [{"key": "clinical_platforms", "category": "Clinical Tools", "items": ["CTMS"]}],
     })
 
     assert profile["skills"] == [{"key": "clinical_platforms", "label": "Clinical Tools", "items": ["CTMS"]}]
+
+
+@pytest.mark.parametrize(
+    ("key", "expected_key"),
+    [
+        ("Languages", "languages"),
+        ("Clinical Skills", "clinical_skills"),
+    ],
+)
+def test_display_style_skill_group_key_is_slugged(key, expected_key):
+    profile = master_resume_to_profile({
+        "skills": [{"key": key, "category": key, "items": ["Example"]}],
+    })
+
+    assert profile["skills"] == [
+        {"key": expected_key, "label": key, "items": ["Example"]}
+    ]
 
 
 def test_reordering_skill_groups_keeps_their_profile_keys():

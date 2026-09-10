@@ -199,81 +199,73 @@ class TestValidateKeywordsInText:
 # ---------------------------------------------------------------------------
 
 class TestDetermineSkillsToAdd:
-    def test_supports_list_based_resume_skills(self):
+    def test_tech_profile_adds_mapped_keyword_to_existing_category(self):
         base_skills = [
-            {"category": "Languages", "items": ["Python"]},
-            {"category": "Frameworks", "items": ["React"]},
+            {"key": "languages", "items": ["Python"]},
+            {"key": "backend", "items": ["Django"]},
         ]
         result = determine_skills_to_add(base_skills, ["Python", "FastAPI"])
-        assert result == {"Frameworks": ["FastAPI"]}
+        assert result == {"backend": ["FastAPI"]}
 
-    def test_adds_new_mapped_skills(self):
-        base_skills = {"languages": ["Python"]}
-        selected_keywords = ["Tailwind", "Python"]  # Tailwind is not in base, Python is
-        result = determine_skills_to_add(base_skills, selected_keywords)
-        # Tailwind is frontend, Python should not be added since it is already in base
-        assert "frontend" in result
-        assert result["frontend"] == ["Tailwind"]
-        assert "languages" not in result
-
-    def test_case_insensitive_duplicate_check(self):
+    def test_tech_profile_skips_already_present_keyword(self):
         base_skills = {"languages": ["Python"]}
         selected_keywords = ["python", "PYTHON"]
         result = determine_skills_to_add(base_skills, selected_keywords)
         assert result == {}
 
-    def test_adds_unmapped_skills_to_fallback_category(self):
-        base_skills = {}
-        selected_keywords = ["ArbitrarySkill123"]
+    def test_tech_profile_adds_unmapped_keyword_to_fallback_category(self):
+        base_skills = {"languages": ["Python"]}
+        selected_keywords = ["Event Sourcing"]
         result = determine_skills_to_add(base_skills, selected_keywords)
-        assert result == {"additional_skills": ["ArbitrarySkill123"]}
+        assert result == {"additional_skills": ["Event Sourcing"]}
+
+    def test_clinical_profile_sends_missing_mapped_category_to_fallback(self):
+        base_skills = {"clinical_skills": ["Venipuncture"]}
+
+        result = determine_skills_to_add(base_skills, ["Python"])
+
+        assert result == {"additional_skills": ["Python"]}
+        assert "languages" not in result
+
+    def test_trades_profile_sends_missing_mapped_category_to_fallback(self):
+        base_skills = {"technical_skills": ["Motor controls"]}
+
+        result = determine_skills_to_add(base_skills, ["Python"])
+
+        assert result == {"additional_skills": ["Python"]}
+        assert "languages" not in result
 
     def test_applies_preferred_casing(self):
-        base_skills = {}
-        # test that 'fastapi' becomes 'FastAPI', 'postgresql' becomes 'PostgreSQL'
+        base_skills = {"backend": [], "databases_cloud": []}
         result = determine_skills_to_add(base_skills, ["fastapi", "postgresql"])
         assert result["backend"] == ["FastAPI"]
         assert result["databases_cloud"] == ["PostgreSQL"]
 
-    def test_skips_already_present_mapped_and_unmapped_skills(self):
-        base_skills = {"clinical_skills": ["IV Insertion"], "languages": ["Python"]}
+    def test_mapped_category_matches_profile_key_case_insensitively(self):
+        result = determine_skills_to_add([{"key": "BACKEND", "items": []}], ["FastAPI"])
 
-        assert determine_skills_to_add(base_skills, ["python", "IV Insertion"]) == {}
+        assert result == {"BACKEND": ["FastAPI"]}
 
-    def test_mixed_mapped_unmapped_and_existing_keywords(self):
-        base_skills = {"languages": ["Python"]}
+    def test_mixed_input_covers_all_branches(self):
+        base_skills = [
+            {"key": "languages", "items": ["Python"]},
+            {"key": "BACKEND", "items": []},
+        ]
 
         result = determine_skills_to_add(
             base_skills,
-            ["FastAPI", "Venipuncture", "Python"],
+            ["Python", "FastAPI", "React", "Event Sourcing"],
         )
 
         assert result == {
-            "backend": ["FastAPI"],
-            "additional_skills": ["Venipuncture"],
+            "BACKEND": ["FastAPI"],
+            "additional_skills": ["React", "Event Sourcing"],
         }
-
-    def test_no_unmapped_keywords_does_not_create_fallback_category(self):
-        result = determine_skills_to_add({}, ["FastAPI"])
-
-        assert result == {"backend": ["FastAPI"]}
-        assert "additional_skills" not in result
 
     def test_fallback_preserves_selected_keyword_casing(self):
         assert determine_skills_to_add({}, ["IV Insertion"]) == {
             "additional_skills": ["IV Insertion"],
         }
-
-    def test_user_named_builder_categories_receive_fallback_skills(self):
-        base_skills = {
-            "clinical_skills": ["Venipuncture"],
-            "patient_care": ["Specimen Handling"],
-        }
-
-        assert determine_skills_to_add(base_skills, ["IV Insertion"]) == {
-            "additional_skills": ["IV Insertion"],
-        }
-
 
 # ---------------------------------------------------------------------------
 # _extract_json
@@ -546,9 +538,7 @@ Always respond with ONLY valid JSON — no preamble, no markdown fences, no expl
     def test_skills_to_add_populated_from_keywords(self, mock_get_client):
         mock_get_client.return_value.messages.create.return_value = _mock_message(TAILORING_RESPONSE)
         result = svc.tailor_resume(SAMPLE_RESUME, SAMPLE_JD, ["fastapi", "tailwind"])
-        assert "backend" in result.skills_to_add
-        assert "FastAPI" in result.skills_to_add["backend"]
-        assert "Tailwind" in result.skills_to_add["frontend"]
+        assert result.skills_to_add == {"additional_skills": ["FastAPI", "Tailwind"]}
 
 
 # ---------------------------------------------------------------------------

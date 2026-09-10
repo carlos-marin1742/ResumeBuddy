@@ -65,7 +65,7 @@ def master_resume_to_profile(resume: dict) -> dict:
     for index, group in enumerate(skill_groups):
         if not isinstance(group, dict):
             continue
-        category = str(group.get("key", "")).strip()
+        category = _skill_category_slug(group.get("key", ""))
         if not category:
             category = _skill_category_slug(group.get("category", ""))
         if not category:

@@ -28,6 +28,18 @@ def test_normalize_profile_skills_respects_legacy_skills_order():
     ]
 
 
+def test_normalize_profile_skills_slugs_display_style_legacy_dict_keys():
+    groups = normalize_profile_skills({"Clinical Skills": ["Venipuncture"]})
+
+    assert groups == [
+        {
+            "key": "clinical_skills",
+            "label": "Clinical Skills",
+            "items": ["Venipuncture"],
+        }
+    ]
+
+
 def test_array_group_without_label_falls_back_to_its_key_in_renderer():
     from services.build_resume_pdf import _render_html
 

@@ -1,5 +1,8 @@
 """Normalize legacy and ordered resume skill shapes for backend consumers."""
 
+import re
+
+
 LEGACY_SKILL_LABELS = {
     "languages": "Languages",
     "ai_ml": "AI / ML",
@@ -21,14 +24,16 @@ def normalize_profile_skills(
     compatibility boundary between those shapes.
     """
     if isinstance(skills, dict):
-        keys = list(skills_order) if skills_order is not None else list(skills)
+        raw_keys = list(skills_order) if skills_order is not None else list(skills)
         return [
             {
-                "key": key,
-                "label": LEGACY_SKILL_LABELS.get(key, key),
+                "key": re.sub(r"[^a-z0-9]+", "_", key.lower()).strip("_"),
+                "label": LEGACY_SKILL_LABELS.get(
+                    re.sub(r"[^a-z0-9]+", "_", key.lower()).strip("_"), key
+                ),
                 "items": list(skills.get(key) or []),
             }
-            for key in keys
+            for key in raw_keys
             if key in skills
         ]
 
