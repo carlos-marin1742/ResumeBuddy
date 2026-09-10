@@ -2,6 +2,21 @@
 
 This document records important choices and their rationale. It describes decisions already made, not future commitments.
 
+## Only inject skills into categories a profile already has
+
+Injected skills can enter a mapped category only when that key already exists
+on the profile. When `SKILL_TO_CATEGORY` maps a keyword to a category the
+profile lacks, the keyword goes to `additional_skills` instead of creating the
+missing category.
+
+Why:
+
+- `SKILL_TO_CATEGORY` encodes tech category keys.
+- Creating those keys on a non-tech resume produces sections the user did not
+  create or request.
+
+Smarter per-profile category classification is deferred.
+
 ## Use Auth0 for public multi-user authentication
 
 ResumeBuddy will use Auth0 Universal Login for a future public multi-user application. The React SPA will use Authorization Code Flow with PKCE, send short-lived access tokens to FastAPI, and use the token's stable `sub` claim as the application-level owner identifier.

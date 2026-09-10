@@ -518,16 +518,6 @@ def determine_skills_to_add(
             if isinstance(skill, str):
                 existing_skills_lower.add(skill.lower())
 
-    # Map internal category names to the display categories used by the
-    # current list-based resume schema so new skills merge into existing rows.
-    category_aliases = {
-        "languages": "Languages",
-        "ai_ml": "AI/ML",
-        "backend": "Frameworks",
-        "frontend": "Frameworks",
-        "databases_cloud": "Data & Infra",
-        "tools": "Data & Infra",
-    }
     existing_category_names = {
         category.lower(): category for category in skills_by_category
     }
@@ -543,11 +533,11 @@ def determine_skills_to_add(
 
         if kw_lower in SKILL_TO_CATEGORY:
             category = SKILL_TO_CATEGORY[kw_lower]
-            display_category = category_aliases.get(category, category)
-            category = existing_category_names.get(
-                display_category.lower(), category
-            )
             presentation_name = PREFERRED_SKILL_CASING.get(kw_lower, kw_clean)
+
+            category = existing_category_names.get(category.lower())
+            if category is None:
+                category = "additional_skills"
 
             if category not in skills_to_add:
                 skills_to_add[category] = []
