@@ -242,6 +242,7 @@ class TestDetermineSkillsToAdd:
         assert result["databases_cloud"] == ["PostgreSQL"]
 
     def test_mapped_category_matches_profile_key_case_insensitively(self):
+        # BACKEND is the profile's stored key and must be returned verbatim.
         result = determine_skills_to_add([{"key": "BACKEND", "items": []}], ["FastAPI"])
 
         assert result == {"BACKEND": ["FastAPI"]}
