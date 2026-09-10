@@ -33,6 +33,11 @@ These are candidate improvements, not committed scope. Prioritize them against u
   their own categories. Per-profile classification is the next problem; do not
   invent tech categories in the meantime.
 
+- 2026-09-10 injection-coverage baseline: Platform Engineer 20.0% (3/15),
+  Clinical Laboratory Technician 0.0% (0/17), and Industrial Electrician 0.0%
+  (0/16) of non-skipped selected keywords reached a real profile category.
+  These figures are the baseline for future injection-coverage work.
+
 - `POST /api/resumes/parse` still emits each skill group's `items` as a comma-joined string (no `key`), not the builder's array shape. The frontend tolerates this on load (it normalizes both shapes), so this was left alone in the array/key pass; parsing should eventually emit split items directly.
 - The hand-authored JSON profiles in `backend/data/` still represent skills as a keyed object (`{category_key: [items]}`) rather than the builder's `[{key, category, items[]}]` array shape. Reconciling the two shapes (or writing a converter) is separate follow-on work.
 - Fixed: the `SkillCategoryInput.items` validator previously wrapped a raw comma string into a single array element instead of splitting it, so a saved skill like `"React, TypeScript, Vite"` persisted as one item and silently failed exact-match gap detection in `/api/extract-keywords` (see `decisions.md`, "The server owns skills splitting"). Checked `backend/data/resume_history.db`'s `master_resumes` table for existing records with a comma-joined single-element `items` array (the symptom of the old bug): the table currently has 0 rows, so no affected record exists in this deployment today. If one is ever created before this fix ships elsewhere, it will keep mis-matching until the record is re-saved through the fixed validator (e.g. via a no-op `PUT`); this pass does not add a backfill for that case.
