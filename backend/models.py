@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import Column, JSON, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
 
@@ -31,8 +32,14 @@ class TailoredResumeRecord(SQLModel, table=True):
     job_description: str
 
     # ── Structured payloads (JSON → TEXT in SQLite) ───────────────────
-    selected_keywords: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    tailored_resume: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    selected_keywords: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSONB().with_variant(JSON(), "sqlite")),
+    )
+    tailored_resume: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB().with_variant(JSON(), "sqlite")),
+    )
     cover_letter: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
     # ── ATS scoring (flattened for easy sort / filter) ────────────────
@@ -53,4 +60,7 @@ class MasterResumeRecord(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utcnow, index=True)
     name: str = Field(index=True)
     target_role: str = Field(default="", index=True)
-    resume_data: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    resume_data: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB().with_variant(JSON(), "sqlite")),
+    )

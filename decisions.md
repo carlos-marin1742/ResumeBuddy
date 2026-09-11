@@ -176,6 +176,15 @@ Why:
 - The Docker entrypoint applies migrations before serving traffic, so a failed migration prevents an app with an unknown schema from starting.
 - SQLModel metadata remains the source for reviewed Alembic autogeneration without application code mutating schema at runtime.
 
+## Store structured resume payloads as JSONB
+
+`resume_data`, `tailored_resume`, and `selected_keywords` use PostgreSQL JSONB rather than generic JSON.
+
+Why:
+
+- JSONB has PostgreSQL indexing and query support for future structured-resume features.
+- It stores a normalized binary representation while retaining the application’s existing Python dictionary and list interfaces.
+
 ## Use same-origin API requests in the client
 
 Browser requests use relative `/api` paths. Vite supplies the development proxy, while FastAPI serves the API and built frontend from the same origin in production.
