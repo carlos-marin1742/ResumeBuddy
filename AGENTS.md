@@ -73,7 +73,7 @@ playwright install chromium
 cd backend; fastapi dev main.py
 cd client; npm install; npm run dev
 cd client; npm test; npm run lint; npm run build
-cd backend; python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
+cd backend && python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 docker compose up --build
 ```
 
