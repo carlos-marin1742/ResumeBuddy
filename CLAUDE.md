@@ -29,9 +29,7 @@ ResumeBuddy/
 └── AGENTS.md
 ```
 
-`backend/main.py` registers the routers, initializes SQLite, configures CORS, and serves the built React app in production. Personal resume JSON, `backend/data/resume_history.db`, `backend/outputs/`, `client/node_modules/`, and build output are runtime artifacts and must not be committed.
-
-The SQLite ignore rule only affects untracked files. If `backend/data/resume_history.db` is already tracked, run `git rm --cached backend/data/resume_history.db` once and commit the index removal; the local database remains intact. Verify `git ls-files backend/data/resume_history.db` returns no output before using broad staging commands.
+`backend/main.py` registers routers, configures CORS, and serves the built React app in production. PostgreSQL schema changes are owned by Alembic; the Docker entrypoint runs `alembic upgrade head` before starting the app.
 
 ## Architecture and Important Modules
 
@@ -60,15 +58,15 @@ Backend responsibilities:
 
 ## Data, Authentication, and Security
 
-`TailoredResumeRecord` stores job-specific generation history. `MasterResumeRecord` stores reviewed resume-builder data for editing and preview. Both use `backend/data/resume_history.db`. `init_db()` creates tables and applies the additive cover-letter migration.
+`TailoredResumeRecord` stores job-specific generation history. `MasterResumeRecord` stores reviewed resume-builder data for editing and preview. Both use PostgreSQL, and Alembic owns their schema.
 
 There is currently **no authentication or authorization**; all API and history routes are open to any client that can reach the server. Do not imply per-user isolation. Preserve path validation, input limits, HTML escaping, and `Cache-Control: no-store` behavior.
 
 Because there is no auth, `main.py` rate-limits the AI-backed POST routes (`/api/extract-keywords`, `/api/generate-resume`, `/api/regenerate-section`, `/api/generate-cover-letter`) per client IP via an in-memory sliding window (`RATE_LIMIT_MAX_REQUESTS`, default 20; `RATE_LIMIT_WINDOW_SECONDS`, default 300; both env-overridable), returning 429 once exceeded. Add any new paid-API route to `_RATE_LIMITED_PATHS` in `main.py`. A second middleware adds `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` headers to every response; do not remove either middleware.
 
-Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, and optional comma-separated `ALLOWED_ORIGINS`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
+Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `DATABASE_URL`, and optional comma-separated `ALLOWED_ORIGINS`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
 
-Tailoring derives its occupation descriptor from optional `meta.occupation`, then `meta.target_roles`, then the resume title, with a neutral fallback; do not branch the persona on fixed role types.
+Tailoring derives its occupation descriptor from optional `meta.occupation`, then `meta.target_roles`, then the resume title, with a neutral fallback; do not branch the persona on fixed role types. The builder separately asks for an optional target job title, distinct from its `targetRole` filing label: the title identifies the saved resume and is not printed, while the target job title feeds `meta.occupation` and therefore the tailoring persona.
 
 ## Development and Validation
 
@@ -84,6 +82,8 @@ docker compose up --build
 ```
 
 Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
+
+PostgreSQL 16 runs as the Compose `postgres` service and persists to `postgres_data`. From `backend/`, run `alembic upgrade head` to apply migrations and `alembic revision --autogenerate -m "describe schema change"` to generate a reviewed revision. SQLite is gone.
 
 To run a single test: `cd backend && pytest routes/test_master_resumes.py::test_create_and_fetch_master_resume -v` (must run from `backend/` — imports like `from models import ...` assume it's on `sys.path`) or `cd client && npx vitest run src/components/ResumeBuilder.test.jsx -t "adds and saves labeled skill categories"`.
 
