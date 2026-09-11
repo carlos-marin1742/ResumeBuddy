@@ -2,7 +2,7 @@
 
 An AI-powered resume tailoring tool built for job seekers across tech, clinical, and administrative roles. Paste a job description, select the keywords that matter, and get a tailored single-page PDF resume generated in seconds.
 
-Built as a portfolio project demonstrating full-stack AI engineering: FastAPI backend, React frontend, Groq + Anthropic API integration, automated PDF generation via Playwright, SQLite persistence, and Docker containerization.
+Built as a portfolio project demonstrating full-stack AI engineering: FastAPI backend, React frontend, Groq + Anthropic API integration, automated PDF generation via Playwright, PostgreSQL persistence, and Docker containerization.
 
 ---
 
@@ -15,7 +15,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 4. **Generate** — Claude Haiku rewrites your bullets to naturally incorporate your selected keywords, injects missing skills into the correct categories, scores the result with a heuristic ATS engine, and produces a polished single-page PDF
 5. **Preview & adjust** — inline-edit your tailored resume, then fine-tune font size, page margins, entry spacing, and section spacing with live sliders before downloading your custom PDF
 6. **Generate a cover letter** — create an editable letter grounded in the tailored resume, then download it as a 12pt Times New Roman PDF
-7. **Resume History** — every generation is saved to SQLite with its job description, tailored resume, ATS result, and optional cover letter. Browse, search, preview, and download past artifacts
+7. **Resume History** — every generation is saved to PostgreSQL with its job description, tailored resume, ATS result, and optional cover letter. Browse, search, preview, and download past artifacts
 
 ---
 
@@ -33,7 +33,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 - **Inline resume editing** — edit summary bullets and experience bullets directly in the preview before generating your PDF
 - **PDF preview with live sliders** — adjust font size, margins, entry spacing, and section spacing in a live iframe before generating your final PDF
 - **Editable cover letters** — generate from the tailored resume, edit in place, copy to the clipboard, and download as PDF
-- **Resume history** — SQLite-backed history with company, role, job description, ATS score, cached resume PDF, and stored cover letter; searchable and filterable by profile
+- **Resume history** — PostgreSQL-backed history with company, role, job description, ATS score, cached resume PDF, and stored cover letter; searchable and filterable by profile
 - **Docker support** — fully containerized for consistent cross-platform behavior
 
 ---
@@ -50,7 +50,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 | Cover letter generation | LangChain + Anthropic API |
 | ATS scoring | Heuristic Python function (no API) |
 | PDF generation | Playwright (HTML/CSS → PDF) + pypdf |
-| Persistence | SQLite via SQLModel |
+| Persistence | PostgreSQL via SQLModel and Alembic |
 | Resume data | Structured JSON (multi-profile) |
 | Containerization | Docker, Docker Compose |
 
@@ -149,7 +149,7 @@ docker compose restart
 
 ### Option 2 — Local development
 
-**Prerequisites:** Python 3.11+, Node.js 18+, Anthropic API key, Groq API key
+**Prerequisites:** Python 3.11+, Node.js 18+, PostgreSQL 16+, Anthropic API key, Groq API key
 
 **Backend**
 
@@ -159,6 +159,9 @@ pip install -r requirements.txt
 playwright install chromium
 
 # Create ../.env and add ANTHROPIC_API_KEY and GROQ_API_KEY
+
+# Add DATABASE_URL to ../.env, then apply migrations
+alembic upgrade head
 
 # Start
 fastapi dev main.py
@@ -198,7 +201,7 @@ Install backend test tooling separately because `pytest` is not in the runtime r
 ```bash
 pip install pytest
 cd backend
-python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
+cd backend && python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 ```
 
 The credential-dependent `backend/smoke_extract_keywords.py` script is a manual smoke check and is not collected by pytest. The deselected summary-variant regression is intentional documentation of a current defect: `_apply_summary_variant` identifies the requested `summary.variants` entry, but returns the original resume instead of the copied resume with only `summary.default` replaced. Remove the deselection when that behavior is fixed and the regression passes.
@@ -224,6 +227,7 @@ Create `.env` in the project root:
 ANTHROPIC_API_KEY=sk-ant-...
 GROQ_API_KEY=gsk_...
 ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5175,http://localhost:3000
+DATABASE_URL=postgresql+psycopg://resumebuddy:resumebuddy@localhost:5432/resumebuddy
 ```
 
 Get a free Groq API key at [console.groq.com](https://console.groq.com).
@@ -243,6 +247,8 @@ Resume profiles live in `backend/data/` and are gitignored. Profiles are discove
 Don't have a JSON profile yet? Use the in-app resume builder to create one, or upload an existing PDF/DOCX (max 5 MB) to auto-fill a draft — the source file is parsed in memory and never saved. Scanned/image-only PDFs are not supported since text can't be extracted from them.
 
 Builder-created (and imported) master resumes represent skills separately from the JSON profile shape above: each skill group is `{key, category, items[]}`, where `items` is an array of individual skill strings. `key` is a slug generated once from the category name at save time and never regenerated, so a later rename of the category (e.g. `Frontend` → `Front-end Development`) does not change the key that keyword-classification caching will point at. The `POST`/`PUT /api/master-resumes` endpoints accept `items` as either an array (kept unchanged) or a string; a string is split into separate items server-side using the same newline/comma/bracket rule as the builder UI, and the array shape is always what gets persisted. `POST /api/resumes/parse` still emits `items` as a string for now (see `backlog.md`).
+
+The builder's optional target job title is separate from the resume title: the resume title is only a saved-list filing label, while the target job title feeds `meta.occupation` and the tailoring persona.
 
 See `base_resume_schema.md` for the full JSON schema. Key sections:
 

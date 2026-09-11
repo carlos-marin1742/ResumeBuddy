@@ -162,17 +162,19 @@ Why:
 - Separating typography from page fitting preserves a consistent design while allowing one-page PDF optimization.
 - A dedicated renderer avoids fragile conversions between master-resume fields and job-tailored fields.
 
-## Keep runtime SQLite outside version control
+## Keep PostgreSQL runtime data outside version control
 
-`backend/data/resume_history.db` is ignored and must remain untracked.
+PostgreSQL data lives in the Compose-managed `postgres_data` volume, not in the repository. The former SQLite history file is obsolete and is not migrated automatically.
+
+## Use Alembic migrations for PostgreSQL persistence
+
+PostgreSQL 16 replaces SQLite, and Alembic owns schema changes instead of application-startup inspection and hand-written `ALTER TABLE` statements.
 
 Why:
 
-- It contains personal resume and job-application data.
-- Its contents are machine-specific runtime state and create noisy binary diffs.
-- Tables and additive migrations are reproducible from the models and `init_db()`.
-
-Adding a path to `.gitignore` does not remove an already tracked copy. Older clones must run `git rm --cached backend/data/resume_history.db` once and commit that index removal. This removes the file from Git without deleting the local database.
+- Revisions are versioned, reviewable, and repeatable across developer and deployed databases.
+- The Docker entrypoint applies migrations before serving traffic, so a failed migration prevents an app with an unknown schema from starting.
+- SQLModel metadata remains the source for reviewed Alembic autogeneration without application code mutating schema at runtime.
 
 ## Use same-origin API requests in the client
 

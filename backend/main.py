@@ -15,8 +15,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
-from db import init_db
 
 from routes.extract import router as extract_router
 from routes.generate import router as generate_router
@@ -31,16 +29,10 @@ from routes.master_resumes import router as master_resumes_router
 
 load_dotenv()
 
-@asynccontextmanager
-async def lifespan(app):
-    init_db()
-    yield
-
 app = FastAPI(
     title="ATS Resume Builder",
     description="Tailors resumes for specific job descriptions using Claude.",
     version="1.0.0",
-    lifespan=lifespan
 )
 
 _raw_origins = os.getenv(
