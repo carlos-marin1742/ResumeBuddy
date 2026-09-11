@@ -107,6 +107,7 @@ class SkillCategoryInput(BaseModel):
 class MasterResumeInput(BaseModel):
     contact: ContactInput
     targetRole: str = Field(default="", max_length=200)
+    targetJobTitle: str = Field(default="", max_length=200)
     summary: str = Field(default="", max_length=10000)
     experience: list[ExperienceInput] = Field(default_factory=list, max_length=50)
     education: list[EducationInput] = Field(default_factory=list, max_length=20)

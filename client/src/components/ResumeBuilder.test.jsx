@@ -90,6 +90,46 @@ describe("ResumeBuilder", () => {
     expect(screen.getByText("Resume saved.")).toBeInTheDocument();
   });
 
+  it("keeps the target job title distinct from the resume filing title and saves it", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.type(screen.getByLabelText("How should this resume appear in your resume list?"), "Career change resume");
+    await user.type(screen.getByLabelText("What kind of role is this resume for?"), "Software Engineer");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      targetRole: "Career change resume",
+      targetJobTitle: "Software Engineer",
+    }));
+  });
+
+  it("allows saving when the optional target job title is blank", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(screen.getByLabelText("What kind of role is this resume for?")).not.toBeRequired();
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ targetJobTitle: "" }));
+  });
+
+  it("loads an existing target job title and defaults missing legacy values to blank", () => {
+    const { rerender } = render(
+      <ResumeBuilder initialDraft={{ ...importedDraft, targetJobTitle: "Clinical AI Engineer" }} onBack={vi.fn()} onSave={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("What kind of role is this resume for?")).toHaveValue("Clinical AI Engineer");
+
+    rerender(<ResumeBuilder key="legacy" initialDraft={importedDraft} onBack={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByLabelText("What kind of role is this resume for?")).toHaveValue("");
+  });
+
   it("adds and saves labeled skill categories", async () => {
     const onSave = vi.fn();
     const user = userEvent.setup();
@@ -364,6 +404,7 @@ describe("ResumeBuilder", () => {
     await user.click(screen.getByRole("button", { name: "Save & preview" }));
     expect(onSave).toHaveBeenCalledWith({
       ...importedDraft,
+      targetJobTitle: "",
       skills: [{ key: "design", category: "Design", items: ["Research"] }],
     });
   });

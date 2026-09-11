@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import claude_service as svc
+from services.master_resume_adapter import master_resume_to_profile
 from claude_service import (
     ATSScoreResult,
     KeywordExtractionResult,
@@ -439,6 +440,18 @@ class TestTailorResume:
         assert "expert Registered Nurse resume writer" in self._system_prompt(
             mock_get_client, resume
         )
+
+    @patch("claude_service._get_anthropic_client")
+    def test_builder_target_job_title_sets_the_tailoring_persona(self, mock_get_client):
+        resume = master_resume_to_profile({
+            "targetRole": "Career change resume",
+            "targetJobTitle": "Software Engineer",
+        })
+
+        assert "expert Software Engineer resume writer" in self._system_prompt(
+            mock_get_client, resume
+        )
+        mock_get_client.assert_called_once_with()
 
     @patch("claude_service._get_anthropic_client")
     def test_system_prompt_uses_profile_target_role_when_occupation_is_absent(self, mock_get_client):
