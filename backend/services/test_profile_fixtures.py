@@ -12,6 +12,7 @@ from services.claude_service import (
 
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "data" / "fixtures"
+BASE_RESUME_PATH = FIXTURES_DIR.parent / "base_resume.json"
 REQUIRED_TOP_LEVEL_KEYS = {
     "meta",
     "contact",
@@ -77,6 +78,12 @@ def test_fixture_loads_through_the_existing_profile_loader(name):
 )
 def test_fixture_occupation_uses_the_existing_profile_data_fallback_chain(name, occupation):
     assert _occupation_descriptor(_load_fixture(name)) == occupation
+
+
+def test_base_resume_occupation_uses_its_existing_target_role_fallback():
+    base_resume = json.loads(BASE_RESUME_PATH.read_text())
+
+    assert _occupation_descriptor(base_resume) == "AI Engineer"
 
 
 @pytest.mark.parametrize(

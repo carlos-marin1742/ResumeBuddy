@@ -28,6 +28,7 @@ def _request(name: str = "Jamie Rivera") -> MasterResumeSaveRequest:
                 "portfolio": "",
             },
             "targetRole": "Product Manager",
+            "targetJobTitle": "Software Engineer",
             "summary": "Product leader.",
             "experience": [],
             "education": [],
@@ -63,6 +64,16 @@ def test_create_and_fetch_master_resume():
     assert created.resume["skills"] == [
         {"key": "product", "category": "Product", "items": ["Roadmaps"]},
     ]
+    assert created.resume["targetJobTitle"] == "Software Engineer"
+
+
+def test_master_resume_accepts_missing_target_job_title_for_existing_records():
+    payload = _request().model_dump()
+    del payload["resume"]["targetJobTitle"]
+
+    request = MasterResumeSaveRequest.model_validate(payload)
+
+    assert request.resume.targetJobTitle == ""
 
 
 def test_list_master_resumes_uses_saved_title_for_profile_selection():

@@ -40,6 +40,7 @@ def test_master_resume_adapter_preserves_experience_bullets_and_builder_fields()
     profile = master_resume_to_profile({
         "contact": {"name": "Jamie Rivera", "email": "jamie@example.com"},
         "targetRole": "Research Resume",
+        "targetJobTitle": "Clinical AI Engineer",
         "summary": "Clinical research professional.",
         "skills": [{"category": "Systems", "items": "CTMS, EDC"}],
         "experience": [{
@@ -61,6 +62,11 @@ def test_master_resume_adapter_preserves_experience_bullets_and_builder_fields()
     })
 
     assert profile["summary"]["default"] == "Clinical research professional."
+    assert profile["meta"] == {
+        "label": "Research Resume",
+        "occupation": "Clinical AI Engineer",
+        "target_roles": [],
+    }
     assert profile["skills"] == [{"key": "systems", "label": "Systems", "items": ["CTMS", "EDC"]}]
     assert [bullet["text"] for bullet in profile["experience"][0]["bullets"]] == [
         "Managed trials.",

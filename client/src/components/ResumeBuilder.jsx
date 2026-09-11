@@ -12,6 +12,7 @@ const templates = {
 const emptyDraft = {
   contact: { name: "", email: "", phone: "", location: "", linkedin: "", portfolio: "" },
   targetRole: "",
+  targetJobTitle: "",
   summary: "",
   experience: [{ ...templates.experience }],
   education: [{ ...templates.education }],
@@ -42,6 +43,7 @@ function normalizeDraft(draft) {
       : [{ ...templates.skills }];
   return {
     ...draft,
+    targetJobTitle: draft.targetJobTitle ?? "",
     skills: (skills.length > 0 ? skills : [{ ...templates.skills }]).map(normalizeSkillGroup),
   };
 }
@@ -342,7 +344,12 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
             How should this resume appear in your resume list?
             <input value={draft.targetRole} onChange={(event) => updateField("targetRole", event.target.value)} placeholder="For example, Software Engineering Resume" />
           </label>
-          <p className="rb-save-note">This title identifies the saved resume and is not printed on the resume itself.</p>
+          <p className="rb-save-note">This title is a filing label for the saved resume and is not printed on the resume itself.</p>
+          <label>
+            What kind of role is this resume for?
+            <input value={draft.targetJobTitle} onChange={(event) => updateField("targetJobTitle", event.target.value)} placeholder="Registered Nurse, Software Engineer, Journeyman Electrician" />
+          </label>
+          <p className="rb-save-note">This optional role shapes how the resume is tailored; unlike the resume title above, it is not a filing label.</p>
         </section>
 
         <section className="rb-section" aria-labelledby="rb-summary">

@@ -129,6 +129,7 @@ def master_resume_to_profile(resume: dict) -> dict:
     return {
         "meta": {
             "label": resume.get("targetRole", ""),
+            "occupation": resume.get("targetJobTitle", ""),
             "target_roles": [],
         },
         "contact": dict(resume.get("contact", {})),

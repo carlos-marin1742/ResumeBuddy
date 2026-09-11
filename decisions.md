@@ -133,6 +133,8 @@ Tradeoff: without authentication, records are local application data and cannot 
 
 The builder's `targetRole` field currently serves as the saved resume's user-defined title. It is retained for identifying the resume in the resume-selection UI and is not part of the rendered master-resume document. Resume imports leave this field blank so the user can name the saved resume explicitly.
 
+The builder separately asks for an optional `targetJobTitle` and maps it to `meta.occupation` for the tailoring persona. This is asked rather than inferred because a career changer's experience section describes the job they are leaving; inference from the resume therefore gets exactly the users who most need guidance wrong. Resume-derived inference is planned as a future pre-fill, not as a replacement for the user's chosen target role.
+
 ## Preview master resumes in the client
 
 After a successful save, the client renders the persisted structured payload in a dedicated read-only preview.
