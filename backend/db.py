@@ -1,10 +1,11 @@
 """
 db.py
 -----
-SQLite + SQLModel persistence layer for tailored resume history.
+PostgreSQL + SQLModel persistence layer for resume records.
 
-A single SQLite file lives at backend/data/resume_history.db (gitignored).
-Call init_db() once on app startup to create tables.
+The application engine reads DATABASE_URL, and Alembic owns schema creation
+and upgrades. This module supplies the shared engine and FastAPI session
+dependency; it does not create or migrate tables at application startup.
 """
 import os
 

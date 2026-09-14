@@ -8,7 +8,10 @@ import models  # noqa: F401
 from db import DATABASE_URL
 
 config = context.config
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", DATABASE_URL))
+config.set_main_option(
+    "sqlalchemy.url",
+    config.attributes.get("database_url") or os.getenv("DATABASE_URL", DATABASE_URL),
+)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

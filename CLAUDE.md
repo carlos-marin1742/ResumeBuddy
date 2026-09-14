@@ -81,6 +81,8 @@ cd backend && python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/tes
 docker compose up --build
 ```
 
+Alembic migration-chain tests are opt-in: set `POSTGRES_TEST_DATABASE_URL` to a reachable PostgreSQL database whose role can create databases (for Compose: `postgresql+psycopg://resumebuddy:resumebuddy@localhost:5432/resumebuddy`) and run the normal backend pytest command. They create and drop UUID-named disposable databases; without that variable they skip cleanly.
+
 Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
 
 PostgreSQL 16 runs as the Compose `postgres` service and persists to `postgres_data`. From `backend/`, run `alembic upgrade head` to apply migrations and `alembic revision --autogenerate -m "describe schema change"` to generate a reviewed revision. SQLite is gone.
