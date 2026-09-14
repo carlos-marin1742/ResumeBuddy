@@ -1,8 +1,6 @@
-from sqlalchemy.pool import StaticPool
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlmodel import Session, SQLModel, create_engine
 
 from models import MasterResumeRecord
 from routes.master_resumes import (
@@ -14,6 +12,8 @@ from routes.master_resumes import (
     list_master_resumes,
     update_master_resume,
 )
+
+pytest_plugins = ("postgres_test_support",)
 
 
 def _request(name: str = "Jamie Rivera") -> MasterResumeSaveRequest:
@@ -41,21 +41,11 @@ def _request(name: str = "Jamie Rivera") -> MasterResumeSaveRequest:
     })
 
 
-def _session() -> Session:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(engine)
-    return Session(engine)
-
-
-def test_create_and_fetch_master_resume():
-    with _session() as db:
-        created = create_master_resume(_request(), db)
-        fetched = get_master_resume(created.id, db)
-        record = db.get(MasterResumeRecord, created.id)
+def test_create_and_fetch_master_resume(postgres_session):
+    db = postgres_session
+    created = create_master_resume(_request(), db)
+    fetched = get_master_resume(created.id, db)
+    record = db.get(MasterResumeRecord, created.id)
 
     assert created.resume["contact"]["name"] == "Jamie Rivera"
     assert fetched.resume == created.resume
@@ -76,10 +66,10 @@ def test_master_resume_accepts_missing_target_job_title_for_existing_records():
     assert request.resume.targetJobTitle == ""
 
 
-def test_list_master_resumes_uses_saved_title_for_profile_selection():
-    with _session() as db:
-        created = create_master_resume(_request(), db)
-        result = list_master_resumes(db)
+def test_list_master_resumes_uses_saved_title_for_profile_selection(postgres_session):
+    db = postgres_session
+    created = create_master_resume(_request(), db)
+    result = list_master_resumes(db)
 
     assert len(result.resumes) == 1
     assert result.resumes[0].id == created.id
@@ -87,11 +77,11 @@ def test_list_master_resumes_uses_saved_title_for_profile_selection():
     assert result.resumes[0].name == "Jamie Rivera"
 
 
-def test_delete_master_resume_removes_record():
-    with _session() as db:
-        created = create_master_resume(_request(), db)
-        result = delete_master_resume(created.id, db)
-        remaining = list_master_resumes(db)
+def test_delete_master_resume_removes_record(postgres_session):
+    db = postgres_session
+    created = create_master_resume(_request(), db)
+    result = delete_master_resume(created.id, db)
+    remaining = list_master_resumes(db)
 
     assert result.deleted is True
     assert result.id == created.id
@@ -173,44 +163,44 @@ def test_skill_category_validator_yields_empty_list_for_blank_string():
     assert whitespace.items == []
 
 
-def test_master_resume_round_trips_a_raw_comma_string_into_separate_items():
+def test_master_resume_round_trips_a_raw_comma_string_into_separate_items(postgres_session):
     payload = _request().model_dump()
     payload["resume"]["skills"] = [
         {"key": "tools", "category": "Tools", "items": "React, TypeScript, Vite"},
     ]
     request = MasterResumeSaveRequest.model_validate(payload)
 
-    with _session() as db:
-        created = create_master_resume(request, db)
-        fetched = get_master_resume(created.id, db)
+    db = postgres_session
+    created = create_master_resume(request, db)
+    fetched = get_master_resume(created.id, db)
 
     assert fetched.resume["skills"] == [
         {"key": "tools", "category": "Tools", "items": ["React", "TypeScript", "Vite"]},
     ]
 
 
-def test_create_master_resume_persists_string_items_as_array():
+def test_create_master_resume_persists_string_items_as_array(postgres_session):
     payload = _request().model_dump()
     payload["resume"]["skills"] = [
         {"key": "product", "category": "Product", "items": "Roadmaps"},
     ]
     request = MasterResumeSaveRequest.model_validate(payload)
 
-    with _session() as db:
-        created = create_master_resume(request, db)
+    db = postgres_session
+    created = create_master_resume(request, db)
 
     assert created.resume["skills"] == [
         {"key": "product", "category": "Product", "items": ["Roadmaps"]},
     ]
 
 
-def test_master_resume_round_trips_key_and_array_items_through_put_and_get():
-    with _session() as db:
-        created = create_master_resume(_request(), db)
-        update_request = _request("Jamie Rivera")
-        update_request.resume.skills[0].items = ["Roadmaps", "Prioritization"]
-        updated = update_master_resume(created.id, update_request, db)
-        fetched = get_master_resume(created.id, db)
+def test_master_resume_round_trips_key_and_array_items_through_put_and_get(postgres_session):
+    db = postgres_session
+    created = create_master_resume(_request(), db)
+    update_request = _request("Jamie Rivera")
+    update_request.resume.skills[0].items = ["Roadmaps", "Prioritization"]
+    updated = update_master_resume(created.id, update_request, db)
+    fetched = get_master_resume(created.id, db)
 
     assert updated.resume["skills"] == [
         {"key": "product", "category": "Product", "items": ["Roadmaps", "Prioritization"]},
@@ -218,20 +208,19 @@ def test_master_resume_round_trips_key_and_array_items_through_put_and_get():
     assert fetched.resume == updated.resume
 
 
-def test_update_master_resume_preserves_record_identity():
-    with _session() as db:
-        created = create_master_resume(_request(), db)
-        updated = update_master_resume(created.id, _request("Jamie R. Rivera"), db)
+def test_update_master_resume_preserves_record_identity(postgres_session):
+    db = postgres_session
+    created = create_master_resume(_request(), db)
+    updated = update_master_resume(created.id, _request("Jamie R. Rivera"), db)
 
     assert updated.id == created.id
     assert updated.created_at == created.created_at
     assert updated.resume["contact"]["name"] == "Jamie R. Rivera"
 
 
-def test_get_master_resume_rejects_unknown_id():
-    with _session() as db:
-        with pytest.raises(HTTPException) as exc_info:
-            get_master_resume("missing", db)
+def test_get_master_resume_rejects_unknown_id(postgres_session):
+    with pytest.raises(HTTPException) as exc_info:
+        get_master_resume("missing", postgres_session)
 
     assert exc_info.value.status_code == 404
 

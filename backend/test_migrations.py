@@ -1,23 +1,20 @@
 """PostgreSQL Alembic integration tests using disposable databases."""
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from alembic import command
-from alembic.config import Config
 from sqlalchemy import MetaData, Table, create_engine, inspect, select, text
-from sqlalchemy.engine import URL, make_url
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.engine import URL
 from sqlalchemy.dialects import postgresql
 
 from models import MasterResumeRecord, TailoredResumeRecord
+from postgres_test_support import alembic_config, disposable_postgres_database
 
 
 BACKEND_DIR = Path(__file__).resolve().parent
-ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
 INITIAL_REVISION = "f8ed9f77d689"
 HEAD_REVISION = "8f567b9e2697"
 TECH_FIXTURE = BACKEND_DIR / "data" / "fixtures" / "tech_fixture.json"
@@ -43,14 +40,6 @@ def _expected_model_column_types() -> dict[str, dict[str, str]]:
 
 
 EXPECTED_MODEL_COLUMN_TYPES = _expected_model_column_types()
-
-
-def _alembic_config(database_url: URL) -> Config:
-    config = Config(str(ALEMBIC_INI))
-    # alembic/env.py gives this explicit per-test value precedence over both
-    # the app's environment variable and alembic.ini's development URL.
-    config.attributes["database_url"] = database_url.render_as_string(hide_password=False)
-    return config
 
 
 def _assert_schema_matches_models(database_url: URL) -> None:
@@ -99,51 +88,12 @@ def _payload_column_types(database_url: URL) -> dict[str, str]:
 
 @pytest.fixture
 def migration_database() -> URL:
-    configured_url = os.getenv("POSTGRES_TEST_DATABASE_URL")
-    if not configured_url:
-        pytest.skip("POSTGRES_TEST_DATABASE_URL is not configured")
-
-    try:
-        control_url = make_url(configured_url)
-    except (TypeError, ValueError) as exc:
-        pytest.skip(f"POSTGRES_TEST_DATABASE_URL is invalid: {exc}")
-
-    if not control_url.database:
-        pytest.skip("POSTGRES_TEST_DATABASE_URL must include a database name")
-
-    database_name = f"resumebuddy_migration_test_{uuid4().hex}"
-    test_url = control_url.set(database=database_name)
-    control_engine = create_engine(control_url, isolation_level="AUTOCOMMIT")
-
-    try:
-        with control_engine.connect() as connection:
-            connection.execute(text(f'CREATE DATABASE "{database_name}"'))
-    except SQLAlchemyError as exc:
-        control_engine.dispose()
-        pytest.skip(f"PostgreSQL migration test database is unavailable: {exc}")
-
-    try:
-        yield test_url
-    finally:
-        # Alembic uses NullPool, and test-owned engines are disposed before
-        # teardown. Terminating any remaining sessions makes DROP DATABASE
-        # reliable even when a failed assertion interrupted a test body.
-        with control_engine.connect() as connection:
-            connection.execute(
-                text(
-                    "SELECT pg_terminate_backend(pid) "
-                    "FROM pg_stat_activity "
-                    "WHERE datname = :database_name "
-                    "AND pid <> pg_backend_pid()"
-                ),
-                {"database_name": database_name},
-            )
-            connection.execute(text(f'DROP DATABASE IF EXISTS "{database_name}"'))
-        control_engine.dispose()
+    with disposable_postgres_database() as database_url:
+        yield database_url
 
 
 def test_revision_chain_applies_from_empty_database(migration_database: URL):
-    command.upgrade(_alembic_config(migration_database), "head")
+    command.upgrade(alembic_config(migration_database), "head")
 
     _assert_schema_matches_models(migration_database)
     engine = create_engine(migration_database)
@@ -155,7 +105,7 @@ def test_revision_chain_applies_from_empty_database(migration_database: URL):
 
 
 def test_jsonb_conversion_preserves_existing_payloads(migration_database: URL):
-    command.upgrade(_alembic_config(migration_database), INITIAL_REVISION)
+    command.upgrade(alembic_config(migration_database), INITIAL_REVISION)
     assert _payload_column_types(migration_database) == {
         "resume_data": "JSON",
         "selected_keywords": "JSON",
@@ -210,7 +160,7 @@ def test_jsonb_conversion_preserves_existing_payloads(migration_database: URL):
     finally:
         engine.dispose()
 
-    command.upgrade(_alembic_config(migration_database), "head")
+    command.upgrade(alembic_config(migration_database), "head")
     _assert_schema_matches_models(migration_database)
     assert _payload_column_types(migration_database) == {
         "resume_data": "JSONB",
@@ -241,8 +191,8 @@ def test_jsonb_conversion_preserves_existing_payloads(migration_database: URL):
 
 
 def test_revision_chain_downgrades_to_base(migration_database: URL):
-    command.upgrade(_alembic_config(migration_database), "head")
-    command.downgrade(_alembic_config(migration_database), "base")
+    command.upgrade(alembic_config(migration_database), "head")
+    command.downgrade(alembic_config(migration_database), "base")
 
     engine = create_engine(migration_database)
     try:
