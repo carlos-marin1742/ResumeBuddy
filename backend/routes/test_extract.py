@@ -1,11 +1,10 @@
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
-
 from models import MasterResumeRecord
 from routes import extract as extract_module
 from routes.extract import ExtractRequest, extract_keywords_route, flatten_resume_keywords
 from routes.master_resumes import MasterResumeSaveRequest, create_master_resume
 from services.claude_service import KeywordExtractionResult
+
+pytest_plugins = ("postgres_test_support",)
 
 
 def test_flatten_resume_keywords_supports_list_based_skills_and_tags():
@@ -41,17 +40,7 @@ def test_flatten_resume_keywords_supports_legacy_dict_skills_and_keywords():
     }
 
 
-def _session() -> Session:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(engine)
-    return Session(engine)
-
-
-def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkeypatch):
+def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkeypatch, postgres_session):
     monkeypatch.setattr(
         extract_module,
         "claude_extract_keywords",
@@ -66,42 +55,42 @@ def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkey
         ),
     )
 
-    with _session() as db:
-        record = MasterResumeRecord(
-            name="Jamie Rivera",
-            target_role="Operations Coordinator",
-            resume_data={
-                "contact": {"name": "Jamie Rivera", "email": "jamie@example.com"},
-                "targetRole": "Operations Coordinator",
-                "summary": "",
-                "skills": [
-                    {
-                        "key": "tools",
-                        "category": "Tools",
-                        "items": ["Microsoft Office (Word, Excel, Outlook)", "Python"],
-                    },
-                ],
-                "experience": [],
-                "education": [],
-                "projects": [],
-                "certifications": [],
-            },
-        )
-        db.add(record)
-        db.commit()
-        db.refresh(record)
+    db = postgres_session
+    record = MasterResumeRecord(
+        name="Jamie Rivera",
+        target_role="Operations Coordinator",
+        resume_data={
+            "contact": {"name": "Jamie Rivera", "email": "jamie@example.com"},
+            "targetRole": "Operations Coordinator",
+            "summary": "",
+            "skills": [
+                {
+                    "key": "tools",
+                    "category": "Tools",
+                    "items": ["Microsoft Office (Word, Excel, Outlook)", "Python"],
+                },
+            ],
+            "experience": [],
+            "education": [],
+            "projects": [],
+            "certifications": [],
+        },
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
 
-        response = extract_keywords_route(
-            ExtractRequest(job_description="Looking for Python and Excel skills.", master_resume_id=record.id),
-            db,
-        )
+    response = extract_keywords_route(
+        ExtractRequest(job_description="Looking for Python and Excel skills.", master_resume_id=record.id),
+        db,
+    )
 
     by_keyword = {kw.keyword: kw.present_in_resume for kw in response.keywords}
     assert by_keyword["Python"] is True
     assert by_keyword["Microsoft Office (Word, Excel, Outlook)"] is True
 
 
-def test_extract_keywords_route_matches_skill_in_user_named_builder_category(monkeypatch):
+def test_extract_keywords_route_matches_skill_in_user_named_builder_category(monkeypatch, postgres_session):
     monkeypatch.setattr(
         extract_module,
         "claude_extract_keywords",
@@ -116,36 +105,36 @@ def test_extract_keywords_route_matches_skill_in_user_named_builder_category(mon
         ),
     )
 
-    with _session() as db:
-        record = MasterResumeRecord(
-            name="Jamie Rivera",
-            target_role="Phlebotomist",
-            resume_data={
-                "contact": {"name": "Jamie Rivera", "email": "jamie@example.com"},
-                "skills": [{
-                    "key": "clinical_skills",
-                    "category": "Clinical Skills",
-                    "items": ["Venipuncture"],
-                }],
-            },
-        )
-        db.add(record)
-        db.commit()
-        db.refresh(record)
+    db = postgres_session
+    record = MasterResumeRecord(
+        name="Jamie Rivera",
+        target_role="Phlebotomist",
+        resume_data={
+            "contact": {"name": "Jamie Rivera", "email": "jamie@example.com"},
+            "skills": [{
+                "key": "clinical_skills",
+                "category": "Clinical Skills",
+                "items": ["Venipuncture"],
+            }],
+        },
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
 
-        response = extract_keywords_route(
-            ExtractRequest(
-                job_description="Looking for venipuncture experience.",
-                master_resume_id=record.id,
-            ),
-            db,
-        )
+    response = extract_keywords_route(
+        ExtractRequest(
+            job_description="Looking for venipuncture experience.",
+            master_resume_id=record.id,
+        ),
+        db,
+    )
 
     assert response.keywords[0].keyword == "Venipuncture"
     assert response.keywords[0].present_in_resume is True
 
 
-def test_extract_keywords_route_matches_skill_saved_as_a_raw_comma_string(monkeypatch):
+def test_extract_keywords_route_matches_skill_saved_as_a_raw_comma_string(monkeypatch, postgres_session):
     """Regression: a master resume saved with items as a raw comma string
     (e.g. a legacy record, or a non-browser client posting directly) must
     have its skills split server-side so gap-matching finds them, instead of
@@ -179,15 +168,15 @@ def test_extract_keywords_route_matches_skill_saved_as_a_raw_comma_string(monkey
         }
     })
 
-    with _session() as db:
-        created = create_master_resume(save_request, db)
-        response = extract_keywords_route(
-            ExtractRequest(
-                job_description="Looking for React and Vite skills.",
-                master_resume_id=created.id,
-            ),
-            db,
-        )
+    db = postgres_session
+    created = create_master_resume(save_request, db)
+    response = extract_keywords_route(
+        ExtractRequest(
+            job_description="Looking for React and Vite skills.",
+            master_resume_id=created.id,
+        ),
+        db,
+    )
 
     by_keyword = {kw.keyword: kw.present_in_resume for kw in response.keywords}
     assert by_keyword["React"] is True

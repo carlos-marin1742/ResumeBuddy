@@ -204,13 +204,15 @@ cd backend
 cd backend && python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 ```
 
-Migration-chain tests are opt-in and create/drop disposable databases; they skip cleanly when `POSTGRES_TEST_DATABASE_URL` is unset. Point it at a PostgreSQL database owned by a role permitted to create databases (the Compose default is shown below), then run the normal backend command:
+Migration-chain and ORM persistence tests are opt-in and create/drop disposable PostgreSQL databases; they skip cleanly when `POSTGRES_TEST_DATABASE_URL` is unset. The persistence tests run against the Alembic-created PostgreSQL schema rather than SQLite. Point the variable at a reachable PostgreSQL database owned by a role permitted to create databases, then run the normal backend command. If the host's `localhost:5432` is not the Compose service, run the command inside the Compose network instead of assuming that port:
 
 ```powershell
-$env:POSTGRES_TEST_DATABASE_URL='postgresql+psycopg://resumebuddy:resumebuddy@localhost:5432/resumebuddy'
+$env:POSTGRES_TEST_DATABASE_URL='postgresql+psycopg://<role>:<password>@<host>:5432/<control_database>'
 cd backend
 python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 ```
+
+Without `POSTGRES_TEST_DATABASE_URL`, the backend baseline is 208 collected, 192 passed, 15 skipped, and 1 deselected. With it configured and reachable, all 207 selected tests run.
 
 The credential-dependent `backend/smoke_extract_keywords.py` script is a manual smoke check and is not collected by pytest. The deselected summary-variant regression is intentional documentation of a current defect: `_apply_summary_variant` identifies the requested `summary.variants` entry, but returns the original resume instead of the copied resume with only `summary.default` replaced. Remove the deselection when that behavior is fixed and the regression passes.
 
