@@ -176,6 +176,16 @@ Why:
 - The Docker entrypoint applies migrations before serving traffic, so a failed migration prevents an app with an unknown schema from starting.
 - SQLModel metadata remains the source for reviewed Alembic autogeneration without application code mutating schema at runtime.
 
+## Test the Alembic revision chain against PostgreSQL
+
+Migration tests must apply the complete Alembic chain to an empty, disposable PostgreSQL database and exercise data-bearing type migrations. This work exists in part because a built app image once contained only one of the two revision files: the database was stamped at `8f567b9e2697`, but the image could not locate that revision and crash-looped. Rebuilding resolved the image mismatch, but the application test suite remained fully green for two days because its persistence tests created tables from SQLModel metadata rather than applying revisions.
+
+Why:
+
+- Metadata-based tests cannot detect a missing, reordered, or otherwise broken Alembic revision chain.
+- The JSON-to-JSONB conversion must run against real rows so its PostgreSQL `USING ...::jsonb` clauses are verified.
+- A separate, opt-in PostgreSQL test path preserves a fast green unit suite for developers without Docker while CI verifies deployable schema history.
+
 ## Store structured resume payloads as JSONB
 
 `resume_data`, `tailored_resume`, and `selected_keywords` use PostgreSQL JSONB rather than generic JSON.
