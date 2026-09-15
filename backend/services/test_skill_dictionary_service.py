@@ -14,6 +14,7 @@ from services.skill_dictionary_service import (
     lookup_skill_dictionary_category,
     profile_hash_for_resume,
     seed_skill_dictionary,
+    learn_static_skill_placements,
 )
 
 
@@ -180,3 +181,33 @@ def test_seeded_dictionary_drives_a_generation_category(monkeypatch):
     )
 
     assert generated.skills_to_add == {"clinical": ["Specimen Accessioning"]}
+
+
+def test_learning_records_only_real_static_category_placements():
+    record = _record(_builder_resume(categories=[{"key": "backend", "category": "Backend", "items": ["Python"]}]))
+    record.skill_dictionary = _dictionary(record, {"seeded": "backend"})
+    assert learn_static_skill_placements(record, master_resume_to_profile(record.resume_data)["skills"], ["FastAPI", "Python", "React", "Event Sourcing"])
+    assert record.skill_dictionary["terms"]["fastapi"] == "backend"
+    assert record.skill_dictionary["learned"] == ["fastapi"]
+    assert "python" not in record.skill_dictionary["terms"]
+    assert "react" not in record.skill_dictionary["terms"]
+    assert "event sourcing" not in record.skill_dictionary["terms"]
+
+
+def test_learning_never_overwrites_or_uses_stale_dictionary():
+    record = _record(_builder_resume(categories=[{"key": "backend", "category": "Backend", "items": []}]))
+    record.skill_dictionary = _dictionary(record, {"fastapi": "other"})
+    assert not learn_static_skill_placements(record, master_resume_to_profile(record.resume_data)["skills"], ["FastAPI"])
+    assert record.skill_dictionary["terms"]["fastapi"] == "other"
+    record.skill_dictionary["profile_hash"] = "stale"
+    assert not learn_static_skill_placements(record, master_resume_to_profile(record.resume_data)["skills"], ["FastAPI"])
+
+
+def test_reseed_preserves_learned_but_seeded_term_wins(monkeypatch):
+    record = _record()
+    record.skill_dictionary = _dictionary(record, {"learned-only": "clinical", "conflict": "instruments"})
+    record.skill_dictionary["learned"] = ["learned-only", "conflict"]
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", lambda *_: '{"terms":[{"term":"conflict","category":"clinical"},{"term":"seeded","category":"instruments"}]}')
+    seed_skill_dictionary(record)
+    assert record.skill_dictionary["terms"] == {"learned-only": "clinical", "conflict": "clinical", "seeded": "instruments"}
+    assert record.skill_dictionary["learned"] == ["learned-only"]

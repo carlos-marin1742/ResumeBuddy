@@ -5,7 +5,7 @@ import json
 from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 
-from services.claude_service import _call_claude
+from services.claude_service import SKILL_TO_CATEGORY, _call_claude
 from services.master_resume_adapter import master_resume_to_profile
 from services.profile_skills import normalize_profile_skills
 
@@ -141,14 +141,64 @@ def seed_skill_dictionary(record, now: datetime | None = None) -> dict:
         existing.update({"last_attempt_at": attempted_at, "last_attempt_failed": True})
         record.skill_dictionary = existing
         return {"status": "failed"}
+    previous = record.skill_dictionary if isinstance(record.skill_dictionary, dict) else {}
+    previous_terms = previous.get("terms", {}) if isinstance(previous.get("terms"), dict) else {}
+    previous_learned = previous.get("learned", []) if isinstance(previous.get("learned"), list) else []
+    learned_terms = {
+        term: previous_terms[term]
+        for term in previous_learned
+        if isinstance(term, str) and term in previous_terms and term not in terms
+    }
+    # Learned terms merge first; the newly seeded occupation vocabulary wins conflicts.
+    merged_terms = {**learned_terms, **terms}
     record.skill_dictionary = {
-        "terms": terms,
+        "terms": merged_terms,
+        "learned": list(learned_terms),
         "profile_hash": profile_hash_for_resume(profile),
         "seeded_at": attempted_at,
         "last_attempt_at": attempted_at,
         "last_attempt_failed": False,
     }
     return {"status": "seeded", "term_count": len(terms)}
+
+
+def learn_static_skill_placements(record, base_skills, selected_keywords: list[str]) -> bool:
+    """Learn only branch-3 static mappings into a current dictionary."""
+    if not skill_dictionary_is_current(record):
+        return False
+    dictionary = record.skill_dictionary
+    if not isinstance(dictionary, dict):
+        return False
+    terms = dict(dictionary.get("terms", {})) if isinstance(dictionary.get("terms"), dict) else {}
+    learned = list(dictionary.get("learned", [])) if isinstance(dictionary.get("learned"), list) else []
+    categories = {
+        group["key"].lower(): group["key"]
+        for group in normalize_profile_skills(base_skills)
+    }
+    existing = {
+        item.lower()
+        for group in normalize_profile_skills(base_skills)
+        for item in group["items"]
+        if isinstance(item, str)
+    }
+    changed = False
+    for keyword in selected_keywords:
+        if not isinstance(keyword, str):
+            continue
+        term = keyword.strip().lower()
+        # Branches 1 and 2 stop here. Branches 4 and 5 lack a real category.
+        if not term or term in existing or term in terms:
+            continue
+        static_category = SKILL_TO_CATEGORY.get(term)
+        category = categories.get(static_category.lower()) if isinstance(static_category, str) else None
+        if category is None:
+            continue  # Never learn additional_skills: it is only a fallback.
+        terms[term] = category
+        learned.append(term)
+        changed = True
+    if changed:
+        record.skill_dictionary = {**dictionary, "terms": terms, "learned": learned}
+    return changed
 
 
 def seed_backoff_active(dictionary: object, now: datetime | None = None) -> bool:

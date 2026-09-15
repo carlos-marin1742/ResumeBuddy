@@ -283,3 +283,7 @@ The dictionary hash contains only sorted skill category keys and normalized `met
 Dictionary seeding is a separate Claude Haiku call after the master resume has been committed. The ordinary save must not fail or remain slow because optional enrichment fails, times out, or is temporarily unavailable. The client therefore persists first, then requests seeding; a failure is non-blocking and leaves the saved resume usable.
 
 The seed prompt includes target role, category keys and display labels, existing skill items, summary, project names, certification names, and experience titles. It deliberately excludes experience bullets, and explicitly marks experience titles as possibly prior or unrelated work. A career changer's prior job should not determine the vocabulary for the occupation they are targeting.
+
+## Never learn Additional Skills placements
+
+`additional_skills` is a safe fallback, not a category judgement. Learning a fallback placement would make it win over real categories on later generations, so only static mappings that resolve to an existing resume category are written back.
