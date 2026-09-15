@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import text
 from sqlmodel import select
 
-from models import TailoredResumeRecord
+from models import MasterResumeRecord, TailoredResumeRecord
 from routes.cover_letter import _store_cover_letter
 from routes.generate import GenerateRequest, _persist_generation
 from routes.history import (
@@ -211,3 +211,36 @@ def test_jsonb_payloads_round_trip_nested_unicode_and_quotes(postgres_session, p
         ("selected_keywords", "jsonb", "jsonb"),
         ("tailored_resume", "jsonb", "jsonb"),
     ]
+
+
+def test_master_skill_dictionary_round_trips_as_jsonb_and_defaults_to_null(
+    postgres_session, postgres_persistence_engine
+):
+    dictionary = {
+        "terms": {"venipuncture": "clinical"},
+        "profile_hash": "abc123",
+        "seeded_at": "2026-09-15T00:00:00Z",
+        "last_attempt_at": None,
+        "last_attempt_failed": False,
+    }
+    with_dictionary = MasterResumeRecord(
+        name="Dictionary", target_role="Technician", resume_data={}, skill_dictionary=dictionary
+    )
+    without_dictionary = MasterResumeRecord(
+        name="No Dictionary", target_role="Technician", resume_data={}
+    )
+    postgres_session.add_all([with_dictionary, without_dictionary])
+    postgres_session.commit()
+    postgres_session.expire_all()
+
+    assert postgres_session.get(MasterResumeRecord, with_dictionary.id).skill_dictionary == dictionary
+    assert postgres_session.get(MasterResumeRecord, without_dictionary.id).skill_dictionary is None
+    with postgres_persistence_engine.connect() as connection:
+        rows = connection.execute(text("""
+            SELECT column_name, data_type, udt_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'master_resumes'
+              AND column_name = 'skill_dictionary'
+        """)).all()
+    assert rows == [("skill_dictionary", "jsonb", "jsonb")]

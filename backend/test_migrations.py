@@ -16,7 +16,7 @@ from postgres_test_support import alembic_config, disposable_postgres_database
 
 BACKEND_DIR = Path(__file__).resolve().parent
 INITIAL_REVISION = "f8ed9f77d689"
-HEAD_REVISION = "c3d8a1e6b4f2"
+HEAD_REVISION = "d4a1b2c3e4f5"
 TECH_FIXTURE = BACKEND_DIR / "data" / "fixtures" / "tech_fixture.json"
 
 
@@ -201,6 +201,30 @@ def test_jsonb_conversion_preserves_existing_payloads(migration_database: URL):
     assert actual_master_created_at == created_at.replace(tzinfo=timezone.utc)
     assert actual_master_updated_at == created_at.replace(tzinfo=timezone.utc)
     assert actual_tailored_created_at == created_at.replace(tzinfo=timezone.utc)
+
+
+def test_skill_dictionary_migration_leaves_existing_rows_null(migration_database: URL):
+    command.upgrade(alembic_config(migration_database), "c3d8a1e6b4f2")
+    engine = create_engine(migration_database)
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("""
+                INSERT INTO master_resumes
+                    (id, created_at, updated_at, name, target_role, resume_data)
+                VALUES ('before-dictionary', now(), now(), 'Avery', 'Technician', '{}'::jsonb)
+            """))
+    finally:
+        engine.dispose()
+
+    command.upgrade(alembic_config(migration_database), "head")
+    engine = create_engine(migration_database)
+    try:
+        with engine.connect() as connection:
+            assert connection.execute(text("""
+                SELECT skill_dictionary FROM master_resumes WHERE id = 'before-dictionary'
+            """)).scalar_one() is None
+    finally:
+        engine.dispose()
 
 
 def test_revision_chain_downgrades_to_base(migration_database: URL):

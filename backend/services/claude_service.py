@@ -501,7 +501,8 @@ CATEGORY_KEYWORDS = {
 
 def determine_skills_to_add(
     base_skills: dict[str, list[str]] | list[dict],
-    selected_keywords: list[str]
+    selected_keywords: list[str],
+    skill_dictionary: dict | None = None,
 ) -> dict[str, list[str]]:
     """
     Identifies selected keywords not present in base skills that map to known
@@ -531,25 +532,28 @@ def determine_skills_to_add(
         if kw_lower in existing_skills_lower:
             continue
 
-        if kw_lower in SKILL_TO_CATEGORY:
-            category = SKILL_TO_CATEGORY[kw_lower]
-            presentation_name = PREFERRED_SKILL_CASING.get(kw_lower, kw_clean)
+        dictionary_terms = (
+            skill_dictionary.get("terms", {}) if isinstance(skill_dictionary, dict) else {}
+        )
+        dictionary_category = dictionary_terms.get(kw_lower) if isinstance(dictionary_terms, dict) else None
+        presentation_name = PREFERRED_SKILL_CASING.get(kw_lower, kw_clean)
 
-            category = existing_category_names.get(category.lower())
+        if isinstance(dictionary_category, str):
+            category = existing_category_names.get(dictionary_category.lower())
             if category is None:
                 category = "additional_skills"
-
-            if category not in skills_to_add:
-                skills_to_add[category] = []
-
-            if presentation_name not in skills_to_add[category]:
-                skills_to_add[category].append(presentation_name)
+        elif kw_lower in SKILL_TO_CATEGORY:
+            category = existing_category_names.get(SKILL_TO_CATEGORY[kw_lower].lower())
+            if category is None:
+                category = "additional_skills"
         else:
-            if "additional_skills" not in skills_to_add:
-                skills_to_add["additional_skills"] = []
+            category = "additional_skills"
 
-            if kw_clean not in skills_to_add["additional_skills"]:
-                skills_to_add["additional_skills"].append(kw_clean)
+        if category not in skills_to_add:
+            skills_to_add[category] = []
+
+        if presentation_name not in skills_to_add[category]:
+            skills_to_add[category].append(presentation_name)
 
     return skills_to_add
 
@@ -707,6 +711,7 @@ def tailor_resume(
     base_resume: dict,
     job_description: str,
     selected_keywords: list[str],
+    skill_dictionary: dict | None = None,
 ) -> TailoredResume:
     resume_payload = {
         "summary": base_resume.get("summary", ""),
@@ -837,7 +842,9 @@ Rules:
         experiences=experiences,
         projects=projects,
         skills_to_highlight=parsed.get("skills_to_highlight", []),
-        skills_to_add=determine_skills_to_add(base_resume.get("skills", {}), selected_keywords),
+        skills_to_add=determine_skills_to_add(
+            base_resume.get("skills", {}), selected_keywords, skill_dictionary
+        ),
         skills_to_show=determine_skills_to_show(
             job_description, selected_keywords, base_resume.get("skills", {})
         ),

@@ -58,7 +58,7 @@ Backend responsibilities:
 
 ## Data, Authentication, and Security
 
-`TailoredResumeRecord` stores job-specific generation history. `MasterResumeRecord` stores reviewed resume-builder data for editing and preview. Both use PostgreSQL, and Alembic owns their schema.
+`TailoredResumeRecord` stores job-specific generation history. `MasterResumeRecord` stores reviewed resume-builder data for editing and preview. Both use PostgreSQL, and Alembic owns their schema. `MasterResumeRecord.skill_dictionary` is nullable JSONB with `{ "terms": {"lowercased term": "category_key"}, "profile_hash": "...", "seeded_at": "ISO timestamp", "last_attempt_at": "ISO timestamp or null", "last_attempt_failed": false }`; this storage-only change leaves it unpopulated until commit 2 adds seeding.
 
 There is currently **no authentication or authorization**; all API and history routes are open to any client that can reach the server. Do not imply per-user isolation. Preserve path validation, input limits, HTML escaping, and `Cache-Control: no-store` behavior.
 
