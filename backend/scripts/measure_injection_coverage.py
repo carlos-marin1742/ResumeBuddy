@@ -111,6 +111,22 @@ MEASUREMENTS = [
         "fixture": "tech_fixture",
         "occupation": "Platform Engineer",
         "keywords": TECH_KEYWORDS,
+        "skill_dictionary": {
+            "terms": {
+                "kubernetes": "tools",
+                "postgresql": "backend",
+                "aws": "tools",
+                "terraform": "tools",
+                "github actions": "tools",
+                "ci/cd": "tools",
+                "linux": "tools",
+                "prometheus": "tools",
+                "grafana": "tools",
+                "kafka": "backend",
+                "observability": "backend",
+                "incident response": "tools",
+            }
+        },
         "human_categories": {
             "Kubernetes": "tools",
             "PostgreSQL": "backend",
@@ -130,6 +146,27 @@ MEASUREMENTS = [
         "fixture": "clinical_fixture",
         "occupation": "Clinical Laboratory Technician",
         "keywords": CLINICAL_KEYWORDS,
+        "skill_dictionary": {
+            "terms": {
+                "good laboratory practice": "clinical_skills",
+                "standard operating procedures": "clinical_skills",
+                "clinical data management": "systems",
+                "phlebotomy": "clinical_skills",
+                "specimen processing": "clinical_skills",
+                "laboratory information systems": "systems",
+                "clia": "certifications_licenses",
+                "cap accreditation": "certifications_licenses",
+                "quality control": "clinical_skills",
+                "quality assurance": "clinical_skills",
+                "infection control": "clinical_skills",
+                "personal protective equipment": "clinical_skills",
+                "centrifugation": "clinical_skills",
+                "medical terminology": "patient_care",
+                "patient identification": "patient_care",
+                "blood collection": "clinical_skills",
+                "hipaa": "certifications_licenses",
+            }
+        },
         "human_categories": {
             "Good Laboratory Practice": "clinical_skills",
             "Standard operating procedures": "clinical_skills",
@@ -154,6 +191,26 @@ MEASUREMENTS = [
         "fixture": "trades_fixture",
         "occupation": "Industrial Electrician",
         "keywords": TRADES_KEYWORDS,
+        "skill_dictionary": {
+            "terms": {
+                "electrical troubleshooting": "technical_skills",
+                "programmable logic controllers": "technical_skills",
+                "variable frequency drives": "technical_skills",
+                "blueprint reading": "technical_skills",
+                "nfpa 70e": "safety_compliance",
+                "national electrical code": "safety_compliance",
+                "arc flash analysis": "safety_compliance",
+                "preventive maintenance": "technical_skills",
+                "control panels": "equipment",
+                "three-phase systems": "technical_skills",
+                "conduit installation": "technical_skills",
+                "cable pulling": "technical_skills",
+                "electrical schematics": "technical_skills",
+                "industrial automation": "technical_skills",
+                "root cause analysis": "technical_skills",
+                "job hazard analysis": "safety_compliance",
+            }
+        },
         "human_categories": {
             "Electrical troubleshooting": "technical_skills",
             "Programmable logic controllers": "technical_skills",
@@ -181,7 +238,9 @@ def load_fixture(name: str) -> dict:
     return json.loads((FIXTURES_DIR / f"{name}.json").read_text(encoding="utf-8"))
 
 
-def classify_keywords(skills: list[dict], keywords: list[str]) -> list[tuple[str, str]]:
+def classify_keywords(
+    skills: list[dict], keywords: list[str], skill_dictionary: dict | None = None
+) -> list[tuple[str, str]]:
     """Classify the four current determine_skills_to_add branches."""
     groups = normalize_profile_skills(skills)
     existing_skills = {
@@ -191,12 +250,21 @@ def classify_keywords(skills: list[dict], keywords: list[str]) -> list[tuple[str
         if isinstance(item, str)
     }
     category_names = {group["key"].lower() for group in groups}
+    dictionary_terms = (
+        skill_dictionary.get("terms", {}) if isinstance(skill_dictionary, dict) else {}
+    )
     classifications = []
 
     for keyword in keywords:
         keyword_lower = keyword.strip().lower()
         if keyword_lower in existing_skills:
             outcome = "SKIPPED"
+        elif isinstance(dictionary_terms, dict) and keyword_lower in dictionary_terms:
+            outcome = (
+                "MAPPED"
+                if dictionary_terms[keyword_lower].lower() in category_names
+                else "MAPPED_MISSING"
+            )
         elif keyword_lower in SKILL_TO_CATEGORY:
             outcome = (
                 "MAPPED"
@@ -214,23 +282,26 @@ def fallback_rendered_keyword(keyword: str) -> str:
     return PREFERRED_SKILL_CASING.get(keyword.strip().lower(), keyword.strip())
 
 
-def print_measurement(measurement: dict) -> None:
-    resume = load_fixture(measurement["fixture"])
+def print_result(
+    resume: dict, measurement: dict, label: str, skill_dictionary: dict | None = None
+) -> float:
     keywords = measurement["keywords"]
     # This direct call is the behavior under measurement; it makes no network calls.
-    skills_to_add = determine_skills_to_add(resume["skills"], keywords)
-    classifications = classify_keywords(resume["skills"], keywords)
+    skills_to_add = determine_skills_to_add(
+        resume["skills"], keywords, skill_dictionary
+    )
+    classifications = classify_keywords(resume["skills"], keywords, skill_dictionary)
     counts = Counter(outcome for _, outcome in classifications)
     non_skipped = len(keywords) - counts["SKIPPED"]
     mapped_coverage = counts["MAPPED"] / non_skipped * 100 if non_skipped else 0.0
 
-    print(f"{measurement['fixture']} - {measurement['occupation']}")
+    print(label)
     print("OUTCOME          COUNT  PERCENT")
     for outcome in OUTCOMES:
         count = counts[outcome]
         print(f"{outcome:<16} {count:>5}  {count / len(keywords) * 100:>6.1f}%")
     print(
-        "HEADLINE         "
+        "COVERAGE         "
         f"{counts['MAPPED']}/{non_skipped} non-skipped keywords reached a real "
         f"profile category ({mapped_coverage:.1f}%)"
     )
@@ -245,6 +316,24 @@ def print_measurement(measurement: dict) -> None:
         landed = rendered in skills_to_add.get("additional_skills", [])
         status = "additional_skills" if landed else "not returned"
         print(f"- {keyword} -> {status} -> {measurement['human_categories'][keyword]}")
+    return mapped_coverage
+
+
+def print_measurement(measurement: dict) -> None:
+    resume = load_fixture(measurement["fixture"])
+    print(f"{measurement['fixture']} - {measurement['occupation']}")
+    without_dictionary = print_result(resume, measurement, "WITHOUT DICTIONARY")
+    with_dictionary = print_result(
+        resume,
+        measurement,
+        "WITH HAND-SEEDED DICTIONARY",
+        measurement["skill_dictionary"],
+    )
+    print(
+        "HEADLINE         "
+        f"{without_dictionary:.1f}% without a dictionary, "
+        f"{with_dictionary:.1f}% with one"
+    )
     print()
 
 
