@@ -277,3 +277,9 @@ Why:
 Each master resume owns its nullable JSONB skill dictionary rather than sharing one globally or per user. Someone with software, data, and marketing resumes needs three vocabularies; one resume's mappings must not contaminate another's.
 
 The dictionary hash contains only sorted skill category keys and normalized `meta.occupation`. Those are the only inputs whose change invalidates a term-to-category mapping. Bullet edits, keyword selection, and display-title edits do not affect the vocabulary mapping, while category or target-role changes do. A canonical JSON payload encoded as UTF-8 and hashed with SHA-256 makes that decision stable across Python processes.
+
+## Seed dictionaries after, not during, master-resume saves
+
+Dictionary seeding is a separate Claude Haiku call after the master resume has been committed. The ordinary save must not fail or remain slow because optional enrichment fails, times out, or is temporarily unavailable. The client therefore persists first, then requests seeding; a failure is non-blocking and leaves the saved resume usable.
+
+The seed prompt includes target role, category keys and display labels, existing skill items, summary, project names, certification names, and experience titles. It deliberately excludes experience bullets, and explicitly marks experience titles as possibly prior or unrelated work. A career changer's prior job should not determine the vocabulary for the occupation they are targeting.

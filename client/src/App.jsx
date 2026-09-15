@@ -168,7 +168,6 @@ export default function App() {
     setResumeDraft(data.resume);
     setMasterResumeId(data.id);
     setSavedMasterResume(data);
-    setStep("master-preview");
     return data;
   }
 
@@ -179,6 +178,7 @@ export default function App() {
         initialDraft={resumeDraft}
         onBack={() => setStep(0)}
         onSave={handleMasterResumeSave}
+        onSaveComplete={() => setStep("master-preview")}
       />
     );
   }

@@ -66,7 +66,13 @@ _rate_limit_hits: dict[str, deque] = defaultdict(deque)
 
 @app.middleware("http")
 async def rate_limit_ai_routes(request: Request, call_next):
-    if request.method == "POST" and request.url.path in _RATE_LIMITED_PATHS:
+    is_dictionary_seed = (
+        request.url.path.startswith("/api/master-resumes/")
+        and request.url.path.endswith("/seed-dictionary")
+    )
+    if request.method == "POST" and (
+        request.url.path in _RATE_LIMITED_PATHS or is_dictionary_seed
+    ):
         client_ip = request.client.host if request.client else "unknown"
         now = time.monotonic()
         hits = _rate_limit_hits[client_ip]

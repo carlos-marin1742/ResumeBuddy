@@ -4,12 +4,16 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 from models import MasterResumeRecord
+from services.claude_service import tailor_resume
 from services.master_resume_adapter import master_resume_to_profile
 from services.skill_dictionary_service import (
     compute_profile_hash,
     lookup_skill_dictionary_category,
     profile_hash_for_resume,
+    seed_skill_dictionary,
 )
 
 
@@ -102,3 +106,77 @@ def test_lookup_returns_none_for_null_stale_or_deleted_category():
 
     record.skill_dictionary = _dictionary(record, {"venipuncture": "deleted_category"})
     assert lookup_skill_dictionary_category(record, "venipuncture") is None
+
+
+def test_seed_validates_terms_hashes_profile_and_avoids_experience_bullets(monkeypatch):
+    record = _record(_builder_resume())
+    prompt = {}
+    def call_model(system, user):
+        prompt["text"] = user
+        return '{"terms":[{"term":"venipuncture","category":"clinical"},{"term":"elisa","category":"instruments"}]}'
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", call_model)
+
+    result = seed_skill_dictionary(record)
+
+    assert result == {"status": "seeded", "term_count": 2}
+    assert record.skill_dictionary["terms"] == {"venipuncture": "clinical", "elisa": "instruments"}
+    assert record.skill_dictionary["profile_hash"] == profile_hash_for_resume(master_resume_to_profile(record.resume_data))
+    assert '"key": "clinical"' in prompt["text"]
+    assert '"label": "Clinical Skills"' in prompt["text"]
+    assert "Clinical Laboratory Technician" in prompt["text"]
+    assert "Prepared samples." not in prompt["text"]
+    assert "possibly prior or unrelated work" in prompt["text"]
+
+
+def test_seed_drops_invalid_empty_and_duplicate_terms_last_wins(monkeypatch):
+    record = _record()
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", lambda *_: '''{"terms":[
+      {"term":"valid","category":"clinical"}, {"term":"VALID","category":"instruments"},
+      {"term":"bad","category":"not-sent"}, {"term":" ","category":"clinical"}
+    ]}''')
+
+    seed_skill_dictionary(record)
+
+    assert record.skill_dictionary["terms"] == {"valid": "instruments"}
+
+
+@pytest.mark.parametrize("response", ["not json", '{"terms": []}'])
+def test_seed_unparseable_or_empty_response_records_failure_without_terms(monkeypatch, response):
+    record = _record()
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", lambda *_: response)
+
+    assert seed_skill_dictionary(record) == {"status": "failed"}
+    assert record.skill_dictionary["last_attempt_failed"] is True
+    assert "terms" not in record.skill_dictionary
+
+
+def test_failed_reseed_preserves_existing_terms_and_hash(monkeypatch):
+    record = _record()
+    original = _dictionary(record, {"venipuncture": "clinical"})
+    record.skill_dictionary = original
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", lambda *_: "broken")
+
+    seed_skill_dictionary(record)
+
+    assert record.skill_dictionary["terms"] == original["terms"]
+    assert record.skill_dictionary["profile_hash"] == original["profile_hash"]
+    assert record.skill_dictionary["last_attempt_failed"] is True
+
+
+def test_seeded_dictionary_drives_a_generation_category(monkeypatch):
+    record = _record()
+    monkeypatch.setattr(
+        "services.skill_dictionary_service._call_claude",
+        lambda *_: '{"terms":[{"term":"specimen accessioning","category":"clinical"}]}',
+    )
+    assert seed_skill_dictionary(record)["status"] == "seeded"
+    monkeypatch.setattr(
+        "services.claude_service._call_claude",
+        lambda *_args, **_kwargs: '{"summary":"", "experiences":[], "projects":[], "skills_to_highlight":[]}',
+    )
+
+    generated = tailor_resume(
+        master_resume_to_profile(record.resume_data), "Clinical laboratory role", ["Specimen Accessioning"], record.skill_dictionary,
+    )
+
+    assert generated.skills_to_add == {"clinical": ["Specimen Accessioning"]}

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
@@ -12,8 +12,11 @@ from routes.master_resumes import (
     delete_master_resume,
     get_master_resume,
     list_master_resumes,
+    seed_master_resume_dictionary,
     update_master_resume,
 )
+from services.master_resume_adapter import master_resume_to_profile
+from services.skill_dictionary_service import profile_hash_for_resume
 
 pytest_plugins = ("postgres_test_support",)
 
@@ -258,3 +261,63 @@ def test_master_resume_rejects_html_breakout_in_email():
 
     with pytest.raises(ValidationError, match="valid email"):
         MasterResumeSaveRequest.model_validate(payload)
+
+
+def test_seed_endpoint_unknown_id_404s(postgres_session):
+    with pytest.raises(HTTPException) as exc_info:
+        seed_master_resume_dictionary("missing", postgres_session)
+    assert exc_info.value.status_code == 404
+
+
+def test_seed_endpoint_skips_current_dictionary_without_calling_model(postgres_session, monkeypatch):
+    created = create_master_resume(_request(), postgres_session)
+    record = postgres_session.get(MasterResumeRecord, created.id)
+    record.skill_dictionary = {
+        "terms": {"roadmap": "product"},
+        "profile_hash": profile_hash_for_resume(master_resume_to_profile(record.resume_data)),
+        "seeded_at": "2026-09-15T00:00:00+00:00", "last_attempt_at": "2026-09-15T00:00:00+00:00",
+        "last_attempt_failed": False,
+    }
+    postgres_session.commit()
+    called = False
+    def fail(*_):
+        nonlocal called
+        called = True
+        raise AssertionError("model should not be called")
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", fail)
+
+    assert seed_master_resume_dictionary(created.id, postgres_session).status == "skipped-unchanged"
+    assert called is False
+
+
+def test_seed_endpoint_backoff_and_failure_preserves_jsonb(postgres_session, monkeypatch):
+    created = create_master_resume(_request(), postgres_session)
+    record = postgres_session.get(MasterResumeRecord, created.id)
+    record.skill_dictionary = {
+        "terms": {"roadmap": "product"}, "profile_hash": "old", "seeded_at": "old",
+        "last_attempt_at": datetime.now(timezone.utc).isoformat(), "last_attempt_failed": True,
+    }
+    postgres_session.commit()
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", lambda *_: (_ for _ in ()).throw(AssertionError()))
+    assert seed_master_resume_dictionary(created.id, postgres_session).status == "skipped-backoff"
+
+    record.skill_dictionary = {
+        **record.skill_dictionary,
+        "last_attempt_at": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
+    }
+    postgres_session.add(record); postgres_session.commit()
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", lambda *_: "bad json")
+    assert seed_master_resume_dictionary(created.id, postgres_session).status == "failed"
+    postgres_session.expire_all()
+    stored = postgres_session.get(MasterResumeRecord, created.id).skill_dictionary
+    assert stored["terms"] == {"roadmap": "product"}
+    assert stored["last_attempt_failed"] is True
+
+
+def test_seed_endpoint_success_persists_jsonb(postgres_session, monkeypatch):
+    created = create_master_resume(_request(), postgres_session)
+    monkeypatch.setattr("services.skill_dictionary_service._call_claude", lambda *_: '{"terms":[{"term":"backlog","category":"product"}]}')
+    response = seed_master_resume_dictionary(created.id, postgres_session)
+    postgres_session.expire_all()
+    assert response.status == "seeded"
+    assert postgres_session.get(MasterResumeRecord, created.id).skill_dictionary["terms"] == {"backlog": "product"}
