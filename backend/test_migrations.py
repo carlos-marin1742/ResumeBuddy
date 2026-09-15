@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from sqlalchemy import MetaData, Table, create_engine, inspect, select, text
-from sqlalchemy.engine import URL
+from sqlalchemy.engine import URL, make_url
 from sqlalchemy.dialects import postgresql
 
 from models import MasterResumeRecord, TailoredResumeRecord
@@ -16,7 +16,7 @@ from postgres_test_support import alembic_config, disposable_postgres_database
 
 BACKEND_DIR = Path(__file__).resolve().parent
 INITIAL_REVISION = "f8ed9f77d689"
-HEAD_REVISION = "8f567b9e2697"
+HEAD_REVISION = "c3d8a1e6b4f2"
 TECH_FIXTURE = BACKEND_DIR / "data" / "fixtures" / "tech_fixture.json"
 
 
@@ -46,13 +46,14 @@ def _assert_schema_matches_models(database_url: URL) -> None:
     engine = create_engine(database_url)
     try:
         inspector = inspect(engine)
+        dialect = postgresql.dialect()
         assert {"tailored_resumes", "master_resumes", "alembic_version"} <= set(
             inspector.get_table_names()
         )
 
         for table_name, expected_types in EXPECTED_MODEL_COLUMN_TYPES.items():
             actual_types = {
-                column["name"]: _normalized_type_name(str(column["type"]))
+                column["name"]: _normalized_type_name(column["type"].compile(dialect=dialect))
                 for column in inspector.get_columns(table_name)
             }
             assert set(expected_types) <= set(actual_types)
@@ -119,7 +120,7 @@ def test_jsonb_conversion_preserves_existing_payloads(migration_database: URL):
         "_ats_matched_keywords": ["Python", "FastAPI", "PostgreSQL"],
     }
     selected_keywords = ["Python", "FastAPI", "PostgreSQL"]
-    created_at = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
+    created_at = datetime(2026, 9, 14, 12, 0)
     master_id = uuid4().hex
     tailored_id = uuid4().hex
 
@@ -160,25 +161,34 @@ def test_jsonb_conversion_preserves_existing_payloads(migration_database: URL):
     finally:
         engine.dispose()
 
-    command.upgrade(alembic_config(migration_database), "head")
-    _assert_schema_matches_models(migration_database)
-    assert _payload_column_types(migration_database) == {
+    # A bare timestamp-to-timestamptz ALTER uses the session TimeZone. Put the
+    # head migration and readback in a non-UTC session to prove the revision
+    # explicitly preserves legacy UTC instants.
+    non_utc_database = make_url(
+        f"{migration_database.render_as_string(hide_password=False)}"
+        "?options=-c+TimeZone=America/Chicago"
+    )
+    command.upgrade(alembic_config(non_utc_database), "head")
+    _assert_schema_matches_models(non_utc_database)
+    assert _payload_column_types(non_utc_database) == {
         "resume_data": "JSONB",
         "selected_keywords": "JSONB",
         "tailored_resume": "JSONB",
     }
 
-    engine = create_engine(migration_database)
+    engine = create_engine(non_utc_database)
     try:
         metadata = MetaData()
         master_resumes = Table("master_resumes", metadata, autoload_with=engine)
         tailored_resumes = Table("tailored_resumes", metadata, autoload_with=engine)
         with engine.connect() as connection:
-            actual_resume_data = connection.execute(
-                select(master_resumes.c.resume_data).where(master_resumes.c.id == master_id)
-            ).scalar_one()
-            actual_selected_keywords, actual_tailored_resume = connection.execute(
-                select(tailored_resumes.c.selected_keywords, tailored_resumes.c.tailored_resume).where(
+            actual_resume_data, actual_master_created_at, actual_master_updated_at = connection.execute(
+                select(master_resumes.c.resume_data, master_resumes.c.created_at, master_resumes.c.updated_at).where(
+                    master_resumes.c.id == master_id
+                )
+            ).one()
+            actual_selected_keywords, actual_tailored_resume, actual_tailored_created_at = connection.execute(
+                select(tailored_resumes.c.selected_keywords, tailored_resumes.c.tailored_resume, tailored_resumes.c.created_at).where(
                     tailored_resumes.c.id == tailored_id
                 )
             ).one()
@@ -188,6 +198,9 @@ def test_jsonb_conversion_preserves_existing_payloads(migration_database: URL):
     assert actual_resume_data == resume_data
     assert actual_selected_keywords == selected_keywords
     assert actual_tailored_resume == tailored_resume
+    assert actual_master_created_at == created_at.replace(tzinfo=timezone.utc)
+    assert actual_master_updated_at == created_at.replace(tzinfo=timezone.utc)
+    assert actual_tailored_created_at == created_at.replace(tzinfo=timezone.utc)
 
 
 def test_revision_chain_downgrades_to_base(migration_database: URL):

@@ -1,5 +1,6 @@
 """PostgreSQL coverage for tailored-resume persistence through route helpers."""
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -58,6 +59,10 @@ def test_generation_persistence_round_trips_every_intended_field(postgres_sessio
         resume=resume,
         ats_score={"overall_score": 91, "keyword_coverage": 0.75},
     )
+    expected_created_at = datetime(2026, 9, 14, 7, 0, tzinfo=timezone(timedelta(hours=-5)))
+    record.created_at = expected_created_at
+    postgres_session.add(record)
+    postgres_session.commit()
     postgres_session.expire_all()
     stored = postgres_session.get(TailoredResumeRecord, record.id)
 
@@ -74,6 +79,7 @@ def test_generation_persistence_round_trips_every_intended_field(postgres_sessio
     assert stored.cover_letter is None
     assert stored.created_at is not None
     assert stored.created_at.tzinfo is not None
+    assert stored.created_at == expected_created_at
 
 
 def test_generation_persistence_keeps_null_ats_scores(postgres_session):

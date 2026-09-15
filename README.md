@@ -212,7 +212,7 @@ cd backend
 python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/test_generate.py::test_summary_variant_changes_only_the_default_summary
 ```
 
-Without `POSTGRES_TEST_DATABASE_URL`, the backend baseline is 215 collected, 192 passed, 22 skipped, and 1 deselected. With it configured and reachable, all 214 selected tests run.
+Without `POSTGRES_TEST_DATABASE_URL`, the backend baseline is 215 collected, 192 passed, 22 skipped, and 1 deselected. With it configured and reachable, the baseline is 214 passed and 0 failed.
 
 The credential-dependent `backend/smoke_extract_keywords.py` script is a manual smoke check and is not collected by pytest. The deselected summary-variant regression is intentional documentation of a current defect: `_apply_summary_variant` identifies the requested `summary.variants` entry, but returns the original resume instead of the copied resume with only `summary.default` replaced. Remove the deselection when that behavior is fixed and the regression passes.
 

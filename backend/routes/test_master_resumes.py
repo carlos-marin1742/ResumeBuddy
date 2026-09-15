@@ -51,6 +51,8 @@ def test_create_and_fetch_master_resume(postgres_session):
     assert fetched.resume == created.resume
     assert record is not None
     assert record.target_role == "Product Manager"
+    assert record.created_at.tzinfo is not None
+    assert record.updated_at.tzinfo is not None
     assert created.resume["skills"] == [
         {"key": "product", "category": "Product", "items": ["Roadmaps"]},
     ]
