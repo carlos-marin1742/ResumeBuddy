@@ -23,6 +23,7 @@ from services.claude_service import ATSScoreResult, TailoredResume, score_resume
 from services.project_selection import select_relevant_projects
 from services.master_resume_adapter import master_resume_to_profile
 from services.profile_skills import normalize_profile_skills
+from services.skill_dictionary_service import skill_dictionary_is_current
 
 router = APIRouter()
 
@@ -286,11 +287,14 @@ def generate_resume(
     if len(jd) > 20_000:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
+    skill_dictionary = None
     if request.master_resume_id:
         master_record = db.get(MasterResumeRecord, request.master_resume_id)
         if not master_record:
             raise HTTPException(status_code=404, detail="Master resume not found.")
         base_resume = master_resume_to_profile(master_record.resume_data)
+        if skill_dictionary_is_current(master_record):
+            skill_dictionary = master_record.skill_dictionary
     else:
         base_resume = _load_resume(request.resume_id)
     base_resume = _apply_summary_variant(base_resume, request.summary_variant)
@@ -308,6 +312,7 @@ def generate_resume(
             base_resume=base_resume,
             job_description=jd,
             selected_keywords=request.selected_keywords,
+            skill_dictionary=skill_dictionary,
         )
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"Tailoring failed: {exc}")

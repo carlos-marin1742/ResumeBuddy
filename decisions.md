@@ -271,3 +271,9 @@ Why:
 - Existing profile tailoring remains backward compatible.
 - New behavior is independently testable.
 - The change does not overload `App.jsx` or existing generation services.
+
+## Keep skill dictionaries per resume
+
+Each master resume owns its nullable JSONB skill dictionary rather than sharing one globally or per user. Someone with software, data, and marketing resumes needs three vocabularies; one resume's mappings must not contaminate another's.
+
+The dictionary hash contains only sorted skill category keys and normalized `meta.occupation`. Those are the only inputs whose change invalidates a term-to-category mapping. Bullet edits, keyword selection, and display-title edits do not affect the vocabulary mapping, while category or target-role changes do. A canonical JSON payload encoded as UTF-8 and hashed with SHA-256 makes that decision stable across Python processes.

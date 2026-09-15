@@ -34,6 +34,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 - **PDF preview with live sliders** — adjust font size, margins, entry spacing, and section spacing in a live iframe before generating your final PDF
 - **Editable cover letters** — generate from the tailored resume, edit in place, copy to the clipboard, and download as PDF
 - **Resume history** — PostgreSQL-backed history with company, role, job description, ATS score, cached resume PDF, and stored cover letter; searchable and filterable by profile
+- **Per-resume skill dictionaries** — master resumes have a nullable JSONB `skill_dictionary` with `terms`, `profile_hash`, `seeded_at`, `last_attempt_at`, and `last_attempt_failed`. It remains unpopulated until commit 2 adds seeding.
 - **Docker support** — fully containerized for consistent cross-platform behavior
 
 ---

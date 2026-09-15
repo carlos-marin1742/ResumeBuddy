@@ -28,6 +28,8 @@ These are candidate improvements, not committed scope. Prioritize them against u
 
 ## Skills data-shape follow-ons
 
+- Per-resume skill dictionary commit 2 remains: generate and persist the vocabulary with an AI call and seeding flow. Commit 3 remains: write accepted keywords back after generation.
+
 - `SKILL_TO_CATEGORY` still reaches no clinical or trades category, so non-tech
   users receive most selected keywords in Additional Skills rather than in
   their own categories. Per-profile classification is the next problem; do not

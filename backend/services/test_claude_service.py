@@ -316,6 +316,27 @@ class TestDetermineSkillsToAdd:
             "additional_skills": ["IV Insertion"],
         }
 
+    def test_dictionary_wins_over_static_category_mapping(self):
+        result = determine_skills_to_add(
+            {"backend": [], "databases_cloud": []},
+            ["FastAPI"],
+            {"terms": {"fastapi": "databases_cloud"}},
+        )
+
+        assert result == {"databases_cloud": ["FastAPI"]}
+
+    def test_no_dictionary_preserves_exact_mixed_branch_output(self):
+        base_skills = [{"key": "languages", "items": ["Python"]}, {"key": "BACKEND", "items": []}]
+        assert determine_skills_to_add(base_skills, ["Python", "FastAPI", "React", "Event Sourcing"]) == {
+            "BACKEND": ["FastAPI"],
+            "additional_skills": ["React", "Event Sourcing"],
+        }
+
+    def test_dictionary_keyword_missing_category_falls_back(self):
+        assert determine_skills_to_add(
+            {"clinical": []}, ["Venipuncture"], {"terms": {"venipuncture": "deleted"}}
+        ) == {"additional_skills": ["Venipuncture"]}
+
 # ---------------------------------------------------------------------------
 # _extract_json
 # ---------------------------------------------------------------------------

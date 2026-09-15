@@ -73,3 +73,9 @@ class MasterResumeRecord(SQLModel, table=True):
         default_factory=dict,
         sa_column=Column(JSONB().with_variant(JSON(), "sqlite")),
     )
+    # Populated by the future dictionary-seeding pass. Null means no attempt
+    # has created a dictionary; it is intentionally distinct from an empty one.
+    skill_dictionary: dict | None = Field(
+        default=None,
+        sa_column=Column(JSONB().with_variant(JSON(), "sqlite"), nullable=True),
+    )
