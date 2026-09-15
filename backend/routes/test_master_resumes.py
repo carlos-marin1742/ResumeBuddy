@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -44,15 +46,23 @@ def _request(name: str = "Jamie Rivera") -> MasterResumeSaveRequest:
 def test_create_and_fetch_master_resume(postgres_session):
     db = postgres_session
     created = create_master_resume(_request(), db)
-    fetched = get_master_resume(created.id, db)
     record = db.get(MasterResumeRecord, created.id)
+
+    assert record is not None
+    record.created_at = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
+    record.updated_at = datetime(2026, 9, 14, 13, 0, tzinfo=timezone.utc)
+    db.add(record)
+    db.commit()
+    db.expire_all()
+    fetched = get_master_resume(created.id, db)
 
     assert created.resume["contact"]["name"] == "Jamie Rivera"
     assert fetched.resume == created.resume
-    assert record is not None
     assert record.target_role == "Product Manager"
     assert record.created_at.tzinfo is not None
     assert record.updated_at.tzinfo is not None
+    assert fetched.created_at == "2026-09-14T12:00:00+00:00"
+    assert fetched.updated_at == "2026-09-14T13:00:00+00:00"
     assert created.resume["skills"] == [
         {"key": "product", "category": "Product", "items": ["Roadmaps"]},
     ]
@@ -71,12 +81,19 @@ def test_master_resume_accepts_missing_target_job_title_for_existing_records():
 def test_list_master_resumes_uses_saved_title_for_profile_selection(postgres_session):
     db = postgres_session
     created = create_master_resume(_request(), db)
+    record = db.get(MasterResumeRecord, created.id)
+    assert record is not None
+    record.updated_at = datetime(2026, 9, 14, 13, 0, tzinfo=timezone.utc)
+    db.add(record)
+    db.commit()
+    db.expire_all()
     result = list_master_resumes(db)
 
     assert len(result.resumes) == 1
     assert result.resumes[0].id == created.id
     assert result.resumes[0].title == "Product Manager"
     assert result.resumes[0].name == "Jamie Rivera"
+    assert result.resumes[0].updated_at == "2026-09-14T13:00:00+00:00"
 
 
 def test_delete_master_resume_removes_record(postgres_session):

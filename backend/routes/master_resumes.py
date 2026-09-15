@@ -145,8 +145,6 @@ class MasterResumeDeleteResponse(BaseModel):
 
 
 def _isoformat(value: datetime) -> str:
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
     return value.isoformat()
 
 

@@ -96,11 +96,22 @@ def test_history_lists_newest_first_and_filters_profile(postgres_session):
     oldest = _persist(postgres_session, company="Oldest", profile="tech_fixture")
     middle = _persist(postgres_session, company="Middle", profile="clinical_fixture")
     newest = _persist(postgres_session, company="Newest", profile="tech_fixture")
+    oldest.created_at = datetime(2026, 9, 14, 10, 0, tzinfo=timezone.utc)
+    middle.created_at = datetime(2026, 9, 14, 11, 0, tzinfo=timezone.utc)
+    newest.created_at = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
+    postgres_session.add_all([oldest, middle, newest])
+    postgres_session.commit()
+    postgres_session.expire_all()
 
     all_history = list_history(db=postgres_session)
     tech_history = list_history(profile="tech_fixture", db=postgres_session)
 
     assert [item.id for item in all_history.records] == [newest.id, middle.id, oldest.id]
+    assert [item.created_at for item in all_history.records] == [
+        "2026-09-14T12:00:00+00:00",
+        "2026-09-14T11:00:00+00:00",
+        "2026-09-14T10:00:00+00:00",
+    ]
     assert all_history.total == 3
     assert [item.id for item in tech_history.records] == [newest.id, oldest.id]
     assert tech_history.total == 2
@@ -109,9 +120,14 @@ def test_history_lists_newest_first_and_filters_profile(postgres_session):
 def test_history_fetch_delete_and_restore_real_record(postgres_session, monkeypatch):
     resume = _resume()
     record = _persist(postgres_session, resume=resume)
+    record.created_at = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
+    postgres_session.add(record)
+    postgres_session.commit()
+    postgres_session.expire_all()
 
     fetched = get_history_record(record.id, postgres_session)
     assert fetched.id == record.id
+    assert fetched.created_at == "2026-09-14T12:00:00+00:00"
     assert fetched.selected_keywords == ["FastAPI", "PostgreSQL", "JSONB"]
 
     restored = {}
