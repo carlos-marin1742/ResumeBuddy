@@ -149,6 +149,7 @@ def _apply_summary_variant(base_resume: dict, variant_key: str | None) -> dict:
         resume = dict(base_resume)
         resume["summary"] = dict(resume["summary"])
         resume["summary"]["default"] = variants[variant_key]
+        return resume
     return base_resume
 
 
