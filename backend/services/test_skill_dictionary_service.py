@@ -7,6 +7,7 @@ import sys
 import pytest
 
 from models import MasterResumeRecord
+from services import claude_service
 from services.claude_service import tailor_resume
 from services.master_resume_adapter import master_resume_to_profile
 from services.skill_dictionary_service import (
@@ -203,6 +204,14 @@ def test_learning_never_overwrites_or_uses_stale_dictionary():
     assert not learn_static_skill_placements(record, master_resume_to_profile(record.resume_data)["skills"], ["FastAPI"])
 
 
+def test_stale_dictionary_does_not_learn_a_new_static_term():
+    record = _record(_builder_resume(categories=[{"key": "backend", "category": "Backend", "items": []}]))
+    record.skill_dictionary = _dictionary(record, {})
+    record.skill_dictionary["profile_hash"] = "stale"
+    assert not learn_static_skill_placements(record, master_resume_to_profile(record.resume_data)["skills"], ["FastAPI"])
+    assert record.skill_dictionary["terms"] == {}
+
+
 def test_reseed_preserves_learned_but_seeded_term_wins(monkeypatch):
     record = _record()
     record.skill_dictionary = _dictionary(record, {"learned-only": "clinical", "conflict": "instruments"})
@@ -211,3 +220,22 @@ def test_reseed_preserves_learned_but_seeded_term_wins(monkeypatch):
     seed_skill_dictionary(record)
     assert record.skill_dictionary["terms"] == {"learned-only": "clinical", "conflict": "clinical", "seeded": "instruments"}
     assert record.skill_dictionary["learned"] == ["learned-only"]
+
+
+def test_learned_term_drives_the_second_generation_after_static_mapping_is_removed(monkeypatch):
+    record = _record(_builder_resume(categories=[{"key": "backend", "category": "Backend", "items": []}]))
+    record.skill_dictionary = _dictionary(record, {"seeded": "backend"})
+    profile = master_resume_to_profile(record.resume_data)
+    monkeypatch.setattr(
+        "services.claude_service._call_claude",
+        lambda *_args, **_kwargs: '{"summary":"", "experiences":[], "projects":[], "skills_to_highlight":[]}',
+    )
+
+    first = tailor_resume(profile, "Backend role", ["FastAPI"], record.skill_dictionary)
+    assert first.skills_to_add == {"backend": ["FastAPI"]}  # branch 3
+    assert learn_static_skill_placements(record, profile["skills"], ["FastAPI"])
+
+    monkeypatch.delitem(claude_service.SKILL_TO_CATEGORY, "fastapi")
+    second = tailor_resume(profile, "Backend role", ["FastAPI"], record.skill_dictionary)
+
+    assert second.skills_to_add == {"backend": ["FastAPI"]}  # branch 2; static branch is unavailable
