@@ -92,7 +92,7 @@ describe("App workflow", () => {
     await user.click(screen.getByRole("button", { name: "Save & preview" }));
 
     expect(await screen.findByRole("main", { name: /jamie r\. rivera's resume preview/i })).toBeInTheDocument();
-    expect(fetch).toHaveBeenLastCalledWith(
+    expect(fetch).toHaveBeenCalledWith(
       "/api/master-resumes/master-123",
       expect.objectContaining({ method: "PUT" }),
     );

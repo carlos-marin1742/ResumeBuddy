@@ -476,6 +476,20 @@ describe("ResumeBuilder", () => {
     expect(screen.queryByText("Resume saved, but skill analysis did not complete.")).not.toBeInTheDocument();
   });
 
+  it("completes the saved resume while a seed request is still pending", async () => {
+    let resolveSeed;
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise((resolve) => { resolveSeed = resolve; })));
+    const onSaveComplete = vi.fn();
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={vi.fn().mockResolvedValue({ id: "saved-id" })} onSaveComplete={onSaveComplete} />);
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(onSaveComplete).toHaveBeenCalledTimes(1);
+    resolveSeed({ ok: true, json: async () => ({ status: "seeded" }) });
+  });
+
   it("shows import errors without replacing the current draft", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: false,
