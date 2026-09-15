@@ -251,19 +251,22 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
       const savedRecord = await onSave(payload);
       setDraft((current) => ({ ...current, skills: keyedSkills }));
       setSaved(true);
+      if (!savedRecord?.id) return;
       setSaving("seed");
-      try {
+      void (async () => {
+        try {
         const response = await Promise.race([
           fetch(`${apiBase}/api/master-resumes/${savedRecord.id}/seed-dictionary`, { method: "POST" }),
           new Promise((_, reject) => setTimeout(() => reject(new Error("Skill analysis timed out.")), SEED_TIMEOUT_MS)),
         ]);
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "failed") {
+          if (!response.ok || data.status === "failed") {
+            setSeedWarning("Resume saved, but skill analysis did not complete.");
+          }
+        } catch {
           setSeedWarning("Resume saved, but skill analysis did not complete.");
         }
-      } catch {
-        setSeedWarning("Resume saved, but skill analysis did not complete.");
-      }
+      })();
       onSaveComplete?.();
     } catch (error) {
       setSaveError(error.message);
