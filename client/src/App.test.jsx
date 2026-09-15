@@ -50,6 +50,10 @@ describe("App workflow", () => {
         })
         .mockResolvedValueOnce({
           ok: true,
+          json: async () => ({ status: "seeded", term_count: 2 }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
           json: async () => ({
             id: "master-123",
             created_at: "2026-07-24T12:00:00Z",
@@ -59,6 +63,10 @@ describe("App workflow", () => {
               contact: { ...savedResume.contact, name: "Jamie R. Rivera" },
             },
           }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ status: "skipped-unchanged" }),
         }),
     );
     const user = userEvent.setup();
@@ -70,13 +78,11 @@ describe("App workflow", () => {
     await user.click(screen.getByRole("button", { name: "Save & preview" }));
 
     expect(await screen.findByRole("main", { name: /jamie rivera's resume preview/i })).toBeInTheDocument();
-    expect(fetch).toHaveBeenLastCalledWith(
+    expect(fetch).toHaveBeenCalledWith(
       "/api/master-resumes",
-      expect.objectContaining({
-        method: "POST",
-        body: expect.stringContaining('"targetJobTitle":""'),
-      }),
+      expect.objectContaining({ method: "POST", body: expect.stringContaining('"targetJobTitle":""') }),
     );
+    expect(fetch).toHaveBeenCalledWith("/api/master-resumes/master-123/seed-dictionary", { method: "POST" });
 
     await user.click(screen.getByRole("button", { name: "Edit resume" }));
     expect(screen.getByLabelText("Full name")).toHaveValue("Jamie Rivera");

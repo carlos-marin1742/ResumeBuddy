@@ -10,7 +10,12 @@ from sqlmodel import Session, select
 
 from db import get_session
 from models import MasterResumeRecord
-from services.master_resume_adapter import split_skill_items
+from services.master_resume_adapter import master_resume_to_profile, split_skill_items
+from services.skill_dictionary_service import (
+    profile_hash_for_resume,
+    seed_backoff_active,
+    seed_skill_dictionary,
+)
 
 
 router = APIRouter()
@@ -144,6 +149,11 @@ class MasterResumeDeleteResponse(BaseModel):
     id: str
 
 
+class SeedDictionaryResponse(BaseModel):
+    status: str
+    term_count: int | None = None
+
+
 def _isoformat(value: datetime) -> str:
     return value.isoformat()
 
@@ -213,6 +223,26 @@ def update_master_resume(
     db.commit()
     db.refresh(record)
     return _to_response(record)
+
+
+@router.post("/api/master-resumes/{record_id}/seed-dictionary", response_model=SeedDictionaryResponse)
+def seed_master_resume_dictionary(
+    record_id: str,
+    db: Session = Depends(get_session),
+) -> SeedDictionaryResponse:
+    record = db.get(MasterResumeRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Master resume not found.")
+    dictionary = record.skill_dictionary
+    current_hash = profile_hash_for_resume(master_resume_to_profile(record.resume_data))
+    if isinstance(dictionary, dict) and dictionary.get("profile_hash") == current_hash and not dictionary.get("last_attempt_failed"):
+        return SeedDictionaryResponse(status="skipped-unchanged")
+    if seed_backoff_active(dictionary):
+        return SeedDictionaryResponse(status="skipped-backoff")
+    result = seed_skill_dictionary(record)
+    db.add(record)
+    db.commit()
+    return SeedDictionaryResponse(**result)
 
 
 @router.delete(

@@ -426,6 +426,56 @@ describe("ResumeBuilder", () => {
     expect(screen.getByLabelText("Full name")).toHaveValue("Jamie Rivera");
   });
 
+  it("seeds only after the resume save resolves", async () => {
+    const order = [];
+    const onSave = vi.fn(async () => {
+      order.push("save");
+      return { id: "saved-id" };
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      order.push("seed");
+      return { ok: true, json: async () => ({ status: "seeded" }) };
+    }));
+    const user = userEvent.setup();
+    render(<ResumeBuilder apiBase="http://api.test" onBack={vi.fn()} onSave={onSave} onSaveComplete={() => order.push("complete")} />);
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(order).toEqual(["save", "seed", "complete"]);
+    expect(fetch).toHaveBeenCalledWith(
+      "http://api.test/api/master-resumes/saved-id/seed-dictionary", { method: "POST" },
+    );
+  });
+
+  it("warns after failed skill analysis without retrying the successful save", async () => {
+    const onSave = vi.fn().mockResolvedValue({ id: "saved-id" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ status: "failed" }),
+    }));
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={onSave} />);
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Resume saved, but skill analysis did not complete.");
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not warn when the dictionary is already current", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ status: "skipped-unchanged" }),
+    }));
+    const user = userEvent.setup();
+    render(<ResumeBuilder onBack={vi.fn()} onSave={vi.fn().mockResolvedValue({ id: "saved-id" })} />);
+    await user.type(screen.getByLabelText("Full name"), "Jamie Rivera");
+    await user.type(screen.getByLabelText("Email"), "jamie@example.com");
+    await user.click(screen.getByRole("button", { name: "Save & preview" }));
+
+    expect(screen.queryByText("Resume saved, but skill analysis did not complete.")).not.toBeInTheDocument();
+  });
+
   it("shows import errors without replacing the current draft", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: false,

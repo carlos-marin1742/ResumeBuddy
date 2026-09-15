@@ -299,6 +299,7 @@ The second command should produce no output. Once that index removal is committe
 | `POST` | `/api/master-resumes` | Save a reviewed master resume |
 | `GET` | `/api/master-resumes/{id}` | Fetch a saved master resume |
 | `PUT` | `/api/master-resumes/{id}` | Update a saved master resume |
+| `POST` | `/api/master-resumes/{id}/seed-dictionary` | Seed a per-resume skill dictionary after save; skips unchanged dictionaries and backs off for one hour after failure (Claude Haiku) |
 | `POST` | `/api/extract-keywords` | Extract and score keywords from a job description (Groq) |
 | `POST` | `/api/generate-resume` | Tailor resume, inject skills, score ATS, generate PDF (Claude Haiku) |
 | `GET` | `/api/download/{filename}` | Download a generated PDF (auto-fit spacing) |
@@ -380,6 +381,8 @@ Same body as `/api/preview-html`. Returns a PDF file with the exact spacing over
 ---
 
 ## Cost model
+
+Saving a master resume is two-stage: the resume is persisted first, then the client asks `/api/master-resumes/{id}/seed-dictionary` to enrich its skill vocabulary with Claude Haiku. Seeding skips an unchanged dictionary and waits one hour after a failed attempt; failure never rolls back the save.
 
 | Step | Service | Cost |
 |---|---|---|

@@ -148,11 +148,14 @@ function RepeatingSection({ addLabel, children, items, name, number, onAdd, onRe
   );
 }
 
-export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSave }) {
+const SEED_TIMEOUT_MS = 10_000;
+
+export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSave, onSaveComplete }) {
   const [draft, setDraft] = useState(() => normalizeDraft(initialDraft ?? emptyDraft));
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [seedWarning, setSeedWarning] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const [importResult, setImportResult] = useState(null);
@@ -239,14 +242,29 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setSaving(true);
+    setSaving("save");
     setSaveError("");
+    setSeedWarning("");
     const keyedSkills = assignSkillKeys(draft.skills);
     const payload = { ...draft, skills: skillsForPayload(keyedSkills) };
     try {
-      await onSave(payload);
+      const savedRecord = await onSave(payload);
       setDraft((current) => ({ ...current, skills: keyedSkills }));
       setSaved(true);
+      setSaving("seed");
+      try {
+        const response = await Promise.race([
+          fetch(`${apiBase}/api/master-resumes/${savedRecord.id}/seed-dictionary`, { method: "POST" }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Skill analysis timed out.")), SEED_TIMEOUT_MS)),
+        ]);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "failed") {
+          setSeedWarning("Resume saved, but skill analysis did not complete.");
+        }
+      } catch {
+        setSeedWarning("Resume saved, but skill analysis did not complete.");
+      }
+      onSaveComplete?.();
     } catch (error) {
       setSaveError(error.message);
     } finally {
@@ -488,9 +506,10 @@ export default function ResumeBuilder({ apiBase = "", initialDraft, onBack, onSa
           <div>
             <p className="rb-save-note">{saved ? "Resume saved." : "Only your name and email are required to save."}</p>
             {saveError && <p className="rb-save-error" role="alert">{saveError}</p>}
+            {seedWarning && <p className="rb-save-error" role="status">{seedWarning}</p>}
           </div>
           <button className="btn btn-primary" type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Save & preview"}
+            {saving === "seed" ? "Analyzing your skills…" : saving ? "Saving…" : "Save & preview"}
           </button>
         </div>
       </form>
