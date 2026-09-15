@@ -60,6 +60,8 @@ Backend responsibilities:
 
 Master-resume saves use two stages: `POST /api/master-resumes/{id}/seed-dictionary` runs after persistence to enrich a per-resume skill dictionary. It calls Claude Haiku through the shared `CLAUDE_MODEL` constant (currently `claude-haiku-4-5-20251001`), skips current dictionaries, and uses a one-hour failure backoff. A seed failure or timeout never rolls back or blocks the completed resume save.
 
+Current dictionaries also learn accepted branch-3 static skill placements during generation. `skill_dictionary.learned` records lowercased terms added this way; they share `terms` for lookup.
+
 `TailoredResumeRecord` stores job-specific generation history. `MasterResumeRecord` stores reviewed resume-builder data for editing and preview. Both use PostgreSQL, and Alembic owns their schema. `MasterResumeRecord.skill_dictionary` is nullable JSONB with `{ "terms": {"lowercased term": "category_key"}, "profile_hash": "...", "seeded_at": "ISO timestamp", "last_attempt_at": "ISO timestamp or null", "last_attempt_failed": false }`; this storage-only change leaves it unpopulated until commit 2 adds seeding.
 
 There is currently **no authentication or authorization**; all API and history routes are open to any client that can reach the server. Do not imply per-user isolation. Preserve path validation, input limits, HTML escaping, and `Cache-Control: no-store` behavior.

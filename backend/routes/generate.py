@@ -23,7 +23,10 @@ from services.claude_service import ATSScoreResult, TailoredResume, score_resume
 from services.project_selection import select_relevant_projects
 from services.master_resume_adapter import master_resume_to_profile
 from services.profile_skills import normalize_profile_skills
-from services.skill_dictionary_service import skill_dictionary_is_current
+from services.skill_dictionary_service import (
+    learn_static_skill_placements,
+    skill_dictionary_is_current,
+)
 
 router = APIRouter()
 
@@ -288,6 +291,7 @@ def generate_resume(
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
     skill_dictionary = None
+    master_record = None
     if request.master_resume_id:
         master_record = db.get(MasterResumeRecord, request.master_resume_id)
         if not master_record:
@@ -355,6 +359,15 @@ def generate_resume(
         ats_score=ats_result.model_dump(exclude={"raw_response"}),
         pdf_path=str(pdf_path),
     )
+    if master_record:
+        try:
+            if learn_static_skill_placements(
+                master_record, base_resume.get("skills", {}), request.selected_keywords
+            ):
+                db.add(master_record)
+                db.commit()
+        except Exception:
+            db.rollback()
 
     # Build response
     experience_preview = [

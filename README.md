@@ -384,6 +384,8 @@ Same body as `/api/preview-html`. Returns a PDF file with the exact spacing over
 
 Saving a master resume is two-stage: the resume is persisted first, then the client asks `/api/master-resumes/{id}/seed-dictionary` to enrich its skill vocabulary with Claude Haiku. Seeding skips an unchanged dictionary and waits one hour after a failed attempt; failure never rolls back the save.
 
+During generation, accepted keywords placed by an existing static mapping are learned into the current dictionary. Its JSONB shape includes `terms` and a `learned` list of lowercased write-back keys.
+
 | Step | Service | Cost |
 |---|---|---|
 | Keyword extraction | Groq (Llama 3.3 70B) | Free |
