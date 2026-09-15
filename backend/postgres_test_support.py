@@ -20,7 +20,9 @@ ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
 def alembic_config(database_url: URL) -> Config:
     config = Config(str(ALEMBIC_INI))
     # alembic/env.py gives this explicit test URL precedence over the app URL.
-    config.attributes["database_url"] = database_url.render_as_string(hide_password=False)
+    config.attributes["database_url"] = database_url.render_as_string(
+        hide_password=False
+    ).replace("%", "%%")
     return config
 
 

@@ -2,6 +2,15 @@
 
 This document records important choices and their rationale. It describes decisions already made, not future commitments.
 
+## Store persisted timestamps with time zone
+
+`tailored_resumes.created_at` and `master_resumes.created_at`/`updated_at` are
+stored as PostgreSQL `timestamp with time zone`. The application writes
+timezone-aware UTC datetimes, but the original schema used naive timestamp
+columns, so PostgreSQL silently dropped the zone on write. This remained
+invisible until persistence tests ran against a real database rather than
+`MagicMock`.
+
 ## Apply skill relevance gating to every profile
 
 `determine_skills_to_show` now gates categories for every profile rather than

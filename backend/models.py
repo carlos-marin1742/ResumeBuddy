@@ -10,7 +10,7 @@ stored — it is re-rendered on demand from `tailored_resume`.
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Column, JSON, Text
+from sqlalchemy import Column, DateTime, JSON, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -23,7 +23,10 @@ class TailoredResumeRecord(SQLModel, table=True):
     __tablename__ = "tailored_resumes"
 
     id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
-    created_at: datetime = Field(default_factory=_utcnow, index=True)
+    created_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
+    )
 
     # ── What it was tailored for ──────────────────────────────────────
     company: str = Field(index=True)
@@ -56,8 +59,14 @@ class MasterResumeRecord(SQLModel, table=True):
     __tablename__ = "master_resumes"
 
     id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
-    created_at: datetime = Field(default_factory=_utcnow, index=True)
-    updated_at: datetime = Field(default_factory=_utcnow, index=True)
+    created_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
+    )
+    updated_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
+    )
     name: str = Field(index=True)
     target_role: str = Field(default="", index=True)
     resume_data: dict = Field(

@@ -81,7 +81,7 @@ cd backend && python -m pytest -v --basetemp=./.pytest-tmp --deselect routes/tes
 docker compose up --build
 ```
 
-Alembic migration-chain and ORM persistence tests are opt-in: set `POSTGRES_TEST_DATABASE_URL` to a reachable PostgreSQL database whose role can create databases and run the normal backend pytest command. Do not assume the Windows host's `localhost:5432` is the Compose service; when it is not, run validation inside the Compose network. They create and drop UUID-named disposable databases; persistence tests use the Alembic-created PostgreSQL schema rather than SQLite. Without that variable they skip cleanly: the backend baseline is 215 collected, 192 passed, 22 skipped, and 1 deselected; with it set, all 214 selected tests run.
+Alembic migration-chain and ORM persistence tests are opt-in: set `POSTGRES_TEST_DATABASE_URL` to a reachable PostgreSQL database whose role can create databases and run the normal backend pytest command. Do not assume the Windows host's `localhost:5432` is the Compose service; when it is not, run validation inside the Compose network. They create and drop UUID-named disposable databases; persistence tests use the Alembic-created PostgreSQL schema rather than SQLite. Without that variable they skip cleanly: the backend baseline is 215 collected, 192 passed, 22 skipped, and 1 deselected; with it set, the baseline is 214 passed and 0 failed.
 
 Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
 
