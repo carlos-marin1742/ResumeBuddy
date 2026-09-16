@@ -59,6 +59,8 @@ export default function PDFPreview({
   topOffset = 64,
   company = "",
   personName = "",
+  pdfPageCount = null,
+  pdfFittedToOnePage = null,
 }) {
   const [overrides, setOverrides] = useState(DEFAULTS);
   const [previewHtml, setPreviewHtml] = useState("");
@@ -66,6 +68,12 @@ export default function PDFPreview({
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [error, setError] = useState(null);
   const [iframeScale, setIframeScale] = useState(1);
+  const [fitStatus, setFitStatus] = useState(
+    pdfFittedToOnePage === null ? null : {
+      pageCount: pdfPageCount,
+      fittedToOnePage: pdfFittedToOnePage,
+    },
+  );
 
   const debounceRef = useRef(null);
   const iframeRef   = useRef(null);
@@ -150,6 +158,10 @@ export default function PDFPreview({
         body:    JSON.stringify(buildRequestBody(overrides)),
       });
       if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      setFitStatus({
+        pageCount: Number(res.headers.get("X-PDF-Page-Count")),
+        fittedToOnePage: res.headers.get("X-PDF-Fitted-To-One-Page") === "true",
+      });
       const blob        = await res.blob();
       const url         = URL.createObjectURL(blob);
       const a           = document.createElement("a");
@@ -281,10 +293,15 @@ export default function PDFPreview({
             </div>
 
             <div className="pp-hint card">
-              <p>The preview shows exactly one page. If content is cut off, reduce font size or spacing. Download generates a PDF with your exact settings.</p>
+              <p>The preview is clipped to the first page and shows a page-break marker. Download checks the rendered PDF and reports if it needs more than one page.</p>
             </div>
           </div>
 
+          {fitStatus && !fitStatus.fittedToOnePage && (
+            <p className="pp-fit-status" role="status">
+              This resume is {fitStatus.pageCount} pages. Spacing could not compress further at this font size.
+            </p>
+          )}
           <button
             className="btn btn-primary pp-download-btn"
             onClick={handleDownload}

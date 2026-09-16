@@ -101,6 +101,8 @@ class GenerateResponse(BaseModel):
     resume_id: str
     history_id: str        # DB record ID for the history endpoint
     person_name: str       # From resume contact, for download filename
+    pdf_page_count: int
+    pdf_fitted_to_one_page: bool
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -348,7 +350,7 @@ def generate_resume(
     pdf_filename = _pdf_storage_name(person_name, request.company, request.job_title)
     pdf_path = OUTPUTS_DIR / pdf_filename
     try:
-        build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
+        pdf_result = build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
 
@@ -421,6 +423,8 @@ def generate_resume(
         resume_id=request.resume_id,
         history_id=record.id,
         person_name=person_name,
+        pdf_page_count=pdf_result.page_count,
+        pdf_fitted_to_one_page=pdf_result.fitted_to_one_page,
     )
 
 

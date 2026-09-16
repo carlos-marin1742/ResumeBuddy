@@ -12,7 +12,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 1. **Select your resume profile** — choose from Tech, Clinical Research, Administrative, or a resume you built/imported. Profiles are loaded dynamically from JSON files in `backend/data/`
 2. **Paste a job description** — enter the company name, job title, and description. Groq (Llama 3.3 70B) extracts hard skills, tools, soft skills, and role signals, scores each by ATS weight, and flags gaps against your base resume
 3. **Select your keywords** — review what's already in your resume vs. what's missing, then confirm the keywords you want to target
-4. **Generate** — Claude Haiku rewrites your bullets to naturally incorporate your selected keywords, injects missing skills into the correct categories, scores the result with a heuristic ATS engine, and produces a polished single-page PDF
+4. **Generate** — Claude Haiku rewrites your bullets to naturally incorporate your selected keywords, injects missing skills into the correct categories, scores the result with a heuristic ATS engine, and produces a polished PDF. The app reports when dense content cannot fit on one page.
 5. **Preview & adjust** — inline-edit your tailored resume, then fine-tune font size, page margins, entry spacing, and section spacing with live sliders before downloading your custom PDF
 6. **Generate a cover letter** — create an editable letter grounded in the tailored resume, then download it as a 12pt Times New Roman PDF
 7. **Resume History** — every generation is saved to PostgreSQL with its job description, tailored resume, ATS result, and optional cover letter. Browse, search, preview, and download past artifacts
@@ -28,7 +28,7 @@ Built as a portfolio project demonstrating full-stack AI engineering: FastAPI ba
 - **Skills injection engine** — Python-based lookup tables map selected keywords to the correct skill category with proper casing (e.g. `langchain` → `LangChain` → `ai_ml`)
 - **Skills filtering** — irrelevant skill categories are hidden per role type; admin/clinical resumes show only their own categories, not tech stacks
 - **Relevant project selection** — profiles with more than three projects are capped at the three most relevant to the job; projects marked `created_at_work: true` receive priority
-- **Dynamic single-page enforcement** — profile-aware spacing engine with bidirectional feedback loop ensures the PDF always fills one page cleanly regardless of content density
+- **One-page fitting with honest overflow reporting** — the spacing engine tries to fit a page without reducing the requested font size. If spacing is exhausted, the valid multi-page PDF remains downloadable and its page count is reported.
 - **Heuristic ATS scoring** — fast, deterministic, zero-cost scoring with keyword coverage, matched/missing keywords, and actionable suggestions
 - **Inline resume editing** — edit summary bullets and experience bullets directly in the preview before generating your PDF
 - **PDF preview with live sliders** — adjust font size, margins, entry spacing, and section spacing in a live iframe before generating your final PDF

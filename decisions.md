@@ -287,3 +287,6 @@ The seed prompt includes target role, category keys and display labels, existing
 ## Never learn Additional Skills placements
 
 `additional_skills` is a safe fallback, not a category judgement. Learning a fallback placement would make it win over real categories on later generations, so only static mappings that resolve to an existing resume category are written back.
+# PDF fitting reports honest overflow (2026-09-16)
+
+Font size is user input, never a fitting lever. Once the existing spacing compression reaches its floor, the renderer keeps the requested type size and returns the valid multi-page PDF with its actual page count and fitted status. An honest two-page result is preferable to silently reducing readability or falsely describing a clipped preview as one page.

@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,7 +13,9 @@ from routes.generate import (
     _pdf_display_name,
     _pdf_storage_name,
     _persist_generation,
+    generate_resume,
 )
+from services.build_resume_pdf import PdfBuildResult
 from services.claude_service import (
     TailoredBullet,
     TailoredExperience,
@@ -208,3 +211,41 @@ def test_load_resume_loads_whitelisted_profile(tmp_path):
         resume = _load_resume("sample_resume")
 
     assert resume == {"contact": {"name": "Jamie"}}
+
+
+def test_generate_route_reports_pdf_fit_status(tmp_path):
+    projects = [{"name": "Project One", "bullets": [{"text": "Built APIs."}]}]
+    base_resume = {"contact": {"name": "Candidate"}, "projects": projects}
+    tailored = _tailored_resume()
+    tailored.projects = [
+        TailoredProject(
+            name=project["name"],
+            tailored_bullets=[TailoredBullet(
+                original="Built APIs.", tailored="Built FastAPI APIs.", keywords_injected=[]
+            )],
+        )
+        for project in projects
+    ]
+    score = MagicMock(
+        overall_score=90,
+        keyword_coverage=0.8,
+        matched_keywords=["FastAPI"],
+        missing_keywords=[],
+        suggestions=[],
+    )
+    score.model_dump.return_value = {"overall_score": 90, "keyword_coverage": 0.8}
+
+    with (
+        patch("routes.generate._load_resume", return_value=base_resume),
+        patch("routes.generate.tailor_resume", return_value=tailored) as tailor,
+        patch("routes.generate.score_resume", return_value=score),
+        patch("routes.generate.build_pdf", return_value=PdfBuildResult(tmp_path / "resume.pdf", 2, False)),
+        patch("routes.generate._persist_generation", return_value=SimpleNamespace(id="history-1")),
+    ):
+        response = generate_resume(
+            GenerateRequest(job_description="Build APIs", selected_keywords=["FastAPI"]),
+            MagicMock(),
+        )
+
+    assert response.pdf_page_count == 2
+    assert response.pdf_fitted_to_one_page is False

@@ -1,8 +1,10 @@
 import pytest
 from fastapi import HTTPException
+from unittest.mock import patch
 
 from routes.generate import RESUME_STORE
-from routes.preview import _resolve_resume
+from routes.preview import DownloadRequest, _resolve_resume, download_custom
+from services.build_resume_pdf import PdfBuildResult
 
 
 def test_resolve_resume_merges_supported_edits_and_preserves_unedited_data():
@@ -78,3 +80,22 @@ def test_resolve_resume_rejects_expired_session():
 
     assert exc_info.value.status_code == 404
     assert "Please regenerate your resume" in exc_info.value.detail
+
+
+def test_download_custom_reports_pdf_page_count_in_response_headers(tmp_path):
+    output = tmp_path / "resume.pdf"
+    output.write_bytes(b"%PDF-1.4")
+    request = DownloadRequest(session_id="session-1")
+
+    with (
+        patch("routes.preview._resolve_resume", return_value={"contact": {"name": "Candidate"}}),
+        patch("routes.preview.OUTPUTS_DIR", tmp_path),
+        patch(
+            "routes.preview.build_pdf_with_overrides",
+            return_value=PdfBuildResult(output, 2, False),
+        ),
+    ):
+        response = download_custom(request)
+
+    assert response.headers["X-PDF-Page-Count"] == "2"
+    assert response.headers["X-PDF-Fitted-To-One-Page"] == "false"

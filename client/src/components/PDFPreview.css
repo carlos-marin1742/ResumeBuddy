@@ -269,3 +269,11 @@
   font-size: 0.9rem;
   margin-top: 1rem;
 }
+
+.pp-fit-status {
+  flex-shrink: 0;
+  margin: 1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
