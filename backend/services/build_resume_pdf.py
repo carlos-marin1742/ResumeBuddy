@@ -19,9 +19,19 @@ import json
 import shutil
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from services.profile_skills import normalize_profile_skills
+
+
+@dataclass(frozen=True)
+class PdfBuildResult:
+    """The rendered PDF and the outcome of the one-page fitting attempt."""
+
+    path: Path
+    page_count: int
+    fitted_to_one_page: bool
 
 
 def _esc(value) -> str:
@@ -442,7 +452,7 @@ def _render_html(
 </html>"""
 
 
-def _build_pdf_worker(resume_data: dict, output_path) -> Path:
+def _build_pdf_worker(resume_data: dict, output_path) -> PdfBuildResult:
     """Auto-fit PDF — runs spacing feedback loop."""
     from playwright.sync_api import sync_playwright
     from pypdf import PdfReader
@@ -493,23 +503,27 @@ def _build_pdf_worker(resume_data: dict, output_path) -> Path:
 
                 shutil.copy(tmp_path, output_path)
                 Path(tmp_path).unlink(missing_ok=True)
-                break
+                browser.close()
+                return PdfBuildResult(output_path, page_count, True)
+
+            if attempt == 4:
+                shutil.copy(tmp_path, output_path)
+                Path(tmp_path).unlink(missing_ok=True)
+                browser.close()
+                return PdfBuildResult(output_path, page_count, False)
 
             Path(tmp_path).unlink(missing_ok=True)
             spacing -= 2.0
 
-        else:
-            page.pdf(path=str(output_path), format="Letter", print_background=True)
-
         browser.close()
 
-    return output_path
+    raise RuntimeError("PDF fitting loop exited without rendering a PDF")
 
 
-def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict) -> Path:
+def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict) -> PdfBuildResult:
     """Custom PDF — uses exact override values.
-    If content overflows to 2 pages, compresses spacing first then font size
-    and retries until it fits on one page.
+    If content overflows to 2 pages, compresses spacing until it fits on one
+    page or spacing compression is exhausted. Font size is never changed.
     show_boundary is always False — red line must never appear in PDF.
     """
     from playwright.sync_api import sync_playwright
@@ -548,38 +562,40 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
             )
 
             reader = PdfReader(tmp_path)
-            if len(reader.pages) == 1:
+            page_count = len(reader.pages)
+            if page_count == 1:
                 shutil.copy(tmp_path, output_path)
                 Path(tmp_path).unlink(missing_ok=True)
-                break
+                browser.close()
+                return PdfBuildResult(output_path, page_count, True)
 
-            Path(tmp_path).unlink(missing_ok=True)
-
-            # Compress spacing first, then font size as last resort
             if current_overrides.get("entry_spacing", 5.0) > 2.0:
+                Path(tmp_path).unlink(missing_ok=True)
                 current_overrides["entry_spacing"]   = max(2.0, current_overrides["entry_spacing"] - 1.5)
                 current_overrides["section_spacing"] = max(3.0, current_overrides.get("section_spacing", 6.0) - 1.5)
             else:
-                current_font = current_overrides.get("font_size", 8.5)
-                current_overrides["font_size"] = max(7.5, current_font - 0.5)
+                shutil.copy(tmp_path, output_path)
+                Path(tmp_path).unlink(missing_ok=True)
+                browser.close()
+                return PdfBuildResult(output_path, page_count, False)
 
         else:
             # All attempts exhausted — save last render as-is
-            page.pdf(path=str(output_path), format="Letter", print_background=True)
+            raise RuntimeError("PDF fitting loop exceeded its expected attempts")
 
         browser.close()
 
-    return output_path
+    raise RuntimeError("PDF fitting loop exited without rendering a PDF")
 
 
-def build_pdf(resume_data: dict, output_path) -> Path:
+def build_pdf(resume_data: dict, output_path) -> PdfBuildResult:
     """Auto-fit single-page PDF."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(_build_pdf_worker, resume_data, output_path)
         return future.result()
 
 
-def build_pdf_with_overrides(resume_data: dict, output_path, overrides: dict) -> Path:
+def build_pdf_with_overrides(resume_data: dict, output_path, overrides: dict) -> PdfBuildResult:
     """Custom PDF with user-specified spacing overrides."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(_build_pdf_overrides_worker, resume_data, output_path, overrides)
@@ -592,4 +608,4 @@ if __name__ == "__main__":
         sys.exit(1)
     resume = json.loads(Path(sys.argv[1]).read_text())
     out = build_pdf(resume, sys.argv[2])
-    print(f"Written: {out}  ({out.stat().st_size:,} bytes)")
+    print(f"Written: {out.path}  ({out.path.stat().st_size:,} bytes, {out.page_count} pages)")
