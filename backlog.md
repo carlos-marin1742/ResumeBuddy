@@ -88,3 +88,6 @@ Real profiles under `backend/data/` remain on the legacy keyed-dictionary
 shape with `ats_config.skills_order`. They continue to load through the
 read-time compatibility shim in `backend/services/profile_skills.py`; migrate
 them separately when their private data can be reviewed.
+# Content reduction policy for dense resumes
+
+With type fixed and formatting compression exhausted, fitting a dense resume on one page requires dropping content. Whether the application may remove bullets, projects, or sections automatically and silently remains undecided.

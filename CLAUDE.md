@@ -91,6 +91,10 @@ Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testi
 
 PostgreSQL 16 runs as the Compose `postgres` service and persists to `postgres_data`. From `backend/`, run `alembic upgrade head` to apply migrations and `alembic revision --autogenerate -m "describe schema change"` to generate a reviewed revision. SQLite is gone.
 
+## PDF fitting
+
+Resume fitting compresses spacing but never reduces the requested font size. Dense resumes can remain multi-page after spacing reaches its floor; the PDF is still produced and the backend reports its page count and whether it fit on one page. Custom-download responses provide the same metadata in `X-PDF-Page-Count` and `X-PDF-Fitted-To-One-Page` headers.
+
 To run a single test: `cd backend && pytest routes/test_master_resumes.py::test_create_and_fetch_master_resume -v` (must run from `backend/` — imports like `from models import ...` assume it's on `sys.path`) or `cd client && npx vitest run src/components/ResumeBuilder.test.jsx -t "adds and saves labeled skill categories"`.
 
 Pytest files are named `test_*.py` beside services, under `backend/routes/`, or at the backend package root (e.g. `backend/test_main.py`, which covers the rate-limit and security-header middleware) — plain `pytest` from `backend/` collects all of them. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test.

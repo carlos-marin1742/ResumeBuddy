@@ -290,6 +290,8 @@ export default function App() {
           company={company}
           jobTitle={jobTitle}
           personName={generateResult.person_name}
+          pdfPageCount={generateResult.pdf_page_count}
+          pdfFittedToOnePage={generateResult.pdf_fitted_to_one_page}
           onCoverLetter={() => setStep(5)}
         />
       )}

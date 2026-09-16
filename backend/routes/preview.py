@@ -142,7 +142,7 @@ def download_custom(request: DownloadRequest) -> FileResponse:
 
     # show_boundary is always False in build_pdf_with_overrides —
     # red line never appears in the downloaded PDF
-    build_pdf_with_overrides(
+    pdf_result = build_pdf_with_overrides(
         resume_data=resume,
         output_path=output_path,
         overrides=request.overrides.model_dump(),
@@ -152,5 +152,9 @@ def download_custom(request: DownloadRequest) -> FileResponse:
         path=output_path,
         media_type="application/pdf",
         filename=display_name,
-        headers={"Cache-Control": "no-store"},
+        headers={
+            "Cache-Control": "no-store",
+            "X-PDF-Page-Count": str(pdf_result.page_count),
+            "X-PDF-Fitted-To-One-Page": str(pdf_result.fitted_to_one_page).lower(),
+        },
     )
