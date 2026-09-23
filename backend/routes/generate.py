@@ -11,10 +11,10 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from db import get_session
 from models import MasterResumeRecord, TailoredResumeRecord
@@ -35,7 +35,7 @@ OUTPUTS_DIR.mkdir(exist_ok=True)
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
-# ── In-memory store for tailored resume dicts (keyed by session_id) ──────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ In-memory store for tailored resume dicts (keyed by session_id) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 # Allows preview and custom download endpoints to access the last generated
 # resume without re-running Claude. Capped at 50 entries to avoid unbounded
 # growth.
@@ -50,7 +50,7 @@ def _store_resume(session_id: str, resume_data: dict) -> None:
     RESUME_STORE[session_id] = resume_data
 
 
-# ── Request / Response Models ─────────────────────────────────────────────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Request / Response Models Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 class GenerateRequest(BaseModel):
     job_description: str
@@ -105,7 +105,7 @@ class GenerateResponse(BaseModel):
     pdf_fitted_to_one_page: bool
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 def _load_resume(resume_id: str) -> dict:
     valid_ids = {f.stem for f in DATA_DIR.glob("*.json")}
@@ -125,8 +125,10 @@ def _persist_generation(
     final_resume: dict,
     ats_score: dict | None = None,
     pdf_path: str | None = None,
+    user_id: str | None = None,
 ) -> TailoredResumeRecord:
     record = TailoredResumeRecord(
+        user_id=user_id,
         company=request.company.strip() or "Unknown",
         job_title=request.job_title.strip() or "Unknown",
         profile=request.resume_id,
@@ -165,7 +167,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
         output.get("skills", {}), output.get("ats_config", {}).get("skills_order")
     )
 
-    # ── Merge tailored experience bullets ─────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Merge tailored experience bullets Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     tailored_exp_map = {exp.company: exp for exp in tailored.experiences}
     updated_experience = []
     for exp in base_resume.get("experience", []):
@@ -184,7 +186,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
             updated_experience.append(exp)
     output["experience"] = updated_experience
 
-    # ── Merge tailored project bullets ────────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Merge tailored project bullets Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if tailored.projects:
         tailored_proj_map = {proj.name: proj for proj in tailored.projects}
         updated_projects = []
@@ -204,7 +206,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
                 updated_projects.append(proj)
         output["projects"] = updated_projects
 
-    # ── Merge new skills ──────────────────────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Merge new skills Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if tailored.skills_to_add:
         skills = {group["key"]: group for group in skill_groups}
         appended_groups = []
@@ -227,7 +229,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
                     "items": list(new_skills[:3]),
                 })
 
-    # ── Filter skills within categories ───────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Filter skills within categories Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if tailored.skills_to_filter:
         skills = {group["key"]: group for group in skill_groups}
         for category, keep_skills in tailored.skills_to_filter.items():
@@ -237,7 +239,7 @@ def _build_tailored_resume_dict(base_resume: dict, tailored: TailoredResume) -> 
                 if len(filtered) >= 3:
                     skills[category]["items"] = filtered
 
-    # ── Filter skills_order to relevant categories ────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Filter skills_order to relevant categories Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if tailored.skills_to_show:
         visible = set(tailored.skills_to_show)
         skill_groups = [group for group in skill_groups if group["key"] in visible]
@@ -279,12 +281,13 @@ def _pdf_display_name(storage_filename: str) -> str:
     return base.replace("_", " ") + ".pdf"
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Routes Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 @router.post("/api/generate-resume", response_model=GenerateResponse)
 def generate_resume(
     request: GenerateRequest,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> GenerateResponse:
 
     jd = request.job_description.strip()
@@ -297,7 +300,7 @@ def generate_resume(
     master_record = None
     if request.master_resume_id:
         master_record = db.get(MasterResumeRecord, request.master_resume_id)
-        if not master_record:
+        if not master_record or (http_request and master_record.user_id != http_request.state.user_id):
             raise HTTPException(status_code=404, detail="Master resume not found.")
         base_resume = master_resume_to_profile(master_record.resume_data)
         if skill_dictionary_is_current(master_record):
@@ -361,6 +364,7 @@ def generate_resume(
         final_resume=full_tailored_dict,
         ats_score=ats_result.model_dump(exclude={"raw_response"}),
         pdf_path=str(pdf_path),
+        user_id=http_request.state.user_id if http_request else None,
     )
     if master_record:
         try:
@@ -429,11 +433,22 @@ def generate_resume(
 
 
 @router.get("/api/download/{filename}")
-def download_resume(filename: str) -> FileResponse:
+def download_resume(
+    filename: str,
+    db: Session = Depends(get_session),
+    http_request: Request = None,
+) -> FileResponse:
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename.")
 
     file_path = OUTPUTS_DIR / filename
+    if http_request:
+        record = db.exec(select(TailoredResumeRecord).where(
+            TailoredResumeRecord.user_id == http_request.state.user_id,
+            TailoredResumeRecord.pdf_path == str(file_path),
+        )).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="File not found or has expired.")
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found or has expired.")
 

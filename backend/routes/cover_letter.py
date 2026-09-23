@@ -11,7 +11,7 @@ held in frontend App state, and returns a generated cover letter.
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session
@@ -53,11 +53,11 @@ def _cover_letter_display_name(request: CoverLetterDownloadRequest) -> str:
     )
 
 
-def _store_cover_letter(db: Session, history_id: str | None, letter: str) -> None:
+def _store_cover_letter(db: Session, history_id: str | None, letter: str, user_id: str | None = None) -> None:
     if not history_id:
         return
     record = db.get(TailoredResumeRecord, history_id)
-    if not record:
+    if not record or (user_id and record.user_id != user_id):
         raise HTTPException(status_code=404, detail="History record not found.")
     record.cover_letter = letter
     db.add(record)
@@ -68,6 +68,7 @@ def _store_cover_letter(db: Session, history_id: str | None, letter: str) -> Non
 def generate_cover_letter_route(
     request: CoverLetterRequest,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> CoverLetterResult:
     jd = request.job_description.strip()
 
@@ -103,7 +104,7 @@ def generate_cover_letter_route(
             candidate_name=candidate_name,
             applicant_contact=applicant_contact,
         )
-        _store_cover_letter(db, request.history_id, result.letter)
+        _store_cover_letter(db, request.history_id, result.letter, http_request.state.user_id if http_request else None)
         return result
     except HTTPException:
         raise
@@ -117,12 +118,13 @@ def generate_cover_letter_route(
 def download_cover_letter(
     request: CoverLetterDownloadRequest,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> FileResponse:
     letter = request.letter.strip()
     if not letter:
         raise HTTPException(status_code=422, detail="cover letter cannot be empty.")
 
-    _store_cover_letter(db, request.history_id, letter)
+    _store_cover_letter(db, request.history_id, letter, http_request.state.user_id if http_request else None)
     output_path = OUTPUTS_DIR / f"cover_letter_{uuid.uuid4().hex}.pdf"
     try:
         build_cover_letter_pdf(letter, output_path)

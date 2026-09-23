@@ -45,10 +45,9 @@ Generated job-tailored HTML/PDF renders the requested job title directly below t
 
 ## Important Boundaries
 
-- There is no authentication or authorization.
-- Master resumes are stored locally but are not associated with an authenticated owner.
-- Auth0 has been selected for future public multi-user authentication, but it is not yet integrated.
-- The React SPA will use Authorization Code Flow with PKCE; FastAPI will validate access tokens and use the stable Auth0 `sub` claim as `owner_id`.
+- API access requires a verified email/password account. Passwords are bcrypt hashes and sessions are opaque, HttpOnly, server-side records with idle and absolute expiry.
+- Master resumes and tailored history are associated with an authenticated owner and are scoped by that owner in persistence routes.
+- SMTP configuration and `AUTH_TOKEN_PEPPER` are required backend environment values for verification and password-reset links; no auth secret is exposed to the SPA.
 - `backend/data/resume_history.db` is listed in `.gitignore` and is no longer tracked in the current Git index.
 - Saved master resumes are listed after refresh and can be selected for keyword extraction, tailoring, and generated PDF output.
 - Saved master resumes can be deleted from the profile page after inline confirmation; static JSON profiles are intentionally not deletable there.
@@ -118,19 +117,15 @@ The former broader pytest collection blockers were resolved by removing obsolete
 
 ## Recommended Next Step
 
-Integrate Auth0 authentication and authenticated ownership before connecting created or imported resumes to the tailoring workflow. Auth0 dashboard configuration is intentionally paused for now.
+Run the authentication migration and configure production email delivery before deployment.
 
 That work should define:
 
-1. Auth0 Universal Login using email/password and Google login.
-2. React Authorization Code Flow with PKCE and FastAPI access-token validation.
-3. Ownership fields based on the Auth0 `sub` claim.
-4. Authorization for master resumes, tailored history, cover letters, downloads, and in-memory sessions.
-5. A one-time, non-public migration that assigns existing records to the developer's Auth0 account.
-6. List and deletion APIs.
-7. Autosave and recovery behavior.
-8. Authorization coverage for the saved-master-resume selection and schema-adapter flow.
-9. Retention and deletion rules for personal data.
+1. Set a unique `AUTH_TOKEN_PEPPER`, production `PUBLIC_APP_URL`, and SMTP credentials.
+2. Keep `SESSION_COOKIE_SECURE=true` behind HTTPS.
+3. Decide whether historical unowned records should be archived or assigned with a one-time, non-public administrator operation.
+4. Add explicit owner checks to any future persisted artifact or cross-request session store.
+5. Establish retention and deletion rules for personal data.
 10. A dedicated master-resume renderer whose typography matches `MasterResumePreview` while spacing and margins remain independently adjustable.
 
 Continue to keep `TailoredResumeRecord` separate; it represents job-specific application history.

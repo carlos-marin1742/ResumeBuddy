@@ -44,21 +44,21 @@ Why:
 
 Smarter per-profile category classification is deferred.
 
-## Use Auth0 for public multi-user authentication
+## Use server-managed password authentication
 
-ResumeBuddy will use Auth0 Universal Login for a future public multi-user application. The React SPA will use Authorization Code Flow with PKCE, send short-lived access tokens to FastAPI, and use the token's stable `sub` claim as the application-level owner identifier.
+ResumeBuddy uses its own server-managed email/password accounts. Passwords are bcrypt hashes; verified-email access is required. The browser receives an opaque HttpOnly session cookie, never a signing key, password hash, or bearer token.
 
 Why:
 
 - Authentication, password storage, password reset, email verification, and social login should not be implemented locally.
-- Auth0 supports the existing React SPA and FastAPI API boundary without requiring a database-platform migration.
+- This keeps provider credentials and authentication secrets entirely off the frontend.
 - OAuth 2.0 and OpenID Connect provide a standard architecture suitable for a public application.
 
-FastAPI remains responsible for authorization. Every query for master resumes, tailored history, cover letters, generated files, and generation sessions must be scoped to the authenticated owner. Hiding records in the client is not an authorization control.
+FastAPI remains responsible for authorization. Every persisted master-resume and history query is scoped to the authenticated owner. Hiding records in the client is not an authorization control.
 
-The initial scope is individual accounts using email/password and Google login. Organizations, team sharing, roles, and an administrative UI are deferred. Existing unowned local records require an explicit one-time assignment to the developer's Auth0 `sub`; the application must not provide a public "claim unowned data" endpoint.
+The initial scope is individual email/password accounts. Organizations, team sharing, social login, roles, and an administrative UI are deferred. Existing unowned local records require an explicit one-time administrator assignment or archival; the application must not provide a public "claim unowned data" endpoint.
 
-No Auth0 client secret belongs in the browser bundle. The application must not claim multi-user isolation until token validation, record ownership, download authorization, and session isolation are all implemented and tested.
+No SMTP credential, token pepper, password hash, or session identifier belongs in the browser bundle. The application enforces record ownership and authenticated download authorization.
 
 ## Separate master facts from application versions
 
@@ -99,7 +99,7 @@ The import endpoint does not persist source documents.
 Why:
 
 - Resumes contain sensitive personal information.
-- The application has no authentication or ownership controls.
+- Account credentials, SMTP settings, token pepper, and session identifiers are never made available to frontend JavaScript.
 - Source retention is unnecessary for the current review workflow.
 
 The endpoint limits files to 5 MB and validates the extension and basic file signature.

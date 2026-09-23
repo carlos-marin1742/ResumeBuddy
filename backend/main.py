@@ -11,10 +11,12 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+load_dotenv()
 
 from routes.extract import router as extract_router
 from routes.generate import router as generate_router
@@ -25,9 +27,9 @@ from routes.cover_letter import router as cover_letter_router
 from routes.regenerate import router as regenerate_router
 from routes.resume_import import router as resume_import_router
 from routes.master_resumes import router as master_resumes_router
-
-
-load_dotenv()
+from routes.auth import router as auth_router
+from db import get_session
+from services.auth_service import get_current_user
 
 app = FastAPI(
     title="ATS Resume Builder",
@@ -48,6 +50,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Every application API is authenticated. Authentication endpoints and health
+# checks are intentionally the only public API surface. Cookie sessions are
+# HttpOnly, so neither the SPA nor third-party JavaScript can read credentials.
+_PUBLIC_API_PATHS = {"/health"}
+
+@app.middleware("http")
+async def require_authenticated_api(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/") and not path.startswith("/api/auth/"):
+        # State-changing browser requests must come from an allowed origin.
+        # SameSite=Lax is defense in depth; this blocks cross-site form CSRF too.
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            origin = request.headers.get("origin")
+            if origin and origin not in ALLOWED_ORIGINS:
+                return JSONResponse(status_code=403, content={"detail": "Untrusted request origin."})
+        try:
+            with next(get_session()) as db:
+                user = get_current_user(request, db)
+            request.state.user_id = user.id
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        except RuntimeError:
+            return JSONResponse(status_code=503, content={"detail": "Authentication is not configured."})
+    return await call_next(request)
 
 # ── Rate limiting for AI-backed routes ────────────────────────────────────
 # These endpoints call paid Groq/Claude APIs. There is no authentication, so
@@ -96,6 +123,7 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+app.include_router(auth_router)
 app.include_router(resumes_router)
 app.include_router(extract_router)
 app.include_router(generate_router)
