@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, select
 
@@ -175,9 +175,11 @@ def _to_response(record: MasterResumeRecord) -> MasterResumeResponse:
 def create_master_resume(
     request: MasterResumeSaveRequest,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> MasterResumeResponse:
     resume_data = request.resume.model_dump()
     record = MasterResumeRecord(
+        user_id=http_request.state.user_id if http_request else None,
         name=request.resume.contact.name,
         target_role=request.resume.targetRole,
         resume_data=resume_data,
@@ -191,9 +193,10 @@ def create_master_resume(
 @router.get("/api/master-resumes", response_model=MasterResumeListResponse)
 def list_master_resumes(
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> MasterResumeListResponse:
     records = db.exec(
-        select(MasterResumeRecord).order_by(MasterResumeRecord.updated_at.desc())
+        select(MasterResumeRecord).where(MasterResumeRecord.user_id == http_request.state.user_id).order_by(MasterResumeRecord.updated_at.desc()) if http_request else select(MasterResumeRecord).order_by(MasterResumeRecord.updated_at.desc())
     ).all()
     return MasterResumeListResponse(resumes=[
         MasterResumeListItem(
@@ -211,9 +214,10 @@ def update_master_resume(
     record_id: str,
     request: MasterResumeSaveRequest,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> MasterResumeResponse:
     record = db.get(MasterResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Master resume not found.")
     record.name = request.resume.contact.name
     record.target_role = request.resume.targetRole
@@ -229,9 +233,10 @@ def update_master_resume(
 def seed_master_resume_dictionary(
     record_id: str,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> SeedDictionaryResponse:
     record = db.get(MasterResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Master resume not found.")
     dictionary = record.skill_dictionary
     current_hash = profile_hash_for_resume(master_resume_to_profile(record.resume_data))
@@ -252,9 +257,10 @@ def seed_master_resume_dictionary(
 def delete_master_resume(
     record_id: str,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> MasterResumeDeleteResponse:
     record = db.get(MasterResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Master resume not found.")
     db.delete(record)
     db.commit()
@@ -265,8 +271,9 @@ def delete_master_resume(
 def get_master_resume(
     record_id: str,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> MasterResumeResponse:
     record = db.get(MasterResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Master resume not found.")
     return _to_response(record)

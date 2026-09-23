@@ -136,17 +136,13 @@ It includes:
 
 The existing `targetRole` payload and `target_role` column represent the user-facing saved-resume title. The title is intended for resume selection and does not render inside `MasterResumePreview`; imported document headings do not populate it automatically.
 
-Because there is no authentication, these records are application-local rather than securely user-owned. Static JSON profiles, master resumes, and tailored history remain three distinct concepts.
+Accounts use bcrypt password hashes, verified email, and opaque server-side sessions in HttpOnly cookies. Master resumes and tailored history carry a user owner and all persisted-record lookups are scoped to that owner. Static JSON profiles remain shared templates.
 
 `backend/data/resume_history.db` is local runtime state, not a source artifact. The schema is defined by the SQLModel classes and `init_db()`, so each environment can create its own database. The database is gitignored and must be untracked; older clones that tracked it require a one-time `git rm --cached backend/data/resume_history.db`.
 
 ## Security Boundaries
 
-There is no authentication or authorization. All clients that can reach the server can reach the API and history routes.
-
-The selected future authentication architecture is Auth0 Universal Login. The React SPA will use Authorization Code Flow with PKCE and send an access token to FastAPI. FastAPI will validate the token signature, issuer, audience, and expiration, then use the stable `sub` claim as `owner_id`.
-
-Authentication alone is insufficient. FastAPI must include `owner_id` in database lookups and enforce ownership for master resumes, tailored history, cover letters, generated downloads, and bounded in-memory sessions. Initial accounts will support email/password and Google login; organization and role-based access are out of the first implementation.
+All `/api` application routes require an authenticated, verified account. `/api/auth/*` contains registration, verification, login, logout, and expiring password-reset flows. Raw sessions and one-time tokens are random values sent only in HttpOnly cookies or email links; PostgreSQL stores only peppered SHA-256 digests. SMTP credentials and the token pepper are backend-only environment variables.
 
 Required protections include:
 
@@ -158,7 +154,7 @@ Required protections include:
 - `Cache-Control: no-store` where already used
 - No secrets, personal profiles, runtime databases, or generated documents in commits
 
-The application must not claim per-user privacy or ownership until authentication and authorization are implemented.
+Per-user ownership is enforced for persisted master resumes and tailored-history records. Generated in-memory artifacts are short-lived and are available only through authenticated API routes.
 
 ## Testing
 

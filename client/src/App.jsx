@@ -8,6 +8,7 @@ import ResumePreview from "./components/ResumePreview";
 import PDFPreview from "./components/PDFPreview";
 import ResumeHistory from "./components/ResumeHistory";
 import CoverLetterStep from "./components/CoverLetterStep";
+import AuthGate from "./components/AuthGate";
 import "./App.css";
 
 // Use same-origin API paths. Vite proxies `/api` during development, while
@@ -21,7 +22,7 @@ const API = "";
 //   3 = preview + download   (ResumePreview)
 //  "history" = history view  (ResumeHistory)
 
-export default function App() {
+function ResumeApp() {
   const [step, setStep] = useState(0);
   const [resumeDraft, setResumeDraft] = useState(null);
   const [masterResumeId, setMasterResumeId] = useState(null);
@@ -310,4 +311,8 @@ export default function App() {
       )}
     </div>
   );
+}
+
+export default function App() {
+  return <AuthGate><ResumeApp /></AuthGate>;
 }

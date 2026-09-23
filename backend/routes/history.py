@@ -1,16 +1,16 @@
 """
 routes/history.py
 
-GET    /api/history              — list all records (optional ?profile= filter)
-GET    /api/history/{id}         — single record detail
-DELETE /api/history/{id}         — remove a record
-GET    /api/download-history/{id} — re-serve the cached PDF for a record
+GET    /api/history              Ã¢â‚¬â€ list all records (optional ?profile= filter)
+GET    /api/history/{id}         Ã¢â‚¬â€ single record detail
+DELETE /api/history/{id}         Ã¢â‚¬â€ remove a record
+GET    /api/download-history/{id} Ã¢â‚¬â€ re-serve the cached PDF for a record
 """
 
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -25,7 +25,7 @@ OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
 OUTPUTS_DIR.mkdir(exist_ok=True)
 
 
-# ── Response Models ───────────────────────────────────────────────────────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Response Models Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 class HistoryItem(BaseModel):
     id: str
@@ -53,7 +53,7 @@ class DeleteResponse(BaseModel):
     id: str
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 def _to_item(record: TailoredResumeRecord) -> HistoryItem:
     tailored = record.tailored_resume or {}
@@ -74,18 +74,19 @@ def _to_item(record: TailoredResumeRecord) -> HistoryItem:
     )
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Routes Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 @router.get("/api/history", response_model=HistoryListResponse)
 def list_history(
     profile: str | None = None,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> HistoryListResponse:
     """
     Return all records, newest first.
     Optionally filter by ?profile=base_resume (or base_resume_cl, base_resume_ad).
     """
-    query = select(TailoredResumeRecord).order_by(TailoredResumeRecord.created_at.desc())
+    query = select(TailoredResumeRecord).where(TailoredResumeRecord.user_id == http_request.state.user_id).order_by(TailoredResumeRecord.created_at.desc()) if http_request else select(TailoredResumeRecord).order_by(TailoredResumeRecord.created_at.desc())
     records = db.exec(query).all()
 
     if profile:
@@ -101,9 +102,10 @@ def list_history(
 def get_history_record(
     record_id: str,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> HistoryItem:
     record = db.get(TailoredResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Record not found.")
     return _to_item(record)
 
@@ -112,9 +114,10 @@ def get_history_record(
 def delete_history_record(
     record_id: str,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> DeleteResponse:
     record = db.get(TailoredResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Record not found.")
     db.delete(record)
     db.commit()
@@ -125,13 +128,14 @@ def delete_history_record(
 def restore_session(
     record_id: str,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> dict:
     """
     Load a history record's tailored_resume into RESUME_STORE and return a
     fresh session_id. Lets the frontend reuse PDFPreview for history records.
     """
     record = db.get(TailoredResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Record not found.")
     if not record.tailored_resume:
         raise HTTPException(status_code=422, detail="No resume data stored for this record.")
@@ -144,13 +148,14 @@ def restore_session(
 def download_history_pdf(
     record_id: str,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> FileResponse:
     """
     Re-serve the cached PDF for a history record.
     Returns 404 if the record doesn't exist or the PDF file has been cleaned up.
     """
     record = db.get(TailoredResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Record not found.")
     if not record.pdf_path:
         raise HTTPException(status_code=404, detail="No PDF cached for this record.")
@@ -177,10 +182,11 @@ def download_history_pdf(
 def download_history_cover_letter(
     record_id: str,
     db: Session = Depends(get_session),
+    http_request: Request = None,
 ) -> FileResponse:
     """Render and download the cover letter stored with a history record."""
     record = db.get(TailoredResumeRecord, record_id)
-    if not record:
+    if not record or (http_request and record.user_id != http_request.state.user_id):
         raise HTTPException(status_code=404, detail="Record not found.")
     if not record.cover_letter or not record.cover_letter.strip():
         raise HTTPException(status_code=404, detail="No cover letter stored for this record.")

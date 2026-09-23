@@ -239,6 +239,10 @@ ANTHROPIC_API_KEY=sk-ant-...
 GROQ_API_KEY=gsk_...
 ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5175,http://localhost:3000
 DATABASE_URL=postgresql+psycopg://resumebuddy:resumebuddy@localhost:5432/resumebuddy
+AUTH_TOKEN_PEPPER=<a unique random value>
+PUBLIC_APP_URL=http://localhost:5175
+SMTP_HOST=<your SMTP host>
+SMTP_FROM=no-reply@example.com
 ```
 
 Get a free Groq API key at [console.groq.com](https://console.groq.com).
