@@ -12,7 +12,7 @@ frontend can render directly into KeywordSelector.jsx.
 import json
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session
 from db import get_session
 from models import MasterResumeRecord
@@ -20,6 +20,7 @@ from services.claude_service import extract_keywords as claude_extract_keywords
 from services.master_resume_adapter import master_resume_to_profile
 from services.profile_skills import normalize_profile_skills
 from services.ownership import get_owned_record
+from services.input_validation import StrictRequest, validate_identifier
 
 router = APIRouter()
 
@@ -28,10 +29,15 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 # Ã¢â€â‚¬Ã¢â€â‚¬ Request / Response Models Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-class ExtractRequest(BaseModel):
-    job_description: str
-    resume_id: str = "base_resume"
-    master_resume_id: str | None = None
+class ExtractRequest(StrictRequest):
+    job_description: str = Field(min_length=1, max_length=20_000)
+    resume_id: str = Field(default="base_resume", min_length=1, max_length=128)
+    master_resume_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator("resume_id", "master_resume_id")
+    @classmethod
+    def validate_ids(cls, value: str | None) -> str | None:
+        return validate_identifier(value) if value is not None else value
 
 
 class Keyword(BaseModel):

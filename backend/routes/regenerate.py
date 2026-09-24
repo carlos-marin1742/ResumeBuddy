@@ -7,7 +7,7 @@ POST /api/regenerate-section
 """
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from routes.generate import RESUME_STORE, get_owned_resume
 from services.claude_service import (
@@ -17,19 +17,25 @@ from services.claude_service import (
     regenerate_summary,
     score_resume,
 )
+from services.input_validation import StrictRequest, validate_identifier
 
 router = APIRouter()
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
-class RegenerateRequest(BaseModel):
-    session_id: str
-    section: str                    # "summary" | "experience" | "project"
-    target: str | None = None       # company name / project name; None for summary
-    feedback: str = ""
-    job_description: str
-    selected_keywords: list[str] = []
+class RegenerateRequest(StrictRequest):
+    session_id: str = Field(min_length=1, max_length=128)
+    section: str = Field(min_length=1, max_length=32)
+    target: str | None = Field(default=None, max_length=200)
+    feedback: str = Field(default="", max_length=4_000)
+    job_description: str = Field(min_length=1, max_length=20_000)
+    selected_keywords: list[str] = Field(default_factory=list, max_length=100)
+
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, value: str) -> str:
+        return validate_identifier(value, "session_id")
 
 
 class ATSPreview(BaseModel):

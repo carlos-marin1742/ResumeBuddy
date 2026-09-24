@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, select
 
 from db import get_session
@@ -28,6 +28,7 @@ from services.skill_dictionary_service import (
     skill_dictionary_is_current,
 )
 from services.ownership import get_owned_record
+from services.input_validation import StrictRequest, validate_identifier
 
 router = APIRouter()
 
@@ -65,15 +66,27 @@ def get_owned_resume(session_id: str, user_id: str | None = None) -> dict:
 
 # Ã¢â€â‚¬Ã¢â€â‚¬ Request / Response Models Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-class GenerateRequest(BaseModel):
-    job_description: str
-    selected_keywords: list[str] = Field(default_factory=list)
-    resume_id: str = "base_resume"
-    summary_variant: str | None = None
-    company: str = ""
-    job_title: str = ""
-    extracted_keywords_count: int = 0
-    master_resume_id: str | None = None
+class GenerateRequest(StrictRequest):
+    job_description: str = Field(min_length=1, max_length=20_000)
+    selected_keywords: list[str] = Field(default_factory=list, max_length=100)
+    resume_id: str = Field(default="base_resume", min_length=1, max_length=128)
+    summary_variant: str | None = Field(default=None, max_length=64)
+    company: str = Field(default="", max_length=200)
+    job_title: str = Field(default="", max_length=200)
+    extracted_keywords_count: int = Field(default=0, ge=0, le=500)
+    master_resume_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator("resume_id", "master_resume_id")
+    @classmethod
+    def validate_ids(cls, value: str | None) -> str | None:
+        return validate_identifier(value) if value is not None else value
+
+    @field_validator("selected_keywords")
+    @classmethod
+    def validate_keywords(cls, value: list[str]) -> list[str]:
+        if any(not keyword.strip() or len(keyword) > 200 for keyword in value):
+            raise ValueError("Keywords must be non-empty strings up to 200 characters.")
+        return value
 
 
 class BulletPreview(BaseModel):
@@ -454,7 +467,7 @@ def download_resume(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> FileResponse:
-    if "/" in filename or "\\" in filename or ".." in filename:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,200}\.pdf", filename):
         raise HTTPException(status_code=400, detail="Invalid filename.")
 
     file_path = OUTPUTS_DIR / filename

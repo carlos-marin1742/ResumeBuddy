@@ -7,6 +7,11 @@ from xml.etree import ElementTree
 
 from pypdf import PdfReader
 
+MAX_PDF_PAGES = 100
+MAX_EXTRACTED_TEXT_CHARS = 500_000
+MAX_DOCX_MEMBERS = 200
+MAX_DOCX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
+
 
 SECTION_ALIASES = {
     "summary": {"summary", "professional summary", "profile", "objective"},
@@ -60,6 +65,8 @@ def extract_pdf_text(content: bytes) -> str:
         reader = PdfReader(BytesIO(content))
         if reader.is_encrypted:
             raise ValueError("Password-protected PDFs are not supported.")
+        if len(reader.pages) > MAX_PDF_PAGES:
+            raise ValueError("PDFs may not contain more than 100 pages.")
         page_text = []
         annotation_urls = []
         for page in reader.pages:
@@ -74,7 +81,10 @@ def extract_pdf_text(content: bytes) -> str:
                 url = action.get("/URI") if action else None
                 if url and url not in annotation_urls:
                     annotation_urls.append(str(url))
-        return "\n".join([*annotation_urls, *page_text])
+        extracted = "\n".join([*annotation_urls, *page_text])
+        if len(extracted) > MAX_EXTRACTED_TEXT_CHARS:
+            raise ValueError("The PDF contains too much extractable text.")
+        return extracted
     except ValueError:
         raise
     except Exception as exc:
@@ -85,6 +95,11 @@ def extract_docx_text(content: bytes) -> str:
     """Extract paragraph and table-cell text from a DOCX archive."""
     try:
         with ZipFile(BytesIO(content)) as archive:
+            members = archive.infolist()
+            if len(members) > MAX_DOCX_MEMBERS or sum(item.file_size for item in members) > MAX_DOCX_UNCOMPRESSED_BYTES:
+                raise ValueError("The DOCX archive is too large to process.")
+            if any(item.filename.startswith(("/", "\\")) or ".." in item.filename.split("/") for item in members):
+                raise ValueError("The DOCX archive contains an unsafe path.")
             document = archive.read("word/document.xml")
     except (BadZipFile, KeyError) as exc:
         raise ValueError("The DOCX file could not be read.") from exc

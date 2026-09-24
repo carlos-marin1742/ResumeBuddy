@@ -29,6 +29,9 @@ ENV/
 *.pem
 secrets.json
 secrets/
+*.secret
+*-credentials.json
+*service-account*.json
 
 # ── FastAPI / Uvicorn ────────────────────────────────────────
 *.log

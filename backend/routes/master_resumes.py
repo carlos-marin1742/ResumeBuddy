@@ -17,6 +17,7 @@ from services.skill_dictionary_service import (
     seed_skill_dictionary,
 )
 from services.ownership import get_owned_record
+from services.input_validation import StrictRequest, validate_identifier
 
 
 router = APIRouter()
@@ -24,7 +25,7 @@ EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\
 SkillItem = Annotated[str, Field(max_length=300)]
 
 
-class ContactInput(BaseModel):
+class ContactInput(StrictRequest):
     name: str = Field(min_length=1, max_length=120)
     email: str = Field(min_length=3, max_length=254)
     phone: str = Field(default="", max_length=50)
@@ -52,7 +53,7 @@ class ContactInput(BaseModel):
         return value
 
 
-class ExperienceInput(BaseModel):
+class ExperienceInput(StrictRequest):
     company: str = Field(default="", max_length=200)
     title: str = Field(default="", max_length=200)
     location: str = Field(default="", max_length=120)
@@ -61,14 +62,14 @@ class ExperienceInput(BaseModel):
     highlights: str = Field(default="", max_length=10000)
 
 
-class EducationInput(BaseModel):
+class EducationInput(StrictRequest):
     institution: str = Field(default="", max_length=250)
     degree: str = Field(default="", max_length=200)
     field: str = Field(default="", max_length=200)
     graduationDate: str = Field(default="", max_length=7)
 
 
-class ProjectLinkInput(BaseModel):
+class ProjectLinkInput(StrictRequest):
     name: str = Field(min_length=1, max_length=100)
     url: str = Field(min_length=8, max_length=500)
 
@@ -80,20 +81,20 @@ class ProjectLinkInput(BaseModel):
         return value
 
 
-class ProjectInput(BaseModel):
+class ProjectInput(StrictRequest):
     name: str = Field(default="", max_length=250)
     technologies: str = Field(default="", max_length=2000)
     description: str = Field(default="", max_length=10000)
     links: list[ProjectLinkInput] = Field(default_factory=list, max_length=20)
 
 
-class CertificationInput(BaseModel):
+class CertificationInput(StrictRequest):
     name: str = Field(default="", max_length=250)
     issuer: str = Field(default="", max_length=250)
     date: str = Field(default="", max_length=7)
 
 
-class SkillCategoryInput(BaseModel):
+class SkillCategoryInput(StrictRequest):
     key: str = Field(default="", max_length=100)
     category: str = Field(default="", max_length=100)
     # Accept the pre-array string shape (legacy drafts, or non-browser clients)
@@ -110,7 +111,7 @@ class SkillCategoryInput(BaseModel):
         return []
 
 
-class MasterResumeInput(BaseModel):
+class MasterResumeInput(StrictRequest):
     contact: ContactInput
     targetRole: str = Field(default="", max_length=200)
     targetJobTitle: str = Field(default="", max_length=200)
@@ -123,7 +124,7 @@ class MasterResumeInput(BaseModel):
     certifications: list[CertificationInput] = Field(default_factory=list, max_length=50)
 
 
-class MasterResumeSaveRequest(BaseModel):
+class MasterResumeSaveRequest(StrictRequest):
     resume: MasterResumeInput
 
 
@@ -157,6 +158,13 @@ class SeedDictionaryResponse(BaseModel):
 
 def _isoformat(value: datetime) -> str:
     return value.isoformat()
+
+
+def _validated_record_id(record_id: str) -> str:
+    try:
+        return validate_identifier(record_id, "record_id")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _to_response(record: MasterResumeRecord) -> MasterResumeResponse:
@@ -217,6 +225,7 @@ def update_master_resume(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> MasterResumeResponse:
+    record_id = _validated_record_id(record_id)
     record = get_owned_record(db, MasterResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:
         raise HTTPException(status_code=404, detail="Master resume not found.")
@@ -236,6 +245,7 @@ def seed_master_resume_dictionary(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> SeedDictionaryResponse:
+    record_id = _validated_record_id(record_id)
     record = get_owned_record(db, MasterResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:
         raise HTTPException(status_code=404, detail="Master resume not found.")
@@ -260,6 +270,7 @@ def delete_master_resume(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> MasterResumeDeleteResponse:
+    record_id = _validated_record_id(record_id)
     record = get_owned_record(db, MasterResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:
         raise HTTPException(status_code=404, detail="Master resume not found.")
@@ -274,6 +285,7 @@ def get_master_resume(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> MasterResumeResponse:
+    record_id = _validated_record_id(record_id)
     record = get_owned_record(db, MasterResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:
         raise HTTPException(status_code=404, detail="Master resume not found.")

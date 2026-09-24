@@ -125,7 +125,9 @@ ResumeBuddy/
 git clone git@github.com:carlos-marin1742/ResumeBuddy.git
 cd ResumeBuddy
 
-# Create .env in the repository root and add the variables shown below
+# Create .env in the repository root from .env.example.
+# Set PUBLIC_APP_HOST and PUBLIC_APP_URL to a DNS name that resolves here.
+# Put a long random PostgreSQL password in secrets/postgres_password.txt.
 
 # Add your resume JSON files to backend/data/
 # (see Resume setup below)
@@ -134,7 +136,8 @@ cd ResumeBuddy
 docker compose up --build
 ```
 
-Open `http://localhost:8000` — frontend and backend served from the same port.
+Open `https://<PUBLIC_APP_HOST>` — Caddy obtains and renews the TLS certificate.
+Only ports 80/443 are public; PostgreSQL and Uvicorn remain on the Docker network.
 
 **Rebuilding after code changes:**
 ```bash
@@ -164,7 +167,9 @@ playwright install chromium
 # Add DATABASE_URL to ../.env, then apply migrations
 alembic upgrade head
 
-# Start
+
+# Start backend
+alembic -c alembic.ini upgrade head
 fastapi dev main.py
 ```
 
@@ -235,15 +240,29 @@ Vitest currently reports one expected regression in `CoverLetterStep.test.jsx`: 
 Create `.env` in the project root:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
-GROQ_API_KEY=gsk_...
-ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5175,http://localhost:3000
-DATABASE_URL=postgresql+psycopg://resumebuddy:resumebuddy@localhost:5432/resumebuddy
-AUTH_TOKEN_PEPPER=<a unique random value>
-PUBLIC_APP_URL=http://localhost:5175
+ALLOWED_ORIGINS=https://resume.example.com
+PUBLIC_APP_URL=https://resume.example.com
+PUBLIC_APP_HOST=resume.example.com
+APP_ENV=production
+REQUIRE_HTTPS=true
+SESSION_COOKIE_SECURE=true
 SMTP_HOST=<your SMTP host>
 SMTP_FROM=no-reply@example.com
 ```
+
+Keep `.env` and these files outside version control: `secrets/postgres_password.txt`,
+`anthropic_api_key.txt`, `groq_api_key.txt`, `auth_token_pepper.txt`,
+`smtp_username.txt`, and `smtp_password.txt`. Compose mounts them as Docker
+secrets and never puts their values in the image or an environment variable.
+Point the DNS record to the host before starting Compose so Caddy can complete
+ACME validation. Do not publish port 5432 or 8000 through another
+firewall/load-balancer rule.
+
+The application returns `429 Too Many Requests` for automated abuse. Configure
+the IP and account ceilings in `.env` from `.env.example`; monitor structured
+`*_rate_limit_exceeded` and `suspicious_client_pattern` log events. The shipped
+limiter is process-local, so use a shared rate-limit store before running more
+than one application replica.
 
 Get a free Groq API key at [console.groq.com](https://console.groq.com).
 

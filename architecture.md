@@ -140,6 +140,10 @@ Accounts use bcrypt password hashes, verified email, and opaque server-side sess
 
 Production Compose places Caddy at the public HTTPS edge. Uvicorn and PostgreSQL are internal-only services; the database password is mounted as a Docker secret rather than included in `DATABASE_URL`. Request, authentication, rate-limit, and server-error events are emitted as structured logs without request bodies, passwords, tokens, or email addresses.
 
+No credential has a checked-in runtime fallback. Local development supplies secrets through ignored environment variables; production loads API keys, the authentication-token pepper, SMTP credentials, and the database password from mounted secret files before routes initialize. The React client uses only same-origin API requests and has no credential or build-time environment-variable access.
+
+All public JSON bodies use strict, exact schemas: unexpected fields, type coercion, control characters, excessive nesting, oversized fields, and invalid identifiers are rejected at the API boundary. Resume HTML is escaped at rendering time. Uploads are limited to 5 MB PDF/DOCX files and are checked by extension, optional declared content type, file signature, archive structure, extraction size, and page/member limits before parsing; imports remain in memory only.
+
 Abuse protection uses bounded, in-memory sliding windows: general API and read limits are keyed by client IP; registration, login, verification, and reset paths receive stricter per-IP limits; AI operations are limited by both IP and authenticated account. A multi-replica deployment should replace these process-local buckets with a shared rate-limit backend.
 
 All resume-derived content sent to an LLM is JSON-encoded within an explicit untrusted-data boundary. The model is instructed to treat that boundary as reference data only, never as instructions; dynamic resume fields are not interpolated into system prompts.
