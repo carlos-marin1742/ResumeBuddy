@@ -13,36 +13,53 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlmodel import Session, select
 from db import get_session
 from models import TailoredResumeRecord
 from services.cover_letter_service import generate_cover_letter, CoverLetterResult
 from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
 from routes.generate import get_owned_resume
+from services.input_validation import StrictRequest, validate_identifier
 
 router = APIRouter()
 OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
 OUTPUTS_DIR.mkdir(exist_ok=True)
 
 
-class CoverLetterRequest(BaseModel):
+class CoverLetterRequest(StrictRequest):
     tailored_resume: dict | None = None
-    session_id: str | None = None
-    job_description: str
-    company: str = ""
-    job_title: str = ""
-    selected_keywords: list[str] = Field(default_factory=list)
+    session_id: str | None = Field(default=None, min_length=1, max_length=128)
+    job_description: str = Field(min_length=1, max_length=20_000)
+    company: str = Field(default="", max_length=200)
+    job_title: str = Field(default="", max_length=200)
+    selected_keywords: list[str] = Field(default_factory=list, max_length=100)
     candidate_name: str = Field(default="", max_length=200)
-    history_id: str | None = None
+    history_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator("session_id", "history_id")
+    @classmethod
+    def validate_ids(cls, value: str | None) -> str | None:
+        return validate_identifier(value) if value is not None else value
+
+    @model_validator(mode="after")
+    def require_resume_source(self):
+        if not self.session_id and not self.tailored_resume:
+            raise ValueError("Provide a session_id or tailored_resume.")
+        return self
 
 
-class CoverLetterDownloadRequest(BaseModel):
-    letter: str = Field(max_length=20_000)
+class CoverLetterDownloadRequest(StrictRequest):
+    letter: str = Field(min_length=1, max_length=20_000)
     candidate_name: str = Field(default="", max_length=200)
     company: str = Field(default="", max_length=200)
     job_title: str = Field(default="", max_length=200)
-    history_id: str | None = None
+    history_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator("history_id")
+    @classmethod
+    def validate_history_id(cls, value: str | None) -> str | None:
+        return validate_identifier(value) if value is not None else value
 
 
 def _cover_letter_display_name(request: CoverLetterDownloadRequest) -> str:

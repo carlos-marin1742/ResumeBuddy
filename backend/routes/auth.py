@@ -8,13 +8,17 @@ from db import get_session
 from models import User, UserSession
 from services.auth_service import (LOGIN_LOCK_MINUTES, MAX_LOGIN_FAILURES, SESSION_COOKIE, as_utc, consume_token, create_session, digest, hash_password, issue_token, send_email, utcnow, verify_password)
 from services.security_logging import audit
+from services.input_validation import StrictRequest
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 SECURITY_LOG = logging.getLogger("resumebuddy.security")
 PUBLIC_URL = os.getenv("PUBLIC_APP_URL", "http://localhost:5175").rstrip("/")
-class Credentials(BaseModel): email: EmailStr; password: str = Field(min_length=1, max_length=128)
-class EmailRequest(BaseModel): email: EmailStr
-class TokenRequest(BaseModel): token: str = Field(min_length=20, max_length=200)
+class Credentials(StrictRequest):
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=128)
+
+class EmailRequest(StrictRequest): email: EmailStr
+class TokenRequest(StrictRequest): token: str = Field(min_length=20, max_length=200, pattern=r"^[A-Za-z0-9_-]+$")
 class ResetRequest(TokenRequest): password: str = Field(min_length=1, max_length=128)
 class Message(BaseModel): detail: str
 class CurrentUser(BaseModel): email: EmailStr

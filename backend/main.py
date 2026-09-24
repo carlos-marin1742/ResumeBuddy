@@ -77,6 +77,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MAX_JSON_BODY_BYTES = 1 * 1024 * 1024
+MAX_UPLOAD_BODY_BYTES = 5 * 1024 * 1024 + 64 * 1024
+
+
+@app.middleware("http")
+async def validate_request_envelope(request: Request, call_next):
+    """Reject oversized bodies and unexpected encodings before route parsing."""
+    if request.method in {"POST", "PUT", "PATCH"}:
+        content_type = request.headers.get("content-type", "").lower()
+        is_upload = request.url.path == "/api/resumes/parse"
+        is_bodyless_action = (
+            request.url.path == "/api/auth/logout"
+            or request.url.path.endswith("/restore")
+            or request.url.path.endswith("/seed-dictionary")
+        )
+        expected_type = "multipart/form-data" if is_upload else "application/json"
+        if not is_bodyless_action and not content_type.startswith(expected_type):
+            return JSONResponse(status_code=415, content={"detail": f"Expected {expected_type}."})
+        try:
+            content_length = int(request.headers.get("content-length", "0"))
+        except ValueError:
+            return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header."})
+        max_size = MAX_UPLOAD_BODY_BYTES if is_upload else MAX_JSON_BODY_BYTES
+        if content_length > max_size:
+            return JSONResponse(status_code=413, content={"detail": "Request body is too large."})
+    return await call_next(request)
+
 # Every application API is authenticated. Authentication endpoints and health
 # checks are intentionally the only public API surface. Cookie sessions are
 # HttpOnly, so neither the SPA nor third-party JavaScript can read credentials.

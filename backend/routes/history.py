@@ -19,6 +19,7 @@ from db import get_session
 from models import TailoredResumeRecord
 from routes.generate import _store_resume
 from services.ownership import get_owned_record
+from services.input_validation import validate_identifier
 from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
 
 router = APIRouter()
@@ -87,6 +88,11 @@ def list_history(
     Return all records, newest first.
     Optionally filter by ?profile=base_resume (or base_resume_cl, base_resume_ad).
     """
+    if profile is not None:
+        try:
+            profile = validate_identifier(profile, "profile")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     query = select(TailoredResumeRecord).where(TailoredResumeRecord.user_id == http_request.state.user_id).order_by(TailoredResumeRecord.created_at.desc()) if http_request else select(TailoredResumeRecord).order_by(TailoredResumeRecord.created_at.desc())
     records = db.exec(query).all()
 
@@ -105,6 +111,10 @@ def get_history_record(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> HistoryItem:
+    try:
+        record_id = validate_identifier(record_id, "record_id")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     record = get_owned_record(db, TailoredResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found.")
@@ -117,6 +127,10 @@ def delete_history_record(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> DeleteResponse:
+    try:
+        record_id = validate_identifier(record_id, "record_id")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     record = get_owned_record(db, TailoredResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found.")
@@ -135,6 +149,10 @@ def restore_session(
     Load a history record's tailored_resume into RESUME_STORE and return a
     fresh session_id. Lets the frontend reuse PDFPreview for history records.
     """
+    try:
+        record_id = validate_identifier(record_id, "record_id")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     user_id = http_request.state.user_id if http_request else None
     record = get_owned_record(db, TailoredResumeRecord, record_id, user_id)
     if not record:
@@ -156,6 +174,10 @@ def download_history_pdf(
     Re-serve the cached PDF for a history record.
     Returns 404 if the record doesn't exist or the PDF file has been cleaned up.
     """
+    try:
+        record_id = validate_identifier(record_id, "record_id")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     record = get_owned_record(db, TailoredResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found.")
@@ -186,6 +208,10 @@ def download_history_cover_letter(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> FileResponse:
+    try:
+        record_id = validate_identifier(record_id, "record_id")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     """Render and download the cover letter stored with a history record."""
     record = get_owned_record(db, TailoredResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:

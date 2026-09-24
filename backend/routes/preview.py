@@ -17,10 +17,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel
+from pydantic import Field, field_validator
 
 from services.build_resume_pdf import _render_html, build_pdf_with_overrides
 from routes.generate import _pdf_storage_name, _pdf_display_name, get_owned_resume
+from services.input_validation import StrictRequest, validate_identifier
 
 router = APIRouter()
 
@@ -30,26 +31,29 @@ OUTPUTS_DIR.mkdir(exist_ok=True)
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
-class SpacingOverrides(BaseModel):
-    font_size: float       = 8.5
-    margin: float          = 0.4
-    side_margin: float     = 0.5
-    entry_spacing: float   = 5.0
-    section_spacing: float = 6.0
+class SpacingOverrides(StrictRequest):
+    font_size: float = Field(default=8.5, ge=6, le=16)
+    margin: float = Field(default=0.4, ge=0.2, le=1.5)
+    side_margin: float = Field(default=0.5, ge=0.2, le=1.5)
+    entry_spacing: float = Field(default=5.0, ge=0, le=24)
+    section_spacing: float = Field(default=6.0, ge=0, le=24)
 
 
-class PreviewRequest(BaseModel):
-    session_id: str
-    overrides: SpacingOverrides = SpacingOverrides()
+class PreviewRequest(StrictRequest):
+    session_id: str = Field(min_length=1, max_length=128)
+    overrides: SpacingOverrides = Field(default_factory=SpacingOverrides)
     resume_data: dict | None = None
 
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, value: str) -> str:
+        return validate_identifier(value, "session_id")
 
-class DownloadRequest(BaseModel):
-    session_id: str
-    overrides: SpacingOverrides = SpacingOverrides()
+
+class DownloadRequest(PreviewRequest):
     resume_data: dict | None = None
-    company: str = ""
-    job_title: str = ""
+    company: str = Field(default="", max_length=200)
+    job_title: str = Field(default="", max_length=200)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

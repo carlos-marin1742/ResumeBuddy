@@ -32,7 +32,10 @@ def _database_url() -> str:
             f"{quote_plus(password)}@{os.getenv('DATABASE_HOST', 'postgres')}:5432/"
             f"{quote_plus(os.getenv('DATABASE_NAME', 'resumebuddy'))}"
         )
-    return "postgresql+psycopg://resumebuddy:resumebuddy@postgres:5432/resumebuddy"
+    raise RuntimeError(
+        "Database configuration is required. Set DATABASE_URL locally or "
+        "DATABASE_PASSWORD_FILE in a secret-managed deployment."
+    )
 
 
 DATABASE_URL = _database_url()
