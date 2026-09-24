@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from services.claude_service import SKILL_TO_CATEGORY, _call_claude
 from services.master_resume_adapter import master_resume_to_profile
 from services.profile_skills import normalize_profile_skills
+from services.prompt_safety import UNTRUSTED_DATA_RULE, untrusted_json
 
 
 SEED_FAILURE_BACKOFF = timedelta(hours=1)
@@ -99,8 +100,9 @@ Map every term only to one of the supplied skill category keys. Use every catego
 
 Return JSON only, with this exact shape: {{"terms": [{{"term": "lowercased occupational term", "category": "category_key"}}]}}. If a term repeats, the last entry wins.
 
-Resume context:
-{json.dumps(payload, ensure_ascii=False)}"""
+{UNTRUSTED_DATA_RULE}
+
+{untrusted_json("RESUME CONTEXT", payload)}"""
 
 
 def _validated_terms(raw: str, category_keys: set[str]) -> dict[str, str]:

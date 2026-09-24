@@ -6,10 +6,10 @@ POST /api/regenerate-section
   with optional user feedback, then re-scores the resume.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from routes.generate import RESUME_STORE
+from routes.generate import RESUME_STORE, get_owned_resume
 from services.claude_service import (
     ATSScoreResult,
     TailoredBullet,
@@ -56,13 +56,10 @@ class RegenerateResponse(BaseModel):
 # ── Route ─────────────────────────────────────────────────────────────────────
 
 @router.post("/api/regenerate-section", response_model=RegenerateResponse)
-def regenerate_section(request: RegenerateRequest) -> RegenerateResponse:
-    stored = RESUME_STORE.get(request.session_id)
-    if not stored:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Session '{request.session_id}' not found. Please regenerate your resume.",
-        )
+def regenerate_section(request: RegenerateRequest, http_request: Request = None) -> RegenerateResponse:
+    stored = get_owned_resume(
+        request.session_id, http_request.state.user_id if http_request else None,
+    )
 
     new_summary: str | None = None
     new_bullets: list[BulletPreview] | None = None

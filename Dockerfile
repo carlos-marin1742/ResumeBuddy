@@ -3,7 +3,7 @@ FROM node:20-slim AS frontend-build
 
 WORKDIR /app/client
 COPY client/package*.json ./
-RUN npm install
+RUN npm ci
 COPY client/ ./
 RUN npm run build
 
@@ -53,8 +53,10 @@ COPY backend/ .
 COPY --from=frontend-build /app/client/dist ./static
 
 # Ensure outputs directory exists
-RUN mkdir -p outputs
+RUN mkdir -p outputs && useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"]

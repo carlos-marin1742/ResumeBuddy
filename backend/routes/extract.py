@@ -19,6 +19,7 @@ from models import MasterResumeRecord
 from services.claude_service import extract_keywords as claude_extract_keywords
 from services.master_resume_adapter import master_resume_to_profile
 from services.profile_skills import normalize_profile_skills
+from services.ownership import get_owned_record
 
 router = APIRouter()
 
@@ -120,8 +121,11 @@ def extract_keywords_route(
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
     if request.master_resume_id:
-        record = db.get(MasterResumeRecord, request.master_resume_id)
-        if not record or (http_request and record.user_id != http_request.state.user_id):
+        record = get_owned_record(
+            db, MasterResumeRecord, request.master_resume_id,
+            http_request.state.user_id if http_request else None,
+        )
+        if not record:
             raise HTTPException(status_code=404, detail="Master resume not found.")
         resume = master_resume_to_profile(record.resume_data)
     else:

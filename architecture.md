@@ -138,6 +138,12 @@ The existing `targetRole` payload and `target_role` column represent the user-fa
 
 Accounts use bcrypt password hashes, verified email, and opaque server-side sessions in HttpOnly cookies. Master resumes and tailored history carry a user owner and all persisted-record lookups are scoped to that owner. Static JSON profiles remain shared templates.
 
+Production Compose places Caddy at the public HTTPS edge. Uvicorn and PostgreSQL are internal-only services; the database password is mounted as a Docker secret rather than included in `DATABASE_URL`. Request, authentication, rate-limit, and server-error events are emitted as structured logs without request bodies, passwords, tokens, or email addresses.
+
+Abuse protection uses bounded, in-memory sliding windows: general API and read limits are keyed by client IP; registration, login, verification, and reset paths receive stricter per-IP limits; AI operations are limited by both IP and authenticated account. A multi-replica deployment should replace these process-local buckets with a shared rate-limit backend.
+
+All resume-derived content sent to an LLM is JSON-encoded within an explicit untrusted-data boundary. The model is instructed to treat that boundary as reference data only, never as instructions; dynamic resume fields are not interpolated into system prompts.
+
 `backend/data/resume_history.db` is local runtime state, not a source artifact. The schema is defined by the SQLModel classes and `init_db()`, so each environment can create its own database. The database is gitignored and must be untracked; older clones that tracked it require a one-time `git rm --cached backend/data/resume_history.db`.
 
 ## Security Boundaries
@@ -154,7 +160,7 @@ Required protections include:
 - `Cache-Control: no-store` where already used
 - No secrets, personal profiles, runtime databases, or generated documents in commits
 
-Per-user ownership is enforced for persisted master resumes and tailored-history records. Generated in-memory artifacts are short-lived and are available only through authenticated API routes.
+Per-user ownership is enforced for persisted master resumes and tailored-history records. Generated in-memory artifacts are short-lived, tagged with their creating user, and reject access from any other authenticated account.
 
 ## Testing
 

@@ -19,6 +19,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_anthropic import ChatAnthropic
 from pydantic import BaseModel
+from services.prompt_safety import UNTRUSTED_DATA_RULE, untrusted_json, untrusted_text
 
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 1024
@@ -79,6 +80,7 @@ Hard rules:
 - Never use em-dashes or en-dashes anywhere in the output.
 - Output ONLY the body paragraphs. Do not include a greeting, sign-off,
   candidate name, preamble, or explanation; the application adds those.
+""" + UNTRUSTED_DATA_RULE + """
 """
 
 _USER_PROMPT = """\
@@ -137,7 +139,7 @@ def _format_resume_context(tailored_resume: dict) -> str:
             if text:
                 lines.append(f"- {text}")
 
-    return "\n".join(lines)
+    return untrusted_json("TAILORED RESUME DATA", {"resume_facts": lines})
 
 
 def _sanitize(text: str) -> str:
@@ -242,12 +244,12 @@ def generate_cover_letter(
     resolved_name = candidate_name.strip() or contact.get("name", "").strip()
 
     raw = chain.invoke({
-        "candidate_name": resolved_name or "the candidate",
-        "company": company or "the company",
-        "job_title": job_title or "this role",
-        "keywords": ", ".join(selected_keywords) if selected_keywords else "none specified",
+        "candidate_name": untrusted_text("CANDIDATE NAME", resolved_name or "the candidate"),
+        "company": untrusted_text("COMPANY", company or "the company"),
+        "job_title": untrusted_text("ROLE", job_title or "this role"),
+        "keywords": untrusted_json("KEYWORDS", selected_keywords),
         "resume_context": _format_resume_context(tailored_resume),
-        "job_description": job_description,
+        "job_description": untrusted_text("JOB DESCRIPTION", job_description),
     })
 
     letter, counted_text = _format_cover_letter(
