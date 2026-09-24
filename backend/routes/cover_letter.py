@@ -14,12 +14,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlmodel import Session
+from sqlmodel import Session, select
 from db import get_session
 from models import TailoredResumeRecord
 from services.cover_letter_service import generate_cover_letter, CoverLetterResult
 from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
-from routes.generate import RESUME_STORE
+from routes.generate import get_owned_resume
 
 router = APIRouter()
 OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
@@ -53,12 +53,25 @@ def _cover_letter_display_name(request: CoverLetterDownloadRequest) -> str:
     )
 
 
+def _get_owned_history_record(
+    db: Session, history_id: str, user_id: str | None,
+) -> TailoredResumeRecord:
+    record = (
+        db.exec(select(TailoredResumeRecord).where(
+            TailoredResumeRecord.id == history_id,
+            TailoredResumeRecord.user_id == user_id,
+        )).first()
+        if user_id is not None else db.get(TailoredResumeRecord, history_id)
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="History record not found.")
+    return record
+
+
 def _store_cover_letter(db: Session, history_id: str | None, letter: str, user_id: str | None = None) -> None:
     if not history_id:
         return
-    record = db.get(TailoredResumeRecord, history_id)
-    if not record or (user_id and record.user_id != user_id):
-        raise HTTPException(status_code=404, detail="History record not found.")
+    record = _get_owned_history_record(db, history_id, user_id)
     record.cover_letter = letter
     db.add(record)
     db.commit()
@@ -78,7 +91,13 @@ def generate_cover_letter_route(
     if len(jd) > 20_000:
         raise HTTPException(status_code=422, detail="job_description exceeds 20,000 character limit.")
 
-    stored_resume = RESUME_STORE.get(request.session_id) if request.session_id else None
+    if request.history_id:
+        _get_owned_history_record(db, request.history_id, http_request.state.user_id)
+
+    stored_resume = (
+        get_owned_resume(request.session_id, http_request.state.user_id)
+        if request.session_id else None
+    )
     resume = request.tailored_resume or stored_resume
     if not resume:
         raise HTTPException(status_code=422, detail="No resume data available. Re-generate your resume and try again.")

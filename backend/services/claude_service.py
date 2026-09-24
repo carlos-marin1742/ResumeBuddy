@@ -27,6 +27,7 @@ from groq import Groq
 from pydantic import BaseModel
 
 from services.profile_skills import normalize_profile_skills
+from services.prompt_safety import UNTRUSTED_DATA_RULE, untrusted_json, untrusted_text
 
 
 # ---------------------------------------------------------------------------
@@ -695,7 +696,7 @@ def _occupation_descriptor(base_resume: dict) -> str:
 
 
 _TAILORING_SYSTEM = """\
-You are an expert {occupation} resume writer.
+You are an expert resume writer.
 You rewrite resume bullets to emphasize relevance to a specific job description while:
   - Preserving all factual accuracy (never invent metrics or experiences)
   - Keeping bullets concise (1–2 lines, action-verb first)
@@ -704,6 +705,7 @@ You rewrite resume bullets to emphasize relevance to a specific job description 
   - Never using em-dashes (—) or en-dashes (–) anywhere in the output; use commas, colons, or rephrase instead
 
 Always respond with ONLY valid JSON — no preamble, no markdown fences, no explanation.
+""" + UNTRUSTED_DATA_RULE + """
 """
 
 
@@ -714,6 +716,7 @@ def tailor_resume(
     skill_dictionary: dict | None = None,
 ) -> TailoredResume:
     resume_payload = {
+        "candidate_target_occupation": _occupation_descriptor(base_resume),
         "summary": base_resume.get("summary", ""),
         "skills": base_resume.get("skills", {}),
         "experience": [
@@ -766,14 +769,11 @@ def tailor_resume(
     user_prompt = f"""\
 Tailor the following resume for the job description below.
 
-KEYWORDS TO INCORPORATE (selected by the candidate):
-{json.dumps(selected_keywords, indent=2)}
+{untrusted_json("KEYWORDS TO INCORPORATE", selected_keywords)}
 
-BASE RESUME DATA:
-{json.dumps(resume_payload, indent=2)}
+{untrusted_json("BASE RESUME DATA", resume_payload)}
 
-JOB DESCRIPTION:
-{job_description}
+{untrusted_text("JOB DESCRIPTION", job_description)}
 
 Return a JSON object matching this schema exactly:
 {json.dumps(response_schema, indent=2)}
@@ -792,10 +792,7 @@ Rules:
 - Never use fewer bullets than specified — a short resume wastes space.
 - Keep every bullet to a maximum of 165 characters. For project bullets where the original is already near the limit, skip the keyword append rather than truncating.
 """
-    system_prompt = _TAILORING_SYSTEM.format(
-        occupation=_occupation_descriptor(base_resume),
-    )
-    raw = _call_claude(system_prompt, user_prompt, max_tokens=CLAUDE_MAX_TOKENS)
+    raw = _call_claude(_TAILORING_SYSTEM, user_prompt, max_tokens=CLAUDE_MAX_TOKENS)
 
     try:
         parsed = _extract_json(raw)
@@ -868,24 +865,21 @@ You are an expert resume writer. Write an alternative professional summary that 
 different from the current version but equally strong. Keep it 2-3 sentences.
 Never use em-dashes (—) or en-dashes (–); use commas, colons, or rephrase instead.
 Respond with ONLY the summary text — no preamble, no quotes, no explanation.
+""" + UNTRUSTED_DATA_RULE + """
 """
     user = f"""\
 Write an alternative professional summary for this role.
 
-ORIGINAL (base) SUMMARY:
-{original_summary}
+{untrusted_text("ORIGINAL SUMMARY", original_summary)}
 
-CURRENT TAILORED SUMMARY (the version to replace):
-{current_tailored_summary}
+{untrusted_text("CURRENT TAILORED SUMMARY", current_tailored_summary)}
 
-SELECTED KEYWORDS TO INCORPORATE:
-{json.dumps(selected_keywords)}
+{untrusted_json("SELECTED KEYWORDS", selected_keywords)}
 
-JOB DESCRIPTION:
-{job_description}
+{untrusted_text("JOB DESCRIPTION", job_description)}
 """
     if user_feedback:
-        user += f"\nUSER INSTRUCTIONS:\n{user_feedback}\n"
+        user += "\n" + untrusted_text("USER FEEDBACK", user_feedback) + "\n"
 
     user += "\nReturn only the new summary text (2-3 sentences). Make it meaningfully different from the current version."
 
@@ -910,6 +904,7 @@ Never use em-dashes (—) or en-dashes (–); use commas, colons, or rephrase in
 Every bullet must start with a strong past-tense action verb.
 Never fabricate metrics, technologies, or experiences not in the originals.
 Respond with ONLY valid JSON — no preamble, no markdown fences, no explanation.
+""" + UNTRUSTED_DATA_RULE + """
 """
 
     bullets_context = [
@@ -924,17 +919,14 @@ Respond with ONLY valid JSON — no preamble, no markdown fences, no explanation
 Write alternative tailored bullets for this {section_type} entry.
 Target: {target_name}{f" | {target_title}" if target_title else ""}
 
-BULLETS (original + current tailored version):
-{json.dumps(bullets_context, indent=2)}
+{untrusted_json("BULLETS", bullets_context)}
 
-SELECTED KEYWORDS TO INCORPORATE:
-{json.dumps(selected_keywords)}
+{untrusted_json("SELECTED KEYWORDS", selected_keywords)}
 
-JOB DESCRIPTION:
-{job_description}
+{untrusted_text("JOB DESCRIPTION", job_description)}
 """
     if user_feedback:
-        user += f"\nUSER INSTRUCTIONS:\n{user_feedback}\n"
+        user += "\n" + untrusted_text("USER FEEDBACK", user_feedback) + "\n"
 
     user += f"""
 Return exactly {bullet_count} bullets as a JSON array matching this schema:

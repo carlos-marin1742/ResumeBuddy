@@ -27,6 +27,7 @@ from services.skill_dictionary_service import (
     learn_static_skill_placements,
     skill_dictionary_is_current,
 )
+from services.ownership import get_owned_record
 
 router = APIRouter()
 
@@ -40,14 +41,26 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 # resume without re-running Claude. Capped at 50 entries to avoid unbounded
 # growth.
 RESUME_STORE: dict[str, dict] = {}
+RESUME_STORE_OWNERS: dict[str, str] = {}
 RESUME_STORE_MAX = 50
 
 
-def _store_resume(session_id: str, resume_data: dict) -> None:
+def _store_resume(session_id: str, resume_data: dict, user_id: str | None = None) -> None:
     if len(RESUME_STORE) >= RESUME_STORE_MAX:
         oldest = next(iter(RESUME_STORE))
         del RESUME_STORE[oldest]
+        RESUME_STORE_OWNERS.pop(oldest, None)
     RESUME_STORE[session_id] = resume_data
+    if user_id is not None:
+        RESUME_STORE_OWNERS[session_id] = user_id
+
+
+def get_owned_resume(session_id: str, user_id: str | None = None) -> dict:
+    """Return a transient resume only when it belongs to the signed-in user."""
+    resume = RESUME_STORE.get(session_id)
+    if not resume or (user_id is not None and RESUME_STORE_OWNERS.get(session_id) != user_id):
+        raise HTTPException(status_code=404, detail="Session not found. Please regenerate your resume.")
+    return resume
 
 
 # Ã¢â€â‚¬Ã¢â€â‚¬ Request / Response Models Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -289,7 +302,7 @@ def generate_resume(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> GenerateResponse:
-
+    user_id = http_request.state.user_id if http_request else None
     jd = request.job_description.strip()
     if not jd:
         raise HTTPException(status_code=422, detail="job_description cannot be empty.")
@@ -299,8 +312,11 @@ def generate_resume(
     skill_dictionary = None
     master_record = None
     if request.master_resume_id:
-        master_record = db.get(MasterResumeRecord, request.master_resume_id)
-        if not master_record or (http_request and master_record.user_id != http_request.state.user_id):
+        master_record = get_owned_record(
+            db, MasterResumeRecord, request.master_resume_id,
+            user_id,
+        )
+        if not master_record:
             raise HTTPException(status_code=404, detail="Master resume not found.")
         base_resume = master_resume_to_profile(master_record.resume_data)
         if skill_dictionary_is_current(master_record):
@@ -346,7 +362,7 @@ def generate_resume(
 
     # Store in memory for preview / custom download endpoints
     session_id = uuid.uuid4().hex
-    _store_resume(session_id, full_tailored_dict)
+    _store_resume(session_id, full_tailored_dict, user_id)
 
     # Render PDF
     person_name = base_resume.get("contact", {}).get("name", "")
@@ -364,7 +380,7 @@ def generate_resume(
         final_resume=full_tailored_dict,
         ats_score=ats_result.model_dump(exclude={"raw_response"}),
         pdf_path=str(pdf_path),
-        user_id=http_request.state.user_id if http_request else None,
+        user_id=user_id,
     )
     if master_record:
         try:

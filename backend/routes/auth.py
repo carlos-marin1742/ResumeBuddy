@@ -1,4 +1,5 @@
 import os
+import logging
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
@@ -6,8 +7,10 @@ from sqlmodel import Session, select
 from db import get_session
 from models import User, UserSession
 from services.auth_service import (LOGIN_LOCK_MINUTES, MAX_LOGIN_FAILURES, SESSION_COOKIE, as_utc, consume_token, create_session, digest, hash_password, issue_token, send_email, utcnow, verify_password)
+from services.security_logging import audit
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
+SECURITY_LOG = logging.getLogger("resumebuddy.security")
 PUBLIC_URL = os.getenv("PUBLIC_APP_URL", "http://localhost:5175").rstrip("/")
 class Credentials(BaseModel): email: EmailStr; password: str = Field(min_length=1, max_length=128)
 class EmailRequest(BaseModel): email: EmailStr
@@ -38,9 +41,14 @@ def login(payload: Credentials, response: Response, db: Session = Depends(get_se
             user.failed_login_count += 1
             if user.failed_login_count >= MAX_LOGIN_FAILURES: user.failed_login_count = 0; user.locked_until = now + timedelta(minutes=LOGIN_LOCK_MINUTES)
             db.add(user); db.commit()
+        audit(SECURITY_LOG, logging.WARNING, "login_failed")
         raise HTTPException(status_code=401, detail="Invalid email or password.")
-    if not user.email_verified_at: raise HTTPException(status_code=403, detail="Verify your email before signing in.")
-    user.failed_login_count = 0; user.locked_until = None; db.add(user); raw = create_session(db, user); db.commit(); set_cookie(response, raw); return Message(detail="Signed in.")
+    if not user.email_verified_at:
+        audit(SECURITY_LOG, logging.WARNING, "login_unverified", user_id=user.id)
+        raise HTTPException(status_code=403, detail="Verify your email before signing in.")
+    user.failed_login_count = 0; user.locked_until = None; db.add(user); raw = create_session(db, user); db.commit(); set_cookie(response, raw)
+    audit(SECURITY_LOG, logging.INFO, "login_succeeded", user_id=user.id)
+    return Message(detail="Signed in.")
 
 @router.post("/password-reset", response_model=Message, status_code=status.HTTP_202_ACCEPTED)
 def request_reset(payload: EmailRequest, db: Session = Depends(get_session)):

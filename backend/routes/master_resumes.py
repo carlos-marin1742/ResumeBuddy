@@ -16,6 +16,7 @@ from services.skill_dictionary_service import (
     seed_backoff_active,
     seed_skill_dictionary,
 )
+from services.ownership import get_owned_record
 
 
 router = APIRouter()
@@ -216,8 +217,8 @@ def update_master_resume(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> MasterResumeResponse:
-    record = db.get(MasterResumeRecord, record_id)
-    if not record or (http_request and record.user_id != http_request.state.user_id):
+    record = get_owned_record(db, MasterResumeRecord, record_id, http_request.state.user_id if http_request else None)
+    if not record:
         raise HTTPException(status_code=404, detail="Master resume not found.")
     record.name = request.resume.contact.name
     record.target_role = request.resume.targetRole
@@ -235,8 +236,8 @@ def seed_master_resume_dictionary(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> SeedDictionaryResponse:
-    record = db.get(MasterResumeRecord, record_id)
-    if not record or (http_request and record.user_id != http_request.state.user_id):
+    record = get_owned_record(db, MasterResumeRecord, record_id, http_request.state.user_id if http_request else None)
+    if not record:
         raise HTTPException(status_code=404, detail="Master resume not found.")
     dictionary = record.skill_dictionary
     current_hash = profile_hash_for_resume(master_resume_to_profile(record.resume_data))
@@ -259,8 +260,8 @@ def delete_master_resume(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> MasterResumeDeleteResponse:
-    record = db.get(MasterResumeRecord, record_id)
-    if not record or (http_request and record.user_id != http_request.state.user_id):
+    record = get_owned_record(db, MasterResumeRecord, record_id, http_request.state.user_id if http_request else None)
+    if not record:
         raise HTTPException(status_code=404, detail="Master resume not found.")
     db.delete(record)
     db.commit()
@@ -273,7 +274,7 @@ def get_master_resume(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> MasterResumeResponse:
-    record = db.get(MasterResumeRecord, record_id)
-    if not record or (http_request and record.user_id != http_request.state.user_id):
+    record = get_owned_record(db, MasterResumeRecord, record_id, http_request.state.user_id if http_request else None)
+    if not record:
         raise HTTPException(status_code=404, detail="Master resume not found.")
     return _to_response(record)

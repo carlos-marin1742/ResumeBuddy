@@ -1,12 +1,12 @@
 services:
   postgres:
     image: postgres:16
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_DB: resumebuddy
       POSTGRES_USER: resumebuddy
-      POSTGRES_PASSWORD: resumebuddy
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,12 +18,29 @@ services:
 
   resumebuddy:
     build: .
-    ports:
-      - "8000:8000"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://resumebuddy:resumebuddy@postgres:5432/resumebuddy
+      APP_ENV: production
+      REQUIRE_HTTPS: "true"
+      DATABASE_HOST: postgres
+      DATABASE_NAME: resumebuddy
+      DATABASE_USER: resumebuddy
+      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key
+      GROQ_API_KEY_FILE: /run/secrets/groq_api_key
+      AUTH_TOKEN_PEPPER_FILE: /run/secrets/auth_token_pepper
+      SMTP_USERNAME_FILE: /run/secrets/smtp_username
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+    expose:
+      - "8000"
+    secrets:
+      - postgres_password
+      - anthropic_api_key
+      - groq_api_key
+      - auth_token_pepper
+      - smtp_username
+      - smtp_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,5 +49,36 @@ services:
       - ./backend/outputs:/app/backend/outputs
     restart: unless-stopped
 
+  caddy:
+    image: caddy:2.8-alpine
+    depends_on:
+      - resumebuddy
+    environment:
+      PUBLIC_APP_HOST: ${PUBLIC_APP_HOST:?Set PUBLIC_APP_HOST to the production DNS name}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  anthropic_api_key:
+    file: ./secrets/anthropic_api_key.txt
+  groq_api_key:
+    file: ./secrets/groq_api_key.txt
+  auth_token_pepper:
+    file: ./secrets/auth_token_pepper.txt
+  smtp_username:
+    file: ./secrets/smtp_username.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt

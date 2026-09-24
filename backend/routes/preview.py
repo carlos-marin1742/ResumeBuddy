@@ -15,12 +15,12 @@ POST /api/download-custom
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from services.build_resume_pdf import _render_html, build_pdf_with_overrides
-from routes.generate import RESUME_STORE, _pdf_storage_name, _pdf_display_name
+from routes.generate import _pdf_storage_name, _pdf_display_name, get_owned_resume
 
 router = APIRouter()
 
@@ -54,17 +54,12 @@ class DownloadRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _resolve_resume(session_id: str, resume_data_patch: dict | None) -> dict:
+def _resolve_resume(session_id: str, resume_data_patch: dict | None, user_id: str | None = None) -> dict:
     """
     Get the resume dict for rendering.
     If resume_data_patch is provided, merge edited text over stored session data.
     """
-    stored = RESUME_STORE.get(session_id)
-    if not stored:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Session '{session_id}' not found. Please regenerate your resume."
-        )
+    stored = get_owned_resume(session_id, user_id)
 
     if not resume_data_patch:
         return stored
@@ -120,8 +115,11 @@ def _resolve_resume(session_id: str, resume_data_patch: dict | None) -> dict:
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.post("/api/preview-html", response_class=HTMLResponse)
-def preview_html(request: PreviewRequest) -> str:
-    resume = _resolve_resume(request.session_id, request.resume_data)
+def preview_html(request: PreviewRequest, http_request: Request = None) -> str:
+    resume = _resolve_resume(
+        request.session_id, request.resume_data,
+        http_request.state.user_id if http_request else None,
+    )
     # show_boundary=True — red page break line visible in iframe preview only
     html = _render_html(
         resume,
@@ -132,8 +130,11 @@ def preview_html(request: PreviewRequest) -> str:
 
 
 @router.post("/api/download-custom")
-def download_custom(request: DownloadRequest) -> FileResponse:
-    resume = _resolve_resume(request.session_id, request.resume_data)
+def download_custom(request: DownloadRequest, http_request: Request = None) -> FileResponse:
+    resume = _resolve_resume(
+        request.session_id, request.resume_data,
+        http_request.state.user_id if http_request else None,
+    )
 
     person_name = resume.get("contact", {}).get("name", "")
     storage_name = _pdf_storage_name(person_name, request.company, request.job_title)

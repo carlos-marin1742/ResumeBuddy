@@ -5,8 +5,10 @@ FastAPI application entry point for the ATS Resume Builder.
 """
 
 import json
+import logging
 import os
 import time
+import uuid
 from collections import defaultdict, deque
 from pathlib import Path
 
@@ -17,6 +19,20 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
+
+
+def load_runtime_secrets() -> None:
+    """Load Docker/Kubernetes file-mounted secrets without logging their values."""
+    for name in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "AUTH_TOKEN_PEPPER", "SMTP_USERNAME", "SMTP_PASSWORD"):
+        secret_file = os.getenv(f"{name}_FILE")
+        if secret_file and not os.getenv(name):
+            try:
+                os.environ[name] = Path(secret_file).read_text(encoding="utf-8").strip()
+            except OSError as exc:
+                raise RuntimeError(f"Required secret {name} is unavailable.") from exc
+
+
+load_runtime_secrets()
 
 from routes.extract import router as extract_router
 from routes.generate import router as generate_router
@@ -30,6 +46,16 @@ from routes.master_resumes import router as master_resumes_router
 from routes.auth import router as auth_router
 from db import get_session
 from services.auth_service import get_current_user
+from services.security_logging import audit, configure_logging
+
+SECURITY_LOG = configure_logging()
+REQUIRE_HTTPS = os.getenv("REQUIRE_HTTPS", "false").lower() == "true"
+
+if os.getenv("APP_ENV") == "production":
+    required_settings = ("AUTH_TOKEN_PEPPER", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "SMTP_HOST", "SMTP_FROM")
+    missing = [name for name in required_settings if not os.getenv(name)]
+    if missing or not REQUIRE_HTTPS or os.getenv("SESSION_COOKIE_SECURE", "true").lower() != "true":
+        raise RuntimeError("Production security configuration is incomplete.")
 
 app = FastAPI(
     title="ATS Resume Builder",
@@ -65,11 +91,25 @@ async def require_authenticated_api(request: Request, call_next):
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             origin = request.headers.get("origin")
             if origin and origin not in ALLOWED_ORIGINS:
+                audit(SECURITY_LOG, logging.WARNING, "untrusted_origin_rejected", method=request.method, path=path)
                 return JSONResponse(status_code=403, content={"detail": "Untrusted request origin."})
         try:
             with next(get_session()) as db:
                 user = get_current_user(request, db)
             request.state.user_id = user.id
+            is_ai_request = request.method == "POST" and (
+                path in _RATE_LIMITED_PATHS
+                or (
+                    path.startswith("/api/master-resumes/")
+                    and path.endswith("/seed-dictionary")
+                )
+            )
+            if is_ai_request and _limit_exceeded(
+                _ai_user_rate_limit_hits, user.id, AI_USER_RATE_LIMIT_MAX_REQUESTS,
+                RATE_LIMIT_WINDOW_SECONDS,
+            ):
+                audit(SECURITY_LOG, logging.WARNING, "ai_user_rate_limit_exceeded", user_id=user.id, path=path)
+                return _rate_limited_response()
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
         except RuntimeError:
@@ -77,9 +117,8 @@ async def require_authenticated_api(request: Request, call_next):
     return await call_next(request)
 
 # ── Rate limiting for AI-backed routes ────────────────────────────────────
-# These endpoints call paid Groq/Claude APIs. There is no authentication, so
-# without a limit any client that can reach the server can drive up API
-# costs or exhaust provider rate limits with unlimited requests.
+# These authenticated endpoints call paid Groq/Claude APIs. Limit requests to
+# contain cost and protect provider capacity if an account or browser is abused.
 _RATE_LIMITED_PATHS = {
     "/api/extract-keywords",
     "/api/generate-resume",
@@ -89,29 +128,117 @@ _RATE_LIMITED_PATHS = {
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "20"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "300"))
 _rate_limit_hits: dict[str, deque] = defaultdict(deque)
+API_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("API_RATE_LIMIT_MAX_REQUESTS", "120"))
+API_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("API_RATE_LIMIT_WINDOW_SECONDS", "60"))
+READ_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("READ_RATE_LIMIT_MAX_REQUESTS", "60"))
+AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS", "10"))
+AUTH_REGISTER_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("AUTH_REGISTER_RATE_LIMIT_MAX_REQUESTS", "5"))
+AUTH_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("AUTH_RATE_LIMIT_WINDOW_SECONDS", "900"))
+AI_USER_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("AI_USER_RATE_LIMIT_MAX_REQUESTS", "10"))
+_api_rate_limit_hits: dict[str, deque] = defaultdict(deque)
+_read_rate_limit_hits: dict[str, deque] = defaultdict(deque)
+_auth_rate_limit_hits: dict[str, deque] = defaultdict(deque)
+_ai_user_rate_limit_hits: dict[str, deque] = defaultdict(deque)
+_RATE_LIMIT_MAX_KEYS = 10_000
+
+
+def _limit_exceeded(
+    buckets: dict[str, deque], key: str, limit: int, window_seconds: int,
+) -> bool:
+    """Apply a bounded sliding-window limit without retaining request content."""
+    now = time.monotonic()
+    hits = buckets[key]
+    while hits and now - hits[0] > window_seconds:
+        hits.popleft()
+    if len(hits) >= limit:
+        return True
+    hits.append(now)
+    if len(buckets) > _RATE_LIMIT_MAX_KEYS:
+        buckets.pop(next(iter(buckets)), None)
+    return False
+
+
+def _rate_limited_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Too many requests. Please wait and try again."},
+        headers={"Retry-After": str(RATE_LIMIT_WINDOW_SECONDS)},
+    )
+_suspicious_hits: dict[str, deque] = defaultdict(deque)
 
 
 @app.middleware("http")
 async def rate_limit_ai_routes(request: Request, call_next):
+    path = request.url.path
+    client_ip = request.client.host if request.client else "unknown"
+    if path.startswith("/api/"):
+        if _limit_exceeded(
+            _api_rate_limit_hits, client_ip, API_RATE_LIMIT_MAX_REQUESTS,
+            API_RATE_LIMIT_WINDOW_SECONDS,
+        ):
+            audit(SECURITY_LOG, logging.WARNING, "api_rate_limit_exceeded", client_ip=client_ip, path=path)
+            return _rate_limited_response()
+        if request.method == "GET" and _limit_exceeded(
+            _read_rate_limit_hits, client_ip, READ_RATE_LIMIT_MAX_REQUESTS,
+            API_RATE_LIMIT_WINDOW_SECONDS,
+        ):
+            audit(SECURITY_LOG, logging.WARNING, "scraping_rate_limit_exceeded", client_ip=client_ip, path=path)
+            return _rate_limited_response()
+        auth_limit = {
+            "/api/auth/login": AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS,
+            "/api/auth/register": AUTH_REGISTER_RATE_LIMIT_MAX_REQUESTS,
+            "/api/auth/password-reset": AUTH_REGISTER_RATE_LIMIT_MAX_REQUESTS,
+            "/api/auth/verify-email": AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS,
+        }.get(path)
+        if auth_limit and _limit_exceeded(
+            _auth_rate_limit_hits, f"{path}:{client_ip}", auth_limit,
+            AUTH_RATE_LIMIT_WINDOW_SECONDS,
+        ):
+            audit(SECURITY_LOG, logging.WARNING, "authentication_rate_limit_exceeded", client_ip=client_ip, path=path)
+            return _rate_limited_response()
     is_dictionary_seed = (
-        request.url.path.startswith("/api/master-resumes/")
-        and request.url.path.endswith("/seed-dictionary")
+        path.startswith("/api/master-resumes/")
+        and path.endswith("/seed-dictionary")
     )
     if request.method == "POST" and (
-        request.url.path in _RATE_LIMITED_PATHS or is_dictionary_seed
+        path in _RATE_LIMITED_PATHS or is_dictionary_seed
     ):
-        client_ip = request.client.host if request.client else "unknown"
-        now = time.monotonic()
-        hits = _rate_limit_hits[client_ip]
-        while hits and now - hits[0] > RATE_LIMIT_WINDOW_SECONDS:
-            hits.popleft()
-        if len(hits) >= RATE_LIMIT_MAX_REQUESTS:
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "Too many requests. Please wait a few minutes and try again."},
-            )
-        hits.append(now)
+        if _limit_exceeded(
+            _rate_limit_hits, client_ip, RATE_LIMIT_MAX_REQUESTS,
+            RATE_LIMIT_WINDOW_SECONDS,
+        ):
+            audit(SECURITY_LOG, logging.WARNING, "ai_ip_rate_limit_exceeded", client_ip=client_ip, path=path)
+            return _rate_limited_response()
     return await call_next(request)
+
+
+@app.middleware("http")
+async def enforce_transport_and_log(request: Request, call_next):
+    request_id = uuid.uuid4().hex
+    request.state.request_id = request_id
+    client_ip = request.client.host if request.client else "unknown"
+    if REQUIRE_HTTPS and request.headers.get("x-forwarded-proto", request.url.scheme) != "https":
+        audit(SECURITY_LOG, logging.WARNING, "insecure_transport_rejected", method=request.method, path=request.url.path, client_ip=client_ip, request_id=request_id)
+        return JSONResponse(status_code=400, content={"detail": "HTTPS is required."})
+    try:
+        response = await call_next(request)
+    except Exception:
+        audit(SECURITY_LOG, logging.ERROR, "api_exception", method=request.method, path=request.url.path, client_ip=client_ip, request_id=request_id)
+        raise
+    status_code = response.status_code
+    level = logging.ERROR if status_code >= 500 else logging.INFO
+    audit(SECURITY_LOG, level, "api_request", method=request.method, path=request.url.path, status=status_code, client_ip=client_ip, request_id=request_id, user_id=getattr(request.state, "user_id", None))
+    if status_code in {401, 403, 404, 429}:
+        now = time.monotonic()
+        hits = _suspicious_hits[client_ip]
+        while hits and now - hits[0] > 300:
+            hits.popleft()
+        hits.append(now)
+        if len(_suspicious_hits) > _RATE_LIMIT_MAX_KEYS:
+            _suspicious_hits.pop(next(iter(_suspicious_hits)), None)
+        if len(hits) == 10:
+            audit(SECURITY_LOG, logging.WARNING, "suspicious_client_pattern", client_ip=client_ip, request_id=request_id)
+    return response
 
 
 @app.middleware("http")
@@ -120,6 +247,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    if REQUIRE_HTTPS:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
