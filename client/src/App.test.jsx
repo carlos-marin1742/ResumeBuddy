@@ -32,6 +32,10 @@ describe("App workflow", () => {
       vi.fn()
         .mockResolvedValueOnce({
           ok: true,
+          json: async () => ({ email: "jamie@example.com" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
           json: async () => ({ resumes: [] }),
         })
         .mockResolvedValueOnce({
@@ -122,6 +126,10 @@ describe("App workflow", () => {
       vi.fn()
         .mockResolvedValueOnce({
           ok: true,
+          json: async () => ({ email: "jamie@example.com" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
           json: async () => ({
             resumes: [{
               id: "base_resume",
@@ -185,6 +193,10 @@ describe("App workflow", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ email: "jamie@example.com" }),
+        })
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
