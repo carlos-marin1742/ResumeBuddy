@@ -104,6 +104,8 @@ ResumeBuddy/
             ├── ResumePicker.jsx      # Step 0: select resume profile
             ├── ResumeBuilder.jsx     # Create/import, review, and save a master resume
             ├── MasterResumePreview.jsx # Read-only saved resume preview
+
+The saved master-resume preview intentionally mirrors the generated PDF styling contract: same Arial stack, black text, #555 secondary text, uppercase section rules, and matching typography/spacing ratios on the 816x1056 Letter page while keeping the browser margin behavior independent.
             ├── JDInput.jsx           # Step 1: enter company, title, and job description
             ├── KeywordSelector.jsx   # Step 2: review and select keywords
             ├── ResumePreview.jsx     # Step 3: tailored preview + inline editing + ATS score

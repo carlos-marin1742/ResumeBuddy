@@ -10,7 +10,7 @@ These are candidate improvements, not committed scope. Prioritize them against u
 - Provide a one-time, non-public migration path that assigns existing local records to the developer's Auth0 account.
 - Add rename, duplicate, and archive controls for listed master resumes.
 - Add a dedicated master-resume HTML/PDF renderer and download path that does not require a job description.
-- Share typography tokens and semantic formatting between `MasterResumePreview` and generated master-resume output while keeping margins and spacing independent.
+- Share typography tokens and semantic formatting between `MasterResumePreview` and generated master-resume output while keeping margins and spacing independent. The preview CSS should match the PDF's Arial stack, letter proportions, black/#555 palette, uppercase section bars, and converted 8.5pt-based sizing without duplicating backend HTML generation.
 - Cover the shared formatting contract with renderer and component tests.
 - Add autosave and recovery after refresh.
 
