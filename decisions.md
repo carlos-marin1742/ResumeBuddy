@@ -160,6 +160,8 @@ Tradeoff: master-resume PDF export is not yet implemented.
 
 The saved master-resume preview and its future generated HTML/PDF output will use the same semantic formatting contract. This includes font families, font sizes, weights, italics, colors, capitalization, section rules, date formatting, link treatment, and field ordering.
 
+The preview CSS intentionally matches the generated PDF's Letter proportions and typography contract: Arial, black text, #555 secondary text, uppercase section headers, and the same size/spacing ratios derived from the 8.5pt body and 816x1056 page. Page-fitting controls remain independent so PDF margins and spacing can change without altering the resume's visual identity.
+
 Page-fitting controls remain independent. PDF margins, paper padding, section spacing, entry spacing, and line spacing may differ from the browser preview and may be adjusted without changing the resume's visual identity.
 
 The master-resume schema differs from the existing tailored-resume schema, so master resumes will use a dedicated HTML renderer rather than being forced through `build_resume_pdf.py` unchanged. Shared typography tokens and equivalent semantic markup should keep `MasterResumePreview` and generated output aligned.

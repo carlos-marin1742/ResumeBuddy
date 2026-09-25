@@ -1,53 +1,194 @@
 .mrp-page {
   margin: 0 auto;
-  max-width: 1000px;
-  padding: 2rem 1.5rem 5rem;
+  max-width: 816px;
+  padding: 0;
 }
 
 .mrp-toolbar {
   align-items: center;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
+  margin: 0 auto 1.5rem;
+  max-width: 816px;
+  padding: 0 0.5rem;
 }
 
-.mrp-toolbar > div { align-items: center; display: flex; gap: 1rem; }
-.mrp-saved { color: var(--success); font-size: 0.8rem; }
+.mrp-toolbar > div {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+}
+
+.mrp-saved {
+  color: #555;
+  font-size: 0.8rem;
+}
 
 .mrp-paper {
-  background: var(--white);
-  box-shadow: var(--shadow-lg);
+  background: #fff;
+  box-shadow: none;
+  box-sizing: border-box;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11.33px;
+  line-height: 1.25;
   margin: 0 auto;
   max-width: 816px;
   min-height: 1056px;
-  padding: 3.5rem 4rem;
+  padding: 38.4px 48px;
+  width: 816px;
 }
 
-.mrp-header { border-bottom: 2px solid var(--ink); padding-bottom: 1rem; text-align: center; }
-.mrp-header h1 { font-family: var(--font-display); font-size: 2rem; line-height: 1.2; }
-.mrp-role { color: var(--ink-soft); font-size: 1rem; margin-top: 0.2rem; }
-.mrp-contact { display: flex; flex-wrap: wrap; font-size: 0.75rem; gap: 0.25rem 0.85rem; justify-content: center; margin-top: 0.65rem; }
-.mrp-contact a, .mrp-project-heading a { color: var(--accent); }
+.mrp-header {
+  border-bottom: 1px solid #000;
+  padding-bottom: 4px;
+  text-align: center;
+}
 
-.mrp-section { margin-top: 1.2rem; }
-.mrp-section > h2 { border-bottom: 1px solid var(--ink); font-size: 0.85rem; letter-spacing: 0.08em; margin-bottom: 0.55rem; text-transform: uppercase; }
-.mrp-section > p { font-size: 0.82rem; line-height: 1.5; }
-.mrp-skills { display: grid; gap: 0.2rem; }
-.mrp-skills p { font-size: 0.82rem; line-height: 1.45; }
-.mrp-entry + .mrp-entry { margin-top: 0.8rem; }
-.mrp-entry-heading, .mrp-project-heading { align-items: baseline; display: flex; gap: 1rem; justify-content: space-between; }
-.mrp-entry h3 { font-size: 0.88rem; line-height: 1.35; }
-.mrp-entry-heading p, .mrp-entry-heading span { color: var(--ink-soft); font-size: 0.76rem; }
-.mrp-entry-heading span { flex-shrink: 0; }
-.mrp-highlights { font-size: 0.79rem; line-height: 1.45; margin: 0.25rem 0 0; padding-left: 1.1rem; }
-.mrp-highlights li + li { margin-top: 0.14rem; }
-.mrp-technologies { color: var(--ink-soft); font-size: 0.74rem; font-style: italic; }
-.mrp-project-heading > div { display: flex; font-size: 0.75rem; gap: 0.65rem; }
+.mrp-header h1 {
+  font-size: 21.33px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.mrp-role {
+  color: #555;
+  font-size: 13.33px;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.mrp-contact {
+  color: #000;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 10.67px;
+  gap: 0 8px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.mrp-contact a,
+.mrp-project-heading a {
+  color: #000;
+  text-decoration: underline;
+}
+
+.mrp-section {
+  margin-top: 8px;
+}
+
+.mrp-section > h2 {
+  border-bottom: 1px solid #000;
+  color: #000;
+  font-size: 12.67px;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  margin-bottom: 4px;
+  padding-bottom: 0.67px;
+  text-transform: uppercase;
+}
+
+.mrp-section > p {
+  font-size: 10.67px;
+  line-height: 1.35;
+}
+
+.mrp-skills {
+  display: grid;
+  gap: 0;
+}
+
+.mrp-skills p {
+  font-size: 10.67px;
+  line-height: 1.35;
+}
+
+.mrp-entry + .mrp-entry {
+  margin-top: 6.67px;
+}
+
+.mrp-entry-heading,
+.mrp-project-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 0;
+  justify-content: space-between;
+}
+
+.mrp-entry h3 {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.mrp-entry-heading p,
+.mrp-entry-heading span {
+  color: #555;
+  font-size: 10.67px;
+}
+
+.mrp-entry-heading span {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.mrp-highlights {
+  font-size: 10.67px;
+  line-height: 1.35;
+  margin: 2px 0 0;
+  padding-left: 16px;
+}
+
+.mrp-highlights li {
+  margin-bottom: 1.33px;
+}
+
+.mrp-highlights li + li {
+  margin-top: 0;
+}
+
+.mrp-technologies {
+  color: #555;
+  font-size: 10.67px;
+  font-style: italic;
+}
+
+.mrp-project-heading > div {
+  display: flex;
+  font-size: 10px;
+  gap: 8px;
+}
 
 @media (max-width: 700px) {
-  .mrp-page { padding: 1rem 0 3rem; }
-  .mrp-toolbar { align-items: stretch; flex-direction: column; gap: 0.75rem; padding: 0 1rem; }
-  .mrp-toolbar > div { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
-  .mrp-paper { min-height: 0; padding: 2rem 1.25rem; }
-  .mrp-entry-heading { align-items: flex-start; flex-direction: column; gap: 0.1rem; }
+  .mrp-page {
+    overflow-x: auto;
+    padding: 1rem 0 3rem;
+    width: 100%;
+  }
+
+  .mrp-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 1rem;
+  }
+
+  .mrp-toolbar > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .mrp-paper {
+    min-height: 0;
+    transform: scale(0.72);
+    transform-origin: top center;
+    width: 816px;
+  }
+
+  .mrp-entry-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0;
+  }
 }

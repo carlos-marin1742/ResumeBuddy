@@ -35,6 +35,8 @@ ResumeBuddy/
 
 The UI flow is profile selection (`ResumePicker`) → job details (`JDInput`) → keywords (`KeywordSelector`) → editable resume (`ResumePreview`) → HTML/PDF preview (`PDFPreview`) → cover letter (`CoverLetterStep`). `ResumeHistory` is a separate history view. `App.jsx` owns cross-step state.
 
+The read-only master-resume preview intentionally mirrors the generated PDF typography contract: same Arial stack, black text, #555 secondary text, uppercase section rules, and 8.5pt-based sizing on the 816x1056 Letter page. Browser margins remain separate from the generated PDF page fit, but the semantic formatting remains aligned.
+
 Backend responsibilities:
 
 - `claude_service.py`: Groq keyword extraction, Claude tailoring/regeneration, skill filtering, and local ATS scoring.
