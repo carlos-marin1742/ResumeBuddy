@@ -108,6 +108,7 @@ npm.cmd run build
 Observed results:
 
 - Focused backend master-resume/import/parser tests: 13 passed.
+- Full backend suite with no externally configured database: 228 passed, 28 skipped, and the six pre-existing failures listed below. The test fixture supplies SQLite only after collection.
 - Frontend tests: 29 passed and 1 existing expected failure.
 - Frontend build: passed.
 - ESLint: no errors; two existing hook-dependency warnings remain in `PDFPreview.jsx` and `ResumePreview.jsx`.
@@ -119,6 +120,8 @@ The former broader pytest collection blockers were resolved by removing obsolete
 
 Add dedicated cross-user isolation tests, beginning with history and download routes.
 
+The `DetachedInstanceError` in authenticated middleware was present at `7cbac04^` before the lazy-engine change (`d28b773`): both revisions accessed `user.id` after `get_current_user()` had committed and its session had closed. The middleware now reads the scalar ID while the session remains open.
+
 Known gaps to preserve explicitly:
 
 1. There is no account deletion or password-reset UI.
@@ -126,6 +129,8 @@ Known gaps to preserve explicitly:
 3. Login throttling is per client IP only.
 4. Historical unowned records need an explicit non-public archival or assignment decision.
 5. Production still needs a unique `AUTH_TOKEN_PEPPER`, `PUBLIC_APP_URL`, SMTP configuration, and secure cookies behind HTTPS.
+6. `services/test_claude_service.py::TestTailorResume::test_system_prompt_uses_explicit_profile_occupation`, `test_builder_target_job_title_sets_the_tailoring_persona`, `test_system_prompt_uses_profile_target_role_when_occupation_is_absent`, `test_system_prompt_uses_neutral_fallback_without_profile_data`, and `test_builder_resume_title_uses_the_same_fallback_chain` expect occupation-specific persona wording, but the current prompt is intentionally generic.
+7. `services/test_skill_dictionary_service.py::test_seed_validates_terms_hashes_profile_and_avoids_experience_bullets` expects a spaced JSON fragment (`"key": "clinical"`), while the prompt serializes its resume context compactly (`"key":"clinical"`).
 
 Continue to keep `TailoredResumeRecord` separate; it represents job-specific application history.
 
