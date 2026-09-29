@@ -21,6 +21,7 @@ from services.master_resume_adapter import master_resume_to_profile
 from services.profile_skills import normalize_profile_skills
 from services.ownership import get_owned_record
 from services.input_validation import StrictRequest, validate_identifier
+from services.static_profiles import static_profiles_enabled
 
 router = APIRouter()
 
@@ -135,6 +136,8 @@ def extract_keywords_route(
             raise HTTPException(status_code=404, detail="Master resume not found.")
         resume = master_resume_to_profile(record.resume_data)
     else:
+        if not static_profiles_enabled():
+            raise HTTPException(status_code=404, detail="Resume not found.")
         valid_ids = [f.stem for f in DATA_DIR.glob("*.json")]
         if request.resume_id not in valid_ids:
             raise HTTPException(
