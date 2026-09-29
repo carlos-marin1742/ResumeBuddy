@@ -152,6 +152,11 @@ export default function ResumePicker({ apiBase, onCreate, onSelect }) {
           </div>
         ))}
       </div>
+      {resumes.length === 0 && (
+        <p className="rpicker-sub">
+          Create or import a master resume to get started.
+        </p>
+      )}
     </div>
   );
 }

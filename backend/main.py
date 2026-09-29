@@ -47,9 +47,11 @@ from routes.auth import router as auth_router
 from db import get_session
 from services.auth_service import get_current_user
 from services.security_logging import audit, configure_logging
+from services.static_profiles import static_profiles_enabled
 
 SECURITY_LOG = configure_logging()
 REQUIRE_HTTPS = os.getenv("REQUIRE_HTTPS", "false").lower() == "true"
+static_profiles_enabled()
 
 if os.getenv("APP_ENV") == "production":
     required_settings = ("AUTH_TOKEN_PEPPER", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "SMTP_HOST", "SMTP_FROM")

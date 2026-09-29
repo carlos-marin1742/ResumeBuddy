@@ -12,6 +12,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from services.static_profiles import static_profiles_enabled
+
 router = APIRouter()
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -31,6 +33,9 @@ class ResumesResponse(BaseModel):
 @router.get("/api/resumes", response_model=ResumesResponse)
 def list_resumes() -> ResumesResponse:
     """Return all resume JSON files in the data directory."""
+    if not static_profiles_enabled():
+        return ResumesResponse(resumes=[])
+
     profiles = []
 
     for path in sorted(DATA_DIR.glob("*.json")):
