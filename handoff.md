@@ -12,7 +12,7 @@ ResumeBuddy supports its established job-tailoring workflow and now has the firs
 - Experience, education, projects, and certifications support repeatable entries.
 - Projects support repeatable named links with validated URLs.
 - Name and email are required before saving.
-- Saving creates or updates a `MasterResumeRecord` in SQLite.
+- Saving creates or updates a PostgreSQL-backed `MasterResumeRecord` managed by Alembic.
 - A successful save opens a dedicated read-only resume preview.
 - Users can return from the preview to edit and update the same record.
 - The builder's resume title is saved for identification in the future resume-selection list, but it is not rendered inside the resume document. Imports leave the title blank for the user to supply.
@@ -33,22 +33,22 @@ ResumeBuddy supports its established job-tailoring workflow and now has the firs
 
 ### Existing application workflow
 
-Static JSON profiles can still be selected and tailored through:
+With `STATIC_PROFILES_ENABLED=true` for local development, static JSON profiles can be selected and tailored through:
 
 ```text
 Profile → Job details → Keywords → Resume → PDF → Cover letter
 ```
 
-Job-specific resume and cover-letter history remains stored in SQLite.
+Job-specific resume and cover-letter history is stored in PostgreSQL.
 
 Generated job-tailored HTML/PDF renders the requested job title directly below the candidate name. The saved master-resume title is only an identifier on the profile-selection page and does not render inside `MasterResumePreview`.
 
 ## Important Boundaries
 
-- API access requires a verified email/password account. Passwords are bcrypt hashes and sessions are opaque, HttpOnly, server-side records with idle and absolute expiry.
+- API access requires a verified email/password account. Passwords are bcrypt hashes and sessions are opaque, peppered-hash, HttpOnly server-side records with idle and absolute expiry; secure-cookie deployments use the `__Host-resumebuddy_session` cookie.
 - Master resumes and tailored history are associated with an authenticated owner and are scoped by that owner in persistence routes.
 - SMTP configuration and `AUTH_TOKEN_PEPPER` are required backend environment values for verification and password-reset links; no auth secret is exposed to the SPA.
-- `backend/data/resume_history.db` is listed in `.gitignore` and is no longer tracked in the current Git index.
+- PostgreSQL data is outside the repository and Alembic owns schema changes. `db.py` creates its engine lazily, while startup and first database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`.
 - Saved master resumes are listed after refresh and can be selected for keyword extraction, tailoring, and generated PDF output.
 - Saved master resumes can be deleted from the profile page after inline confirmation; static JSON profiles are intentionally not deletable there.
 - Imported source files are not stored.
@@ -117,16 +117,15 @@ The former broader pytest collection blockers were resolved by removing obsolete
 
 ## Recommended Next Step
 
-Run the authentication migration and configure production email delivery before deployment.
+Add dedicated cross-user isolation tests, beginning with history and download routes.
 
-That work should define:
+Known gaps to preserve explicitly:
 
-1. Set a unique `AUTH_TOKEN_PEPPER`, production `PUBLIC_APP_URL`, and SMTP credentials.
-2. Keep `SESSION_COOKIE_SECURE=true` behind HTTPS.
-3. Decide whether historical unowned records should be archived or assigned with a one-time, non-public administrator operation.
-4. Add explicit owner checks to any future persisted artifact or cross-request session store.
-5. Establish retention and deletion rules for personal data.
-10. A dedicated master-resume renderer whose typography matches `MasterResumePreview` while spacing and margins remain independently adjustable.
+1. There is no account deletion or password-reset UI.
+2. `RESUME_STORE` is in memory and generated PDFs remain on local disk.
+3. Login throttling is per client IP only.
+4. Historical unowned records need an explicit non-public archival or assignment decision.
+5. Production still needs a unique `AUTH_TOKEN_PEPPER`, `PUBLIC_APP_URL`, SMTP configuration, and secure cookies behind HTTPS.
 
 Continue to keep `TailoredResumeRecord` separate; it represents job-specific application history.
 

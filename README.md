@@ -66,7 +66,7 @@ ResumeBuddy/
 ├── .env                              # gitignored — create manually
 ├── backend/
 │   ├── main.py                       # FastAPI app, CORS, routers, static serving, health check
-│   ├── db.py                         # SQLite engine setup via SQLModel
+│   ├── db.py                         # Lazy PostgreSQL engine setup via SQLModel
 │   ├── models.py                     # Tailored and master resume SQLModel tables
 │   ├── requirements.txt
 │   ├── routes/
@@ -93,7 +93,7 @@ ResumeBuddy/
 │       ├── clinical_resume.json      # Clinical research profile
 │       ├── admin_resume.json         # Administrative profile
 │       ├── base_resume_schema.md     # Schema reference
-│       └── resume_history.db         # SQLite database (auto-created on first run)
+│       └── fixtures/                 # Static-profile test fixtures
 └── client/
     ├── vite.config.js                # Dev proxy and Vitest/jsdom configuration
     └── src/
@@ -220,7 +220,7 @@ cd backend
 cd backend && python -m pytest -v
 ```
 
-Without `POSTGRES_TEST_DATABASE_URL`, the backend baseline is 212 passed and 28 skipped. With it configured and reachable, the baseline is 216 passed and 24 skipped.
+With no externally configured database, the latest backend run was 223 passed, 28 skipped, and 6 failed due to unrelated tailoring/skill-dictionary assertion failures. PostgreSQL-enabled counts have not been remeasured.
 
 The credential-dependent `backend/smoke_extract_keywords.py` script is a manual smoke check and is not collected by pytest.
 
@@ -301,16 +301,7 @@ See `base_resume_schema.md` for the full JSON schema. Key sections:
 
 ## Runtime data and Git
 
-`backend/data/resume_history.db` is created locally by the backend and stores personal resume and application data. It is intentionally gitignored and must not be committed.
-
-If the database was tracked before the ignore rule was added, remove it from the index once without deleting your local data:
-
-```bash
-git rm --cached backend/data/resume_history.db
-git ls-files backend/data/resume_history.db
-```
-
-The second command should produce no output. Once that index removal is committed, `git add .` will respect the ignore rule for the database. Always review `git status --short` before committing.
+PostgreSQL stores application data outside the repository; Alembic owns its schema. `db.py` creates the engine lazily, but application startup and first database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. `STATIC_PROFILES_ENABLED` defaults to false so checked-in static profiles are not exposed; set it true only for local development. Generated PDFs remain local-disk artifacts, and `RESUME_STORE` remains in memory.
 
 ---
 

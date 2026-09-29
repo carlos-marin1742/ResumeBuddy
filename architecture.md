@@ -21,7 +21,7 @@ FastAPI application
           ├─ Anthropic and Groq
           ├─ Playwright and pypdf
           ├─ Static JSON resume profiles
-          └─ SQLite tailored-resume history
+          └─ PostgreSQL tailored-resume history
 ```
 
 In development, Vite runs on port 5175 and proxies `/api` to FastAPI on port 8000. In production, the React build is served from `backend/static` by FastAPI.
@@ -70,7 +70,7 @@ CoverLetterStep
 
 ## Backend
 
-`backend/main.py` initializes SQLite, configures CORS, registers routers, exposes health information, and serves the production frontend.
+`backend/main.py` validates PostgreSQL configuration at startup, configures CORS, registers routers, exposes health information, and serves the production frontend.
 
 The client uses same-origin `/api` paths. Vite proxies those paths to FastAPI during development, and FastAPI serves both the built client and API in production. Do not hard-code a loopback backend address in browser code because it breaks deployed, containerized, and remote-client usage.
 
@@ -121,7 +121,7 @@ The current `build_resume_pdf.py` contract targets job-tailored resume data and 
 
 ## Persistence
 
-`TailoredResumeRecord` stores job-specific generation history in `backend/data/resume_history.db`.
+`TailoredResumeRecord` stores job-specific generation history in PostgreSQL.
 
 It includes:
 
@@ -132,11 +132,11 @@ It includes:
 - Optional cover letter
 - Optional cached PDF path
 
-`MasterResumeRecord` stores a reviewed builder payload, display name, target role, and created/updated timestamps in the same SQLite database. It is separate from job-specific history.
+`MasterResumeRecord` stores a reviewed builder payload, display name, target role, and created/updated timestamps in the same PostgreSQL database. It is separate from job-specific history.
 
 The existing `targetRole` payload and `target_role` column represent the user-facing saved-resume title. The title is intended for resume selection and does not render inside `MasterResumePreview`; imported document headings do not populate it automatically.
 
-Accounts use bcrypt password hashes, verified email, and opaque server-side sessions in HttpOnly cookies. Master resumes and tailored history carry a user owner and all persisted-record lookups are scoped to that owner. Static JSON profiles remain shared templates.
+Accounts use bcrypt password hashes, verified email, and opaque peppered-hash server-side sessions in HttpOnly cookies. Master resumes and tailored history carry a user owner and all persisted-record lookups are scoped to that owner. `STATIC_PROFILES_ENABLED` defaults to false; only local development should enable static JSON profiles.
 
 Production Compose places Caddy at the public HTTPS edge. Uvicorn and PostgreSQL are internal-only services; the database password is mounted as a Docker secret rather than included in `DATABASE_URL`. Request, authentication, rate-limit, and server-error events are emitted as structured logs without request bodies, passwords, tokens, or email addresses.
 
@@ -148,7 +148,7 @@ Abuse protection uses bounded, in-memory sliding windows: general API and read l
 
 All resume-derived content sent to an LLM is JSON-encoded within an explicit untrusted-data boundary. The model is instructed to treat that boundary as reference data only, never as instructions; dynamic resume fields are not interpolated into system prompts.
 
-`backend/data/resume_history.db` is local runtime state, not a source artifact. The schema is defined by the SQLModel classes and `init_db()`, so each environment can create its own database. The database is gitignored and must be untracked; older clones that tracked it require a one-time `git rm --cached backend/data/resume_history.db`.
+PostgreSQL runtime data lives outside the repository and Alembic owns schema changes. `db.py` defers engine creation until use, while FastAPI startup and first real database use clearly fail without `DATABASE_URL` or `DATABASE_PASSWORD_FILE`.
 
 ## Security Boundaries
 
@@ -165,6 +165,8 @@ Required protections include:
 - No secrets, personal profiles, runtime databases, or generated documents in commits
 
 Per-user ownership is enforced for persisted master resumes and tailored-history records. Generated in-memory artifacts are short-lived, tagged with their creating user, and reject access from any other authenticated account.
+
+Known gaps: account deletion and a password-reset UI are not implemented; cross-user isolation lacks dedicated tests; `RESUME_STORE` is process memory; generated PDFs remain on local disk; and login throttling is per client IP only.
 
 ## Testing
 

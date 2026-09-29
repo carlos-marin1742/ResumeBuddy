@@ -9,7 +9,7 @@ ResumeBuddy/
 │   ├── db.py / models.py       # SQLModel engine, migrations, and history model
 │   ├── routes/                 # API handlers and route-level pytest tests
 │   ├── services/               # AI, ATS, project selection, and PDF services/tests
-│   ├── data/                   # Resume schema, private profiles, and SQLite history
+│   ├── data/                   # Static-profile fixtures and private local inputs
 │   ├── outputs/                # Generated PDFs (gitignored)
 │   └── requirements.txt
 ├── client/
@@ -27,9 +27,7 @@ ResumeBuddy/
 └── AGENTS.md
 ```
 
-`backend/main.py` registers the routers, initializes SQLite, configures CORS, and serves the built React app in production. Personal resume JSON, `backend/data/resume_history.db`, `backend/outputs/`, `client/node_modules/`, and build output are runtime artifacts and must not be committed.
-
-The SQLite ignore rule only affects untracked files. In a clone where `backend/data/resume_history.db` was previously committed, remove it from the Git index once with `git rm --cached backend/data/resume_history.db`; this preserves the local database. Before broad staging, confirm `git ls-files backend/data/resume_history.db` prints nothing and review `git status --short`.
+`backend/main.py` registers the routers, validates PostgreSQL configuration at startup, configures CORS, and serves the built React app in production. PostgreSQL schema changes are owned by Alembic; generated PDFs, private profile inputs, `client/node_modules/`, and build output are runtime artifacts and must not be committed.
 
 ## Architecture and Important Modules
 
@@ -58,11 +56,11 @@ Backend responsibilities:
 
 ## Data, Authentication, and Security
 
-`TailoredResumeRecord` stores job metadata, selected keywords, structured resume JSON, ATS scores, optional cover-letter text, and cached PDF paths. `MasterResumeRecord` separately stores user-reviewed builder data for editing and preview. Both use `backend/data/resume_history.db`; `init_db()` creates their tables and applies the additive cover-letter migration.
+`TailoredResumeRecord` stores job metadata, selected keywords, structured resume JSON, ATS scores, optional cover-letter text, and cached PDF paths. `MasterResumeRecord` separately stores user-reviewed builder data for editing and preview. Both use PostgreSQL, and Alembic owns their schema.
 
-There is currently **no authentication or authorization**; all API and history routes are open to any client that can reach the server. Do not imply per-user isolation. Preserve path validation, input limits, HTML escaping, and `Cache-Control: no-store` behavior.
+ResumeBuddy uses first-party email/password authentication: bcrypt password hashes, peppered-hash server-side sessions, and email verification. With secure cookies enabled, the browser receives the `__Host-resumebuddy_session` HttpOnly cookie; sessions have idle and absolute expiry. Global middleware protects `/api/*` except `/api/auth/*`; persisted history and master-resume owner mismatches return 404. Keep the absence of account deletion, a password-reset UI, and cross-user isolation tests explicit.
 
-Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, and optional comma-separated `ALLOWED_ORIGINS`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
+Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `DATABASE_URL`, `AUTH_TOKEN_PEPPER`, SMTP settings, and optional comma-separated `ALLOWED_ORIGINS`. `STATIC_PROFILES_ENABLED` defaults to false; only local development should set it true to expose checked-in static profiles. `db.py` creates its engine lazily, but startup and first real database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
 
 ## Development and Validation
 
@@ -79,7 +77,7 @@ docker compose up --build
 
 Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
 
-Pytest files are named `test_*.py` beside services or under `backend/routes/`. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test. Without `POSTGRES_TEST_DATABASE_URL`, the backend baseline is 212 passed and 28 skipped; with it configured and reachable, it is 216 passed and 24 skipped.
+Pytest files are named `test_*.py` beside services or under `backend/routes/`. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test. With no externally configured database, the latest run was 223 passed, 28 skipped, and 6 failed (the documented unrelated tailoring/skill-dictionary assertion failures). PostgreSQL migration tests remain opt-in through `POSTGRES_TEST_DATABASE_URL`.
 
 Frontend tests mock `fetch`, clipboard, and browser download boundaries. `CoverLetterStep.test.jsx` contains one `it.fails` regression: clearing the letter unmounts its textarea. Do not remove the marker without fixing and verifying the component. No coverage threshold is enforced.
 
