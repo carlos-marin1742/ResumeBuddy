@@ -131,7 +131,8 @@ async def require_authenticated_api(request: Request, call_next):
         try:
             with next(get_session()) as db:
                 user = get_current_user(request, db)
-            request.state.user_id = user.id
+                user_id = user.id
+            request.state.user_id = user_id
             is_ai_request = request.method == "POST" and (
                 path in _RATE_LIMITED_PATHS
                 or (
@@ -140,10 +141,10 @@ async def require_authenticated_api(request: Request, call_next):
                 )
             )
             if is_ai_request and _limit_exceeded(
-                _ai_user_rate_limit_hits, user.id, AI_USER_RATE_LIMIT_MAX_REQUESTS,
+                _ai_user_rate_limit_hits, user_id, AI_USER_RATE_LIMIT_MAX_REQUESTS,
                 RATE_LIMIT_WINDOW_SECONDS,
             ):
-                audit(SECURITY_LOG, logging.WARNING, "ai_user_rate_limit_exceeded", user_id=user.id, path=path)
+                audit(SECURITY_LOG, logging.WARNING, "ai_user_rate_limit_exceeded", user_id=user_id, path=path)
                 return _rate_limited_response()
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
