@@ -220,7 +220,7 @@ cd backend
 cd backend && python -m pytest -v
 ```
 
-With no externally configured database, the latest backend run was 223 passed, 28 skipped, and 6 failed due to unrelated tailoring/skill-dictionary assertion failures. PostgreSQL-enabled counts have not been remeasured.
+With no externally configured database, the latest backend run was 228 passed, 28 skipped, and 6 failed due to unrelated tailoring/skill-dictionary assertion failures. PostgreSQL-enabled counts have not been remeasured.
 
 The credential-dependent `backend/smoke_extract_keywords.py` script is a manual smoke check and is not collected by pytest.
 
@@ -301,7 +301,7 @@ See `base_resume_schema.md` for the full JSON schema. Key sections:
 
 ## Runtime data and Git
 
-PostgreSQL stores application data outside the repository; Alembic owns its schema. `db.py` creates the engine lazily, but application startup and first database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. `STATIC_PROFILES_ENABLED` defaults to false so checked-in static profiles are not exposed; set it true only for local development. Generated PDFs remain local-disk artifacts, and `RESUME_STORE` remains in memory.
+PostgreSQL stores application data outside the repository; Alembic owns its schema. `db.py` creates the engine lazily, but application startup and first database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. ResumeBuddy uses verified email/password accounts with bcrypt hashes and peppered-hash server-side sessions in an HttpOnly cookie. Middleware protects `/api/*` except `/api/auth/*` and reads the authenticated user's ID before closing the database session. `STATIC_PROFILES_ENABLED` defaults to false so checked-in static profiles are not exposed; set it true only for local development. Generated PDFs remain local-disk artifacts, and `RESUME_STORE` remains in memory.
 
 ---
 
