@@ -44,7 +44,7 @@ from routes.regenerate import router as regenerate_router
 from routes.resume_import import router as resume_import_router
 from routes.master_resumes import router as master_resumes_router
 from routes.auth import router as auth_router
-from db import get_session
+from db import get_database_url, get_session
 from services.auth_service import get_current_user
 from services.security_logging import audit, configure_logging
 from services.static_profiles import static_profiles_enabled
@@ -78,6 +78,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def validate_database_configuration() -> None:
+    """Fail application startup before accepting requests without a database."""
+    get_database_url()
 
 MAX_JSON_BODY_BYTES = 1 * 1024 * 1024
 MAX_UPLOAD_BODY_BYTES = 5 * 1024 * 1024 + 64 * 1024

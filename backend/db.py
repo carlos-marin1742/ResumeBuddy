@@ -8,6 +8,7 @@ and upgrades. This module supplies the shared engine and FastAPI session
 dependency; it does not create or migrate tables at application startup.
 """
 import os
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -38,12 +39,18 @@ def _database_url() -> str:
     )
 
 
-DATABASE_URL = _database_url()
+def get_database_url() -> str:
+    """Return the configured database URL when the caller needs it."""
+    return _database_url()
 
-engine = create_engine(DATABASE_URL, echo=False)
+
+@lru_cache
+def get_engine():
+    """Create the shared engine only when a request or startup needs it."""
+    return create_engine(get_database_url(), echo=False)
 
 
 def get_session():
     """FastAPI dependency: yields a session, closes it after the request."""
-    with Session(engine) as session:
+    with Session(get_engine()) as session:
         yield session
