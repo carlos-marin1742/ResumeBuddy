@@ -60,6 +60,12 @@ The initial scope is individual email/password accounts. Organizations, team sha
 
 No SMTP credential, token pepper, password hash, or session identifier belongs in the browser bundle. The application enforces record ownership and authenticated download authorization.
 
+## 2026-09-29: Retain first-party authentication
+
+First-party email/password authentication is implemented and will be retained, superseding the earlier decision not to implement authentication locally.
+
+TODO(owner): Record the rationale for retaining first-party authentication.
+
 ## Separate master facts from application versions
 
 The conceptual model distinguishes reusable career facts from job-specific generated resumes.
@@ -138,7 +144,7 @@ Why:
 - A separate table avoids overloading `TailoredResumeRecord`.
 - JSON storage preserves the structured builder payload while its schema is still evolving.
 
-Tradeoff: without authentication, records are local application data and cannot provide per-user privacy or ownership.
+Tradeoff (superseded): without authentication, records are local application data and cannot provide per-user privacy or ownership. First-party authentication and owner-scoped persistence are implemented.
 
 The builder's `targetRole` field currently serves as the saved resume's user-defined title. It is retained for identifying the resume in the resume-selection UI and is not part of the rendered master-resume document. Resume imports leave this field blank so the user can name the saved resume explicitly.
 
