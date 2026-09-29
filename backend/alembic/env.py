@@ -5,12 +5,12 @@ from alembic import context
 from sqlmodel import SQLModel
 
 import models  # noqa: F401
-from db import DATABASE_URL
+from db import get_database_url
 
 config = context.config
 config.set_main_option(
     "sqlalchemy.url",
-    config.attributes.get("database_url") or os.getenv("DATABASE_URL", DATABASE_URL),
+    config.attributes.get("database_url") or os.getenv("DATABASE_URL") or get_database_url(),
 )
 
 if config.config_file_name is not None:
