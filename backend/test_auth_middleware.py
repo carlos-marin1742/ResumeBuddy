@@ -89,7 +89,15 @@ def test_unverified_session_returns_403(auth_client):
     assert client.get("/api/resumes").status_code == 403
 
 
-def test_auth_routes_are_reachable_without_a_session(auth_client):
+def test_password_reset_is_reachable_without_a_session(auth_client):
+    client, _, _ = auth_client
+
+    assert client.post(
+        "/api/auth/password-reset", json={"email": "reset@example.com"}
+    ).status_code == 202
+
+
+def test_auth_me_without_a_session_returns_401(auth_client):
     client, _, _ = auth_client
 
     assert client.get("/api/auth/me").status_code == 401

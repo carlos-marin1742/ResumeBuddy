@@ -1,5 +1,6 @@
 """Unit tests for per-master-resume skill dictionary hashing and lookup."""
 
+import json
 import os
 import subprocess
 import sys
@@ -123,8 +124,13 @@ def test_seed_validates_terms_hashes_profile_and_avoids_experience_bullets(monke
     assert result == {"status": "seeded", "term_count": 2}
     assert record.skill_dictionary["terms"] == {"venipuncture": "clinical", "elisa": "instruments"}
     assert record.skill_dictionary["profile_hash"] == profile_hash_for_resume(master_resume_to_profile(record.resume_data))
-    assert '"key": "clinical"' in prompt["text"]
-    assert '"label": "Clinical Skills"' in prompt["text"]
+    serialized_context = prompt["text"].split("<untrusted_data>\n", 1)[1].split(
+        "\n</untrusted_data>", 1
+    )[0]
+    resume_context = json.loads(serialized_context)
+    assert resume_context["skill_categories"][0] == {
+        "key": "clinical", "label": "Clinical Skills"
+    }
     assert "Clinical Laboratory Technician" in prompt["text"]
     assert "Prepared samples." not in prompt["text"]
     assert "possibly prior or unrelated work" in prompt["text"]
