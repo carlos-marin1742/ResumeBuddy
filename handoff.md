@@ -108,7 +108,7 @@ npm.cmd run build
 Observed results:
 
 - Focused backend master-resume/import/parser tests: 13 passed.
-- Full backend suite with no externally configured database: 228 passed, 28 skipped, and the six pre-existing failures listed below. The test fixture supplies SQLite only after collection.
+- Full backend suite with no externally configured database: 242 passed and 28 skipped. The test fixture supplies SQLite only after collection.
 - Frontend tests: 29 passed and 1 existing expected failure.
 - Frontend build: passed.
 - ESLint: no errors; two existing hook-dependency warnings remain in `PDFPreview.jsx` and `ResumePreview.jsx`.
@@ -129,8 +129,7 @@ Known gaps to preserve explicitly:
 3. Login throttling is per client IP only.
 4. Historical unowned records need an explicit non-public archival or assignment decision.
 5. Production still needs a unique `AUTH_TOKEN_PEPPER`, `PUBLIC_APP_URL`, SMTP configuration, and secure cookies behind HTTPS.
-6. `services/test_claude_service.py::TestTailorResume::test_system_prompt_uses_explicit_profile_occupation`, `test_builder_target_job_title_sets_the_tailoring_persona`, `test_system_prompt_uses_profile_target_role_when_occupation_is_absent`, `test_system_prompt_uses_neutral_fallback_without_profile_data`, and `test_builder_resume_title_uses_the_same_fallback_chain` expect occupation-specific persona wording, but the current prompt is intentionally generic.
-7. `services/test_skill_dictionary_service.py::test_seed_validates_terms_hashes_profile_and_avoids_experience_bullets` expects a spaced JSON fragment (`"key": "clinical"`), while the prompt serializes its resume context compactly (`"key":"clinical"`).
+6. Commit `0adb688` moved the user-controlled occupation out of the tailoring system prompt to prevent prompt injection. Commit `a294d65` restored occupation-aware tailoring through the `candidate_target_occupation` field in the untrusted resume-data block.
 
 Continue to keep `TailoredResumeRecord` separate; it represents job-specific application history.
 

@@ -262,13 +262,19 @@ Why: a later pass will cache keyword-to-category classifications, and that cache
 
 ## Derive the tailoring persona from profile data
 
-The tailoring system prompt identifies the writer using the profile's optional `meta.occupation`; when that is absent, it uses the first `meta.target_roles` value, then the resume title. If none is available, it uses a neutral `professional` descriptor.
+Tailoring resolves `candidate_target_occupation` from the profile's optional `meta.occupation`; when that is absent, it uses the first `meta.target_roles` value, then the resume title. If none is available, it uses a neutral `professional` descriptor.
 
 Why:
 
 - The product supports occupations beyond technology and must not assign an unrecognized profile a technology persona.
 - This data-driven chain avoids a fixed role-type branch and works for static profiles and reviewed builder resumes alike.
 - The neutral fallback keeps tailoring industry-agnostic when profile metadata is incomplete.
+
+## Keep user-controlled values out of system prompts
+
+User-controlled values never enter a system prompt. They are serialized into an explicit untrusted-data block, while the fixed system prompt explains how the model may use the data without treating it as instructions. For tailoring, `candidate_target_occupation` is capped and supplied with the resume data; the system prompt directs the model to adapt terminology, emphasis, and conventions to that field.
+
+Commit `0adb688` removed occupation interpolation from the system prompt to prevent prompt injection. Commit `a294d65` restored occupation-aware tailoring through the untrusted data field rather than returning that value to the system prompt.
 
 ## Preserve focused files and existing workflow contracts
 

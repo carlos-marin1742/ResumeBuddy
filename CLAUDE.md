@@ -72,7 +72,7 @@ ResumeBuddy uses first-party email/password authentication with bcrypt hashes, e
 
 Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `DATABASE_URL`, `AUTH_TOKEN_PEPPER`, SMTP settings, and optional comma-separated `ALLOWED_ORIGINS`. `STATIC_PROFILES_ENABLED` defaults to false; set it true only for local development that intentionally exposes static JSON profiles. `db.py` defers engine creation until use, but application startup and first database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
 
-Tailoring derives its occupation descriptor from optional `meta.occupation`, then `meta.target_roles`, then the resume title, with a neutral fallback; do not branch the persona on fixed role types. The builder separately asks for an optional target job title, distinct from its `targetRole` filing label: the title identifies the saved resume and is not printed, while the target job title feeds `meta.occupation` and therefore the tailoring persona.
+Tailoring derives its occupation descriptor from optional `meta.occupation`, then `meta.target_roles`, then the resume title, with a neutral fallback; do not branch on fixed role types. The resolved occupation reaches the model as `candidate_target_occupation` in untrusted resume data, not as a system persona. The builder separately asks for an optional target job title, distinct from its `targetRole` filing label: the title identifies the saved resume and is not printed, while the target job title feeds `meta.occupation` and therefore the tailoring data.
 
 ## Development and Validation
 
