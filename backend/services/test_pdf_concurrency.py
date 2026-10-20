@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -9,7 +12,7 @@ from main import app
 from services import build_cover_letter_pdf as cover_module
 from services import build_resume_pdf as resume_module
 from services import pdf_concurrency
-from services.pdf_concurrency import PdfBusyError
+from services.pdf_concurrency import PdfBusyError, PdfRenderTimeoutError
 
 
 @pytest.fixture
@@ -150,3 +153,129 @@ def test_resume_workers_close_browser_and_remove_temp_pdf_on_error(worker_name, 
 
     browser.close.assert_called_once()
     assert leaked and not __import__("os").path.exists(leaked[0])
+
+
+class _HangingBrowser:
+    """A Playwright double whose page.pdf blocks until its Chromium is killed."""
+
+    def __init__(self, hang_seconds: float = 5.0):
+        self.hang_seconds = hang_seconds
+        self.killed = threading.Event()
+        self.launch_args = None
+        self.browser = MagicMock()
+        page = MagicMock()
+        page.pdf.side_effect = self._pdf
+        self.browser.new_page.return_value = page
+        playwright = MagicMock()
+        playwright.chromium.launch.side_effect = self._launch
+        self.manager = MagicMock()
+        self.manager.__enter__.return_value = playwright
+
+    def _launch(self, **kwargs):
+        self.launch_args = kwargs["args"]
+        return self.browser
+
+    def _pdf(self, path, **kwargs):
+        open(path, "wb").write(b"partial")
+        # Like a real Playwright call, this only fails once its browser dies.
+        if not self.killed.wait(timeout=self.hang_seconds):
+            raise RuntimeError("render was never killed")
+        raise RuntimeError("Target closed")
+
+    def kill(self, token):
+        assert any(token in arg for arg in self.launch_args)  # the tagged browser
+        self.killed.set()
+        return 1
+
+
+@pytest.fixture
+def short_timeouts(monkeypatch):
+    monkeypatch.setattr(pdf_concurrency, "PDF_RENDER_TIMEOUT_SECONDS", 0.3)
+    monkeypatch.setattr(pdf_concurrency, "_KILL_GRACE_SECONDS", 2.0)
+
+
+def test_hung_render_is_killed_then_slot_frees_and_next_render_succeeds(limit, short_timeouts, monkeypatch, tmp_path):
+    limit(1, timeout=0.5)
+    hung = _HangingBrowser()
+    monkeypatch.setattr(pdf_concurrency, "_kill_render_processes", hung.kill)
+
+    begun = time.monotonic()
+    with patch("playwright.sync_api.sync_playwright", return_value=hung.manager):
+        with pytest.raises(PdfRenderTimeoutError, match="timed out"):
+            cover_module.build_cover_letter_pdf("hi", tmp_path / "hung.pdf")
+    assert time.monotonic() - begun < 4
+
+    assert hung.killed.is_set()
+    hung.browser.close.assert_called_once()
+    assert list(tmp_path.iterdir()) == []  # no partial or temp PDF left behind
+
+    # A leaked slot would make this wait out the 0.5s queue timeout and raise PdfBusyError.
+    page = MagicMock()
+    page.pdf.side_effect = lambda path, **kwargs: open(path, "wb").write(b"%PDF-1.4 ok")
+    healthy, browser = _fake_playwright(page)
+    with patch("playwright.sync_api.sync_playwright", return_value=healthy):
+        result = cover_module.build_cover_letter_pdf("hi", tmp_path / "ok.pdf")
+    assert result.read_bytes() == b"%PDF-1.4 ok"
+    assert [path.name for path in tmp_path.iterdir()] == ["ok.pdf"]
+
+
+def test_hung_resume_render_times_out_and_removes_temp_pdf(limit, short_timeouts, monkeypatch, tmp_path):
+    limit(1, timeout=0.5)
+    hung = _HangingBrowser()
+    monkeypatch.setattr(pdf_concurrency, "_kill_render_processes", hung.kill)
+    temp_dir = tmp_path / "tmp"
+    temp_dir.mkdir()
+    monkeypatch.setattr("tempfile.tempdir", str(temp_dir))
+
+    with patch("playwright.sync_api.sync_playwright", return_value=hung.manager):
+        with pytest.raises(PdfRenderTimeoutError):
+            resume_module.build_pdf({"contact": {}}, tmp_path / "out.pdf")
+
+    assert list(temp_dir.iterdir()) == []
+    assert not (tmp_path / "out.pdf").exists()
+
+
+def test_render_that_finishes_in_time_is_not_killed(limit, monkeypatch, tmp_path):
+    limit(1)
+    killed = []
+    monkeypatch.setattr(pdf_concurrency, "_kill_render_processes", lambda token: killed.append(token))
+    monkeypatch.setattr(cover_module, "_build_cover_letter_pdf_worker", lambda *a, **k: "done")
+
+    assert cover_module.build_cover_letter_pdf("hi", tmp_path / "x.pdf") == "done"
+    assert killed == []
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the watchdog reads /proc")
+def test_kill_render_processes_kills_tagged_tree_and_spares_others():
+    token = "unit-test-token"
+    sleeper = [sys.executable, "-c", "import time; time.sleep(60)"]
+    tagged = subprocess.Popen(sleeper + [f"--{pdf_concurrency._MARKER_SWITCH}={token}"])
+    # A child of the tagged process stands in for Chromium's renderer/GPU processes.
+    parent = subprocess.Popen(
+        [sys.executable, "-c",
+         "import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); time.sleep(60)",
+         f"--{pdf_concurrency._MARKER_SWITCH}={token}-parent"]
+    )
+    other = subprocess.Popen(sleeper + [f"--{pdf_concurrency._MARKER_SWITCH}=other-render"])
+    try:
+        time.sleep(0.5)  # let the grandchild start
+        assert pdf_concurrency._kill_render_processes(f"{token}-parent") == 2
+        assert pdf_concurrency._kill_render_processes(token) == 1
+        assert tagged.wait(timeout=5) == -9
+        assert parent.wait(timeout=5) == -9
+        assert other.poll() is None
+    finally:
+        for process in (tagged, parent, other):
+            process.kill()
+            process.wait()
+
+
+def test_route_maps_render_timeout_to_503_with_timeout_message(tmp_path):
+    client = TestClient(app)
+    body = {"letter": "Hello", "candidate_name": "A", "company": "B", "job_title": "C"}
+    with patch("routes.cover_letter.build_cover_letter_pdf", side_effect=PdfRenderTimeoutError("slow")),             patch("routes.cover_letter.OUTPUTS_DIR", tmp_path):
+        response = client.post("/api/download-cover-letter", json=body)
+
+    assert response.status_code == 503
+    assert response.headers["retry-after"]
+    assert "timed out" in response.json()["detail"].lower()

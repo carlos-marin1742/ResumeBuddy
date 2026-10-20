@@ -47,7 +47,7 @@ from db import get_database_url, get_session
 from services.auth_service import get_current_user
 from services.security_logging import audit, configure_logging
 from services import readiness
-from services.pdf_concurrency import PdfBusyError
+from services.pdf_concurrency import PdfBusyError, PdfRenderTimeoutError
 from services.static_profiles import static_profiles_enabled
 
 SECURITY_LOG = configure_logging()
@@ -307,6 +307,15 @@ async def pdf_busy_handler(request: Request, exc: PdfBusyError):
     return JSONResponse(
         status_code=503,
         content={"detail": "PDF rendering is busy. Please try again in a moment."},
+        headers={"Retry-After": "5"},
+    )
+
+
+@app.exception_handler(PdfRenderTimeoutError)
+async def pdf_render_timeout_handler(request: Request, exc: PdfRenderTimeoutError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "PDF rendering timed out. Please try again in a moment."},
         headers={"Retry-After": "5"},
     )
 

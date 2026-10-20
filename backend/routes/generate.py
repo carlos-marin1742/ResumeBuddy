@@ -441,7 +441,7 @@ def generate_resume(
     try:
         pdf_result = build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
     except PdfBusyError:
-        logger.warning("PDF queue busy; returning generation %s with PDF pending", record.id)
+        logger.warning("PDF queue busy or render timed out; returning generation %s with PDF pending", record.id)
     except Exception:
         logger.warning("Initial PDF render failed for generation %s; PDF pending", record.id, exc_info=True)
     else:

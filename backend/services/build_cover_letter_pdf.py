@@ -1,11 +1,12 @@
 """Render editable cover-letter text as a letter-size PDF."""
 
-import concurrent.futures
 import html
+import os
 import re
+import tempfile
 from pathlib import Path
 
-from services.pdf_concurrency import pdf_render_slot
+from services.pdf_concurrency import launch_chromium, new_page, run_render
 
 
 def cover_letter_filename(candidate_name: str, company: str, job_title: str) -> str:
@@ -54,33 +55,39 @@ def _build_cover_letter_pdf_worker(letter: str, output_path: str | Path) -> Path
     resolved_path = Path(output_path)
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        try:
-            page = browser.new_page()
-            page.set_content(_render_cover_letter_html(letter), wait_until="load")
-            page.pdf(
-                path=str(resolved_path),
-                format="Letter",
-                margin={
-                    "top": "1in",
-                    "bottom": "1in",
-                    "left": "1in",
-                    "right": "1in",
-                },
-                print_background=True,
-            )
-        finally:
-            browser.close()
+    # Render beside the destination and rename on success, so a killed or
+    # failed render never leaves a partial PDF where callers look for a finished one.
+    with tempfile.NamedTemporaryFile(
+        suffix=".pdf.part", dir=resolved_path.parent, delete=False
+    ) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        with sync_playwright() as playwright:
+            browser = launch_chromium(playwright)
+            try:
+                page = new_page(browser)
+                page.set_content(_render_cover_letter_html(letter), wait_until="load")
+                page.pdf(
+                    path=tmp_path,
+                    format="Letter",
+                    margin={
+                        "top": "1in",
+                        "bottom": "1in",
+                        "left": "1in",
+                        "right": "1in",
+                    },
+                    print_background=True,
+                )
+            finally:
+                browser.close()
+        os.replace(tmp_path, resolved_path)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
     return resolved_path
 
 
 def build_cover_letter_pdf(letter: str, output_path: str | Path) -> Path:
     """Build the PDF in a worker thread, matching the resume PDF pipeline."""
-    with pdf_render_slot(), concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        return executor.submit(
-            _build_cover_letter_pdf_worker,
-            letter,
-            output_path,
-        ).result()
+    return run_render(_build_cover_letter_pdf_worker, letter, output_path)

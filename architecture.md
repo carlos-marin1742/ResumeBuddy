@@ -114,7 +114,7 @@ Skill lines such as `Frontend: React, TypeScript` are preserved as structured ca
 - `build_resume_pdf.py` renders resume HTML and uses Playwright for PDF output.
 - `cover_letter_service.py` generates and formats cover-letter text.
 - `build_cover_letter_pdf.py` renders cover-letter PDFs.
-- `pdf_concurrency.py` bounds simultaneous Chromium renders across both renderers (`PDF_MAX_CONCURRENCY`, default 2). A request that waits longer than `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) gets 503 with `Retry-After`; the client shows a plain-language message and each fetch has a timeout (120 s generation, 60 s others) defined in `client/src/api.js`.
+- `pdf_concurrency.py` bounds simultaneous Chromium renders across both renderers (`PDF_MAX_CONCURRENCY`, default 2). A request that waits longer than `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) gets 503 with `Retry-After`; the client shows a plain-language message and each fetch has a timeout (120 s generation, 60 s others) defined in `client/src/api.js`. Each render also runs under a watchdog (`PDF_RENDER_TIMEOUT_SECONDS`, default 45, measured after the slot is acquired): Playwright's own operation timeouts (a third of that budget) fire first, and for a wedged browser the watchdog kills that render's Chromium process tree (found by a per-render marker switch in `/proc`, Linux only), lets the worker clean up, releases the slot, and raises `PdfRenderTimeoutError`, a `PdfBusyError` subclass, so the app answers 503 and generation keeps its result with `pdf_status: "pending"`.
 
 The current `build_resume_pdf.py` contract targets job-tailored resume data and does not directly match `MasterResumeRecord.resume_data`. A future master-resume HTML/PDF renderer will consume the saved master schema directly.
 

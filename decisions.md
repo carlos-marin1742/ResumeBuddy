@@ -323,6 +323,10 @@ Why:
 
 Each render launches its own Chromium. Six simultaneous renders peaked near 800 MiB in a 1 GiB container, against about 380 MiB with a limit of two. A single process-wide semaphore (`PDF_MAX_CONCURRENCY`, default 2) covers every render path; callers wait up to `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) and then receive 503 rather than hanging. The client times out generation at 120 s and other calls at 60 s, so a full queue wait never outlasts the client.
 
+## Time-box each PDF render
+
+A wedged Chromium would hold its slot forever, and two of them would block every render. `run_render` in `pdf_concurrency.py` runs each worker under `PDF_RENDER_TIMEOUT_SECONDS` (default 45, counted after the slot is acquired). Playwright's per-operation timeouts (a third of the budget) are the first defense; `page.pdf` and `evaluate` have none, so a watchdog backs them up. Threads cannot be interrupted, so on expiry the watchdog SIGKILLs that render's Chromium and its descendants, found by scanning `/proc` for a unique `--resumebuddy-render=<token>` switch Chromium ignores. The blocked Playwright call then fails, the worker's `finally` blocks close the browser and delete temp files, and the slot is released (after at most a 5 s grace if the worker does not stop). The error is `PdfRenderTimeoutError(PdfBusyError)` so every existing busy path (pending result, on-demand download, 503 with `Retry-After`) applies unchanged. The cover-letter worker now renders to a `.pdf.part` file beside the destination and renames on success, so a killed render never leaves a partial PDF. Killing is Linux-only; on other hosts only the Playwright timeouts apply, which is acceptable because the production image is Linux.
+
 ## Separate liveness from readiness
 
 `/health` only proves the process is up so a database or Chromium outage does not restart-loop the container. `/health/ready` checks the database and the Chromium binary and returns a generic 503 without paths or secrets. The container healthcheck uses `/health` only.

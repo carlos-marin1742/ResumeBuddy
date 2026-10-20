@@ -120,10 +120,10 @@ The former broader pytest collection blockers were resolved by removing obsolete
 
 - Image: exact-tag bases, fully pinned dependencies, non-root `appuser`, Chromium in `/opt/pw`, Liberation fonts, `.dockerignore` excluding secrets, tests, fixtures, and golden files. PDFs rendered in the container wrap line-for-line like the Windows host (Arial vs Liberation Sans, same Chromium build).
 - Health: `/health` (liveness, used by `HEALTHCHECK`) and `/health/ready` (database, headless-shell binary, static profiles when enabled).
-- PDF limits: `PDF_MAX_CONCURRENCY` (2) and `PDF_QUEUE_TIMEOUT_SECONDS` (30). Six concurrent renders at `-m 1g`: all succeeded, 381 MiB peak with the default limit, 804 MiB without it.
+- PDF limits: `PDF_MAX_CONCURRENCY` (2), `PDF_QUEUE_TIMEOUT_SECONDS` (30), and `PDF_RENDER_TIMEOUT_SECONDS` (45; a hung render is killed and answered with 503, verified against real Chromium in the container with no processes or zombies left). Six concurrent renders at `-m 1g`: all succeeded, 381 MiB peak with the default limit, 804 MiB without it.
 - Generation persists before rendering; a busy queue returns `pdf_status: "pending"` and the download routes render on demand.
 - Client: fetch timeouts (120 s generate, 60 s others) and plain-language 503/429/timeout messages, all in `client/src/api.js`.
-- Not yet verified: the production `docker-compose.yml` (needs `./secrets/*` and `PUBLIC_APP_HOST`), Render's request timeout against the 30 s queue wait, and a per-render hang timeout (a wedged Chromium holds its slot).
+- Not yet verified: the production `docker-compose.yml` (needs `./secrets/*` and `PUBLIC_APP_HOST`), Render's request timeout against the 30 s queue wait.
 
 ## Recommended Next Step
 

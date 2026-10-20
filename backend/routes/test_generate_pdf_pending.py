@@ -12,7 +12,7 @@ import main
 from models import TailoredResumeRecord, User
 from routes.test_generate import _tailored_resume
 from services.build_resume_pdf import PdfBuildResult
-from services.pdf_concurrency import PdfBusyError
+from services.pdf_concurrency import PdfBusyError, PdfRenderTimeoutError
 
 USER_ID = "user-1"
 
@@ -122,3 +122,23 @@ def test_successful_render_reports_ready_and_caches_path(session, tmp_path):
     assert body["pdf_url"].startswith("/api/download/")
     assert body["pdf_page_count"] == 1 and body["pdf_fitted_to_one_page"] is True
     assert session.exec(select(TailoredResumeRecord)).one().pdf_path
+
+
+def test_timed_out_render_keeps_result_pending_and_download_answers_503(session, tmp_path):
+    def hung(*args, **kwargs):
+        raise PdfRenderTimeoutError("timed out")
+
+    client = TestClient(main.app)
+    with patch("routes.generate.OUTPUTS_DIR", tmp_path), patch("routes.history.OUTPUTS_DIR", tmp_path):
+        response = _generate(client, hung)
+        assert response.status_code == 200
+        assert response.json()["pdf_url"] is None
+        assert response.json()["pdf_status"] == "pending"
+        record = session.exec(select(TailoredResumeRecord)).one()
+        assert record.pdf_path is None
+
+        with patch("routes.generate.build_pdf", side_effect=hung):
+            timed_out = client.get(f"/api/download-history/{record.id}")
+
+    assert timed_out.status_code == 503 and timed_out.headers["retry-after"]
+    assert "timed out" in timed_out.json()["detail"].lower()

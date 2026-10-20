@@ -13,7 +13,6 @@ Public API:
     _render_html(resume, spacing_adjust, overrides, show_boundary) -> str
 """
 
-import concurrent.futures
 import html
 import json
 import shutil
@@ -22,7 +21,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from services.pdf_concurrency import pdf_render_slot
+from services.pdf_concurrency import launch_chromium, new_page, run_render
 from services.profile_skills import normalize_profile_skills
 
 
@@ -476,9 +475,9 @@ def _build_pdf_worker(resume_data: dict, output_path) -> PdfBuildResult:
         expand_threshold = 40
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = launch_chromium(p)
         try:
-            page    = browser.new_page()
+            page    = new_page(browser)
 
             for attempt in range(5):
                 page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
@@ -533,9 +532,9 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
     current_overrides = dict(overrides)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = launch_chromium(p)
         try:
-            page    = browser.new_page()
+            page    = new_page(browser)
 
             for attempt in range(6):
                 margin_in      = current_overrides.get("margin", 0.4)
@@ -588,16 +587,12 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
 
 def build_pdf(resume_data: dict, output_path) -> PdfBuildResult:
     """Auto-fit single-page PDF."""
-    with pdf_render_slot(), concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_build_pdf_worker, resume_data, output_path)
-        return future.result()
+    return run_render(_build_pdf_worker, resume_data, output_path)
 
 
 def build_pdf_with_overrides(resume_data: dict, output_path, overrides: dict) -> PdfBuildResult:
     """Custom PDF with user-specified spacing overrides."""
-    with pdf_render_slot(), concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_build_pdf_overrides_worker, resume_data, output_path, overrides)
-        return future.result()
+    return run_render(_build_pdf_overrides_worker, resume_data, output_path, overrides)
 
 
 if __name__ == "__main__":
