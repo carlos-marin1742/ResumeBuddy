@@ -8,6 +8,9 @@ groq==1.7.0
 langchain_anthropic==1.7.6
 
 # PDF generation
+# services/readiness.py parses the output of `playwright install --dry-run` (and a
+# private Playwright helper) to find the headless shell; after any upgrade run
+# services/test_readiness_real_playwright.py inside the built image.
 playwright==1.64.0
 pypdf==6.21.1
 python-multipart==0.0.32
