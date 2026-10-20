@@ -4,7 +4,6 @@ main.py
 FastAPI application entry point for the ATS Resume Builder.
 """
 
-import json
 import logging
 import os
 import time
@@ -47,6 +46,7 @@ from routes.auth import router as auth_router
 from db import get_database_url, get_session
 from services.auth_service import get_current_user
 from services.security_logging import audit, configure_logging
+from services import readiness
 from services.static_profiles import static_profiles_enabled
 
 SECURITY_LOG = configure_logging()
@@ -115,7 +115,7 @@ async def validate_request_envelope(request: Request, call_next):
 # Every application API is authenticated. Authentication endpoints and health
 # checks are intentionally the only public API surface. Cookie sessions are
 # HttpOnly, so neither the SPA nor third-party JavaScript can read credentials.
-_PUBLIC_API_PATHS = {"/health"}
+_PUBLIC_API_PATHS = {"/health", "/health/ready"}
 
 @app.middleware("http")
 async def require_authenticated_api(request: Request, call_next):
@@ -303,21 +303,21 @@ BASE_RESUME_PATH = Path(__file__).resolve().parent / "data" / "base_resume.json"
 
 @app.get("/health", tags=["meta"])
 def health():
-    checks = {}
-    checks["anthropic_api_key"] = bool(os.getenv("ANTHROPIC_API_KEY"))
-    if BASE_RESUME_PATH.exists():
-        try:
-            json.loads(BASE_RESUME_PATH.read_text())
-            checks["base_resume"] = True
-        except json.JSONDecodeError:
-            checks["base_resume"] = "malformed"
-    else:
-        checks["base_resume"] = False
-    outputs_dir = Path(__file__).resolve().parent / "outputs"
-    outputs_dir.mkdir(exist_ok=True)
-    checks["outputs_dir"] = os.access(outputs_dir, os.W_OK)
-    overall = all(v is True for v in checks.values())
-    return {"status": "ok" if overall else "degraded", "checks": checks}
+    """Liveness only: the process is up. No dependency checks."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready", tags=["meta"])
+def health_ready():
+    """Readiness: database reachable, Chromium present, profiles if enabled."""
+    ready = (
+        readiness.database_ready()
+        and readiness.chromium_ready()
+        and readiness.static_profile_ready(BASE_RESUME_PATH)
+    )
+    if not ready:
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    return {"status": "ok"}
 
 _static_dir = Path(__file__).resolve().parent / "static"
 

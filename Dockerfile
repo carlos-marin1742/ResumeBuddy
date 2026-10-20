@@ -60,4 +60,8 @@ USER appuser
 
 EXPOSE 8000
 
+# Liveness only (/health). The forwarded-proto header satisfies REQUIRE_HTTPS.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/health', headers={'X-Forwarded-Proto': 'https'}), timeout=4)"]
+
 CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"]
