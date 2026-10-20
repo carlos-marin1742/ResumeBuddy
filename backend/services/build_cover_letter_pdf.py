@@ -5,6 +5,8 @@ import html
 import re
 from pathlib import Path
 
+from services.pdf_concurrency import pdf_render_slot
+
 
 def cover_letter_filename(candidate_name: str, company: str, job_title: str) -> str:
     """Build a filesystem-safe download name from application context."""
@@ -76,7 +78,7 @@ def _build_cover_letter_pdf_worker(letter: str, output_path: str | Path) -> Path
 
 def build_cover_letter_pdf(letter: str, output_path: str | Path) -> Path:
     """Build the PDF in a worker thread, matching the resume PDF pipeline."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+    with pdf_render_slot(), concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         return executor.submit(
             _build_cover_letter_pdf_worker,
             letter,

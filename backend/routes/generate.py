@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 from db import get_session
 from models import MasterResumeRecord, TailoredResumeRecord
 from services.build_resume_pdf import build_pdf
+from services.pdf_concurrency import PdfBusyError
 from services.claude_service import ATSScoreResult, TailoredResume, score_resume, tailor_resume
 from services.project_selection import select_relevant_projects
 from services.master_resume_adapter import master_resume_to_profile
@@ -386,6 +387,8 @@ def generate_resume(
     pdf_path = OUTPUTS_DIR / pdf_filename
     try:
         pdf_result = build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
+    except PdfBusyError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
 

@@ -19,6 +19,7 @@ from db import get_session
 from models import TailoredResumeRecord
 from services.cover_letter_service import generate_cover_letter, CoverLetterResult
 from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
+from services.pdf_concurrency import PdfBusyError
 from routes.generate import get_owned_resume
 from services.input_validation import StrictRequest, validate_identifier
 
@@ -164,6 +165,8 @@ def download_cover_letter(
     output_path = OUTPUTS_DIR / f"cover_letter_{uuid.uuid4().hex}.pdf"
     try:
         build_cover_letter_pdf(letter, output_path)
+    except PdfBusyError:
+        raise
     except Exception as exc:
         output_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Cover letter PDF generation failed: {exc}")

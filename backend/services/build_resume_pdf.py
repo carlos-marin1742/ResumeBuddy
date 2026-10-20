@@ -22,6 +22,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from services.pdf_concurrency import pdf_render_slot
 from services.profile_skills import normalize_profile_skills
 
 
@@ -476,46 +477,44 @@ def _build_pdf_worker(resume_data: dict, output_path) -> PdfBuildResult:
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page    = browser.new_page()
+        try:
+            page    = browser.new_page()
 
-        for attempt in range(5):
-            page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
+            for attempt in range(5):
+                page.set_content(_render_html(resume_data, spacing), wait_until="networkidle")
 
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                tmp_path = tmp.name
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                    tmp_path = tmp.name
 
-            page.pdf(path=tmp_path, format="Letter", print_background=True)
-            reader     = PdfReader(tmp_path)
-            page_count = len(reader.pages)
+                try:
+                    page.pdf(path=tmp_path, format="Letter", print_background=True)
+                    reader     = PdfReader(tmp_path)
+                    page_count = len(reader.pages)
 
-            if page_count == 1:
-                content_height = page.evaluate("document.body.scrollHeight")
-                slack = usable_height - content_height
+                    if page_count == 1:
+                        content_height = page.evaluate("document.body.scrollHeight")
+                        slack = usable_height - content_height
 
-                if slack > expand_threshold and attempt < 4:
+                        if slack > expand_threshold and attempt < 4:
+                            line_count = page.evaluate(
+                                "document.querySelectorAll('li, .entry, .skill-row, .section').length"
+                            )
+                            if line_count > 0:
+                                spacing += min(1.0, slack / line_count)
+                            continue
+
+                        shutil.copy(tmp_path, output_path)
+                        return PdfBuildResult(output_path, page_count, True)
+
+                    if attempt == 4:
+                        shutil.copy(tmp_path, output_path)
+                        return PdfBuildResult(output_path, page_count, False)
+
+                    spacing -= 2.0
+                finally:
                     Path(tmp_path).unlink(missing_ok=True)
-                    line_count = page.evaluate(
-                        "document.querySelectorAll('li, .entry, .skill-row, .section').length"
-                    )
-                    if line_count > 0:
-                        spacing += min(1.0, slack / line_count)
-                    continue
-
-                shutil.copy(tmp_path, output_path)
-                Path(tmp_path).unlink(missing_ok=True)
-                browser.close()
-                return PdfBuildResult(output_path, page_count, True)
-
-            if attempt == 4:
-                shutil.copy(tmp_path, output_path)
-                Path(tmp_path).unlink(missing_ok=True)
-                browser.close()
-                return PdfBuildResult(output_path, page_count, False)
-
-            Path(tmp_path).unlink(missing_ok=True)
-            spacing -= 2.0
-
-        browser.close()
+        finally:
+            browser.close()
 
     raise RuntimeError("PDF fitting loop exited without rendering a PDF")
 
@@ -535,69 +534,68 @@ def _build_pdf_overrides_worker(resume_data: dict, output_path, overrides: dict)
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page    = browser.new_page()
+        try:
+            page    = browser.new_page()
 
-        for attempt in range(6):
-            margin_in      = current_overrides.get("margin", 0.4)
-            side_margin_in = current_overrides.get("side_margin", 0.5)
+            for attempt in range(6):
+                margin_in      = current_overrides.get("margin", 0.4)
+                side_margin_in = current_overrides.get("side_margin", 0.5)
 
-            page.set_content(
-                _render_html(resume_data, overrides=current_overrides, show_boundary=False),
-                wait_until="networkidle"
-            )
+                page.set_content(
+                    _render_html(resume_data, overrides=current_overrides, show_boundary=False),
+                    wait_until="networkidle"
+                )
 
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                tmp_path = tmp.name
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                    tmp_path = tmp.name
 
-            page.pdf(
-                path=tmp_path,
-                format="Letter",
-                margin={
-                    "top":    f"{margin_in}in",
-                    "bottom": f"{margin_in}in",
-                    "left":   f"{side_margin_in}in",
-                    "right":  f"{side_margin_in}in",
-                },
-                print_background=True,
-            )
+                try:
+                    page.pdf(
+                        path=tmp_path,
+                        format="Letter",
+                        margin={
+                            "top":    f"{margin_in}in",
+                            "bottom": f"{margin_in}in",
+                            "left":   f"{side_margin_in}in",
+                            "right":  f"{side_margin_in}in",
+                        },
+                        print_background=True,
+                    )
 
-            reader = PdfReader(tmp_path)
-            page_count = len(reader.pages)
-            if page_count == 1:
-                shutil.copy(tmp_path, output_path)
-                Path(tmp_path).unlink(missing_ok=True)
-                browser.close()
-                return PdfBuildResult(output_path, page_count, True)
+                    reader = PdfReader(tmp_path)
+                    page_count = len(reader.pages)
+                    if page_count == 1:
+                        shutil.copy(tmp_path, output_path)
+                        return PdfBuildResult(output_path, page_count, True)
 
-            if current_overrides.get("entry_spacing", 5.0) > 2.0:
-                Path(tmp_path).unlink(missing_ok=True)
-                current_overrides["entry_spacing"]   = max(2.0, current_overrides["entry_spacing"] - 1.5)
-                current_overrides["section_spacing"] = max(3.0, current_overrides.get("section_spacing", 6.0) - 1.5)
+                    if current_overrides.get("entry_spacing", 5.0) > 2.0:
+                        current_overrides["entry_spacing"]   = max(2.0, current_overrides["entry_spacing"] - 1.5)
+                        current_overrides["section_spacing"] = max(3.0, current_overrides.get("section_spacing", 6.0) - 1.5)
+                    else:
+                        shutil.copy(tmp_path, output_path)
+                        return PdfBuildResult(output_path, page_count, False)
+                finally:
+                    Path(tmp_path).unlink(missing_ok=True)
+
             else:
-                shutil.copy(tmp_path, output_path)
-                Path(tmp_path).unlink(missing_ok=True)
-                browser.close()
-                return PdfBuildResult(output_path, page_count, False)
-
-        else:
-            # All attempts exhausted — save last render as-is
-            raise RuntimeError("PDF fitting loop exceeded its expected attempts")
-
-        browser.close()
+                # All attempts exhausted — save last render as-is
+                raise RuntimeError("PDF fitting loop exceeded its expected attempts")
+        finally:
+            browser.close()
 
     raise RuntimeError("PDF fitting loop exited without rendering a PDF")
 
 
 def build_pdf(resume_data: dict, output_path) -> PdfBuildResult:
     """Auto-fit single-page PDF."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+    with pdf_render_slot(), concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(_build_pdf_worker, resume_data, output_path)
         return future.result()
 
 
 def build_pdf_with_overrides(resume_data: dict, output_path, overrides: dict) -> PdfBuildResult:
     """Custom PDF with user-specified spacing overrides."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+    with pdf_render_slot(), concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(_build_pdf_overrides_worker, resume_data, output_path, overrides)
         return future.result()
 

@@ -21,6 +21,7 @@ from routes.generate import _store_resume
 from services.ownership import get_owned_record
 from services.input_validation import validate_identifier
 from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
+from services.pdf_concurrency import PdfBusyError
 
 router = APIRouter()
 OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
@@ -222,6 +223,8 @@ def download_history_cover_letter(
     output_path = OUTPUTS_DIR / f"history_cover_letter_{uuid.uuid4().hex}.pdf"
     try:
         build_cover_letter_pdf(record.cover_letter, output_path)
+    except PdfBusyError:
+        raise
     except Exception as exc:
         output_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Cover letter PDF generation failed: {exc}")
