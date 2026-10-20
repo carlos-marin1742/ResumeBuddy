@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FETCH_TIMEOUTS_MS, fetchWithTimeout, statusMessage } from "../api";
 import "./CoverLetterStep.css";
 
 function countCoverLetterWords(text) {
@@ -46,7 +47,7 @@ export default function CoverLetterStep({
     setError(null);
     setCopied(false);
     try {
-      const res = await fetch("/api/generate-cover-letter", {
+      const res = await fetchWithTimeout("/api/generate-cover-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -59,10 +60,10 @@ export default function CoverLetterStep({
           selected_keywords: selectedKeywords || [],
           history_id: historyId || null,
         }),
-      });
+      }, FETCH_TIMEOUTS_MS.generate);
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
-        throw new Error(detail.detail || `Request failed (${res.status})`);
+        throw new Error(statusMessage(res.status) || detail.detail || `Request failed (${res.status})`);
       }
       const data = await res.json();
       setLetter(data.letter);
@@ -95,7 +96,7 @@ export default function CoverLetterStep({
     setDownloadingPdf(true);
     setError(null);
     try {
-      const res = await fetch("/api/download-cover-letter", {
+      const res = await fetchWithTimeout("/api/download-cover-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -108,7 +109,7 @@ export default function CoverLetterStep({
       });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
-        throw new Error(detail.detail || `Download failed (${res.status})`);
+        throw new Error(statusMessage(res.status) || detail.detail || `Download failed (${res.status})`);
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

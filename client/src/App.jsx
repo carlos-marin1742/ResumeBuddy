@@ -9,6 +9,7 @@ import PDFPreview from "./components/PDFPreview";
 import ResumeHistory from "./components/ResumeHistory";
 import CoverLetterStep from "./components/CoverLetterStep";
 import AuthGate from "./components/AuthGate";
+import { FETCH_TIMEOUTS_MS, fetchWithTimeout, statusMessage } from "./api";
 import "./App.css";
 
 // Use same-origin API paths. Vite proxies `/api` during development, while
@@ -73,7 +74,7 @@ function ResumeApp() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API}/api/extract-keywords`, {
+      const res = await fetchWithTimeout(`${API}/api/extract-keywords`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -82,7 +83,7 @@ function ResumeApp() {
           master_resume_id: selectedResume.source === "master" ? selectedResume.id : null,
         }),
       });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      if (!res.ok) throw new Error(statusMessage(res.status) ?? `Server error ${res.status}`);
       const data = await res.json();
       setExtractResult(data);
       // Pre-select priority keywords (ats_weight === 10)
@@ -105,7 +106,7 @@ function ResumeApp() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API}/api/generate-resume`, {
+      const res = await fetchWithTimeout(`${API}/api/generate-resume`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -117,8 +118,8 @@ function ResumeApp() {
           job_title: jobTitle,
           extracted_keywords_count: extractResult?.keywords?.length ?? 0,
         }),
-      });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      }, FETCH_TIMEOUTS_MS.generate);
+      if (!res.ok) throw new Error(statusMessage(res.status) ?? `Server error ${res.status}`);
       const data = await res.json();
       setGenerateResult(data);
       setStep(3);

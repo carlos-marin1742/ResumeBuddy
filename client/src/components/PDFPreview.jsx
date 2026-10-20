@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { fetchWithTimeout, statusMessage } from "../api";
 import "./PDFPreview.css";
 
 const DEFAULTS = {
@@ -152,12 +153,12 @@ export default function PDFPreview({
     setDownloadingPdf(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/api/download-custom`, {
+      const res = await fetchWithTimeout(`${apiBase}/api/download-custom`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(buildRequestBody(overrides)),
       });
-      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      if (!res.ok) throw new Error(statusMessage(res.status) ?? `Download failed: ${res.status}`);
       setFitStatus({
         pageCount: Number(res.headers.get("X-PDF-Page-Count")),
         fittedToOnePage: res.headers.get("X-PDF-Fitted-To-One-Page") === "true",

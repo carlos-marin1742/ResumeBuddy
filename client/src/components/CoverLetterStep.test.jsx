@@ -133,4 +133,37 @@ describe("CoverLetterStep", () => {
       expect(screen.getByText(/couldn't access clipboard/i)).toBeInTheDocument();
     });
   });
+
+  describe("slow and busy responses", () => {
+    const failures = [
+      ["a busy server", () => Promise.resolve({ ok: false, status: 503, json: async () => ({ detail: "raw" }) }), /server is busy.*try again in a moment/i],
+      ["rate limiting", () => Promise.resolve({ ok: false, status: 429, json: async () => ({}) }), /too many requests.*wait/i],
+      ["a timeout", () => Promise.reject(Object.assign(new Error("aborted"), { name: "AbortError" })), /longer than expected/i],
+    ];
+
+    it.each(failures)("explains %s while generating the letter", async (_label, failure, message) => {
+      vi.stubGlobal("fetch", vi.fn(failure));
+      const user = userEvent.setup();
+      renderStep();
+
+      await user.click(screen.getByRole("button", { name: "Generate Cover Letter" }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Generate Cover Letter" })).toBeEnabled();
+    });
+
+    it.each(failures)("explains %s while downloading the PDF", async (_label, failure, message) => {
+      vi.stubGlobal("fetch", vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ letter: "Dear Team,\n\nHi", word_count: 2 }) })
+        .mockImplementationOnce(failure));
+      const user = userEvent.setup();
+      renderStep();
+      await user.click(screen.getByRole("button", { name: "Generate Cover Letter" }));
+      await screen.findByDisplayValue(/dear team/i);
+
+      await user.click(screen.getByRole("button", { name: "Download PDF" }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+    });
+  });
 });

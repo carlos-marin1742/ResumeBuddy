@@ -224,4 +224,71 @@ describe("App workflow", () => {
     expect(await screen.findByText("Server error 502")).toBeInTheDocument();
     expect(screen.getByLabelText("Job Description")).toHaveValue(validDescription);
   });
+
+  describe("slow and busy responses", () => {
+    const keywords = {
+      keywords: [{ keyword: "Python", category: "hard_skill", ats_weight: 10, present_in_resume: true }],
+      gaps: [],
+      role_level: "Mid",
+    };
+
+    function routedFetch(overrides) {
+      return vi.fn(async (url) => {
+        const path = String(url);
+        for (const [fragment, handler] of Object.entries(overrides)) {
+          if (path.includes(fragment)) return handler();
+        }
+        if (path.includes("/api/auth")) return { ok: true, json: async () => ({ email: "jamie@example.com" }) };
+        if (path.endsWith("/api/resumes")) {
+          return {
+            ok: true,
+            json: async () => ({ resumes: [{ id: "base_resume", name: "Technology", target_roles: [], last_updated: "" }] }),
+          };
+        }
+        if (path.endsWith("/api/master-resumes")) return { ok: true, json: async () => ({ resumes: [] }) };
+        throw new Error(`unexpected request ${path}`);
+      });
+    }
+
+    const failures = [
+      ["a busy server", () => ({ ok: false, status: 503 }), /server is busy.*try again in a moment/i],
+      ["rate limiting", () => ({ ok: false, status: 429 }), /too many requests.*wait/i],
+      ["a timeout", () => { throw Object.assign(new Error("aborted"), { name: "AbortError" }); }, /longer than expected/i],
+    ];
+
+    async function openKeywordStep(user) {
+      await user.click(await screen.findByRole("button", { name: /technology/i }));
+      await user.type(screen.getByLabelText("Job Description"), validDescription);
+      await user.click(screen.getByRole("button", { name: /extract keywords/i }));
+      await screen.findByText("Select keywords to target");
+    }
+
+    it.each(failures)("explains %s while extracting keywords", async (_label, failure, message) => {
+      vi.stubGlobal("fetch", routedFetch({ "/api/extract-keywords": failure }));
+      const user = userEvent.setup();
+      render(<App />);
+
+      await user.click(await screen.findByRole("button", { name: /technology/i }));
+      await user.type(screen.getByLabelText("Job Description"), validDescription);
+      await user.click(screen.getByRole("button", { name: /extract keywords/i }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(screen.getByLabelText("Job Description")).toHaveValue(validDescription);
+    });
+
+    it.each(failures)("explains %s while generating the resume", async (_label, failure, message) => {
+      vi.stubGlobal("fetch", routedFetch({
+        "/api/extract-keywords": () => ({ ok: true, json: async () => keywords }),
+        "/api/generate-resume": failure,
+      }));
+      const user = userEvent.setup();
+      render(<App />);
+      await openKeywordStep(user);
+
+      await user.click(screen.getByRole("button", { name: /generate resume/i }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(screen.getByText("Select keywords to target")).toBeInTheDocument();
+    });
+  });
 });
