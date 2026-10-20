@@ -6,10 +6,12 @@ GET  /api/download/{filename}
 """
 
 import json
+import logging
 import re
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -36,6 +38,7 @@ router = APIRouter()
 
 OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
 OUTPUTS_DIR.mkdir(exist_ok=True)
+logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
@@ -123,14 +126,15 @@ class GenerateResponse(BaseModel):
     skills_to_highlight: list[str]
     skills_added: dict[str, list[str]]
     ats: ATSPreview
-    pdf_url: str
+    pdf_url: str | None  # None while the initial render is pending
+    pdf_status: Literal["ready", "pending"] = "ready"
     session_id: str
     generated_at: str
     resume_id: str
     history_id: str        # DB record ID for the history endpoint
     person_name: str       # From resume contact, for download filename
-    pdf_page_count: int
-    pdf_fitted_to_one_page: bool
+    pdf_page_count: int | None = None
+    pdf_fitted_to_one_page: bool | None = None
 
 
 # Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -302,6 +306,35 @@ def _pdf_storage_name(person_name: str, company: str, job_title: str) -> str:
     return f"{name}-{co}-{title}_Resume_{short_id}.pdf"
 
 
+def ensure_record_pdf(db: Session, record: TailoredResumeRecord) -> Path:
+    """Return a record's PDF, rendering it on demand when none is cached.
+
+    PdfBusyError propagates so the app answers 503 with Retry-After.
+    """
+    if record.pdf_path and Path(record.pdf_path).exists():
+        return Path(record.pdf_path)
+    resume = record.tailored_resume
+    if not resume:
+        raise HTTPException(status_code=404, detail="No resume data stored for this record.")
+    path = (
+        Path(record.pdf_path)
+        if record.pdf_path
+        else OUTPUTS_DIR / _pdf_storage_name(
+            resume.get("contact", {}).get("name", ""), record.company, record.job_title
+        )
+    )
+    try:
+        build_pdf(resume_data=resume, output_path=path)
+    except PdfBusyError:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
+    record.pdf_path = str(path)
+    db.add(record)
+    db.commit()
+    return path
+
+
 def _pdf_display_name(storage_filename: str) -> str:
     """
     Recover the human-readable display name from a storage filename.
@@ -381,24 +414,14 @@ def generate_resume(
     session_id = uuid.uuid4().hex
     _store_resume(session_id, full_tailored_dict, user_id)
 
-    # Render PDF
+    # Persist before rendering: the paid generation must survive any PDF
+    # failure. The PDF is re-rendered on demand from the stored record.
     person_name = base_resume.get("contact", {}).get("name", "")
-    pdf_filename = _pdf_storage_name(person_name, request.company, request.job_title)
-    pdf_path = OUTPUTS_DIR / pdf_filename
-    try:
-        pdf_result = build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
-    except PdfBusyError:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
-
-    # Persist to DB
     record = _persist_generation(
         db,
         request=request,
         final_resume=full_tailored_dict,
         ats_score=ats_result.model_dump(exclude={"raw_response"}),
-        pdf_path=str(pdf_path),
         user_id=user_id,
     )
     if master_record:
@@ -410,6 +433,21 @@ def generate_resume(
                 db.commit()
         except Exception:
             db.rollback()
+
+    # Initial render. A busy queue or render error leaves the result pending.
+    pdf_filename = _pdf_storage_name(person_name, request.company, request.job_title)
+    pdf_path = OUTPUTS_DIR / pdf_filename
+    pdf_result = None
+    try:
+        pdf_result = build_pdf(resume_data=full_tailored_dict, output_path=pdf_path)
+    except PdfBusyError:
+        logger.warning("PDF queue busy; returning generation %s with PDF pending", record.id)
+    except Exception:
+        logger.warning("Initial PDF render failed for generation %s; PDF pending", record.id, exc_info=True)
+    else:
+        record.pdf_path = str(pdf_path)
+        db.add(record)
+        db.commit()
 
     # Build response
     experience_preview = [
@@ -456,14 +494,15 @@ def generate_resume(
             missing_keywords=ats_result.missing_keywords,
             suggestions=ats_result.suggestions,
         ),
-        pdf_url=f"/api/download/{pdf_filename}",
+        pdf_url=f"/api/download/{pdf_filename}" if pdf_result else None,
+        pdf_status="ready" if pdf_result else "pending",
         session_id=session_id,
         generated_at=datetime.utcnow().isoformat() + "Z",
         resume_id=request.resume_id,
         history_id=record.id,
         person_name=person_name,
-        pdf_page_count=pdf_result.page_count,
-        pdf_fitted_to_one_page=pdf_result.fitted_to_one_page,
+        pdf_page_count=pdf_result.page_count if pdf_result else None,
+        pdf_fitted_to_one_page=pdf_result.fitted_to_one_page if pdf_result else None,
     )
 
 
@@ -484,6 +523,8 @@ def download_resume(
         )).first()
         if not record:
             raise HTTPException(status_code=404, detail="File not found or has expired.")
+    if http_request and not file_path.exists():
+        ensure_record_pdf(db, record)  # re-render a cleaned-up PDF on demand
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found or has expired.")
 

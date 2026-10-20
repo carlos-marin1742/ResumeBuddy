@@ -15,7 +15,7 @@ export default function ResumePreview({
   jobDescription,
   selectedKeywords,
 }) {
-  const { summary, experiences, projects = [], skills_to_highlight, pdf_url, generated_at } = result;
+  const { summary, experiences, projects = [], skills_to_highlight, pdf_url, history_id, generated_at } = result;
 
   // ── Editable content state ────────────────────────────────────────────────
   const [editSummary, setEditSummary] = useState(summary);
@@ -173,7 +173,10 @@ export default function ResumePreview({
   }
 
   function handleDownload() {
-    window.open(`${apiBase}${pdf_url}`, "_blank");
+    // pdf_url is null while the initial render is pending; the history route
+    // renders the stored result on demand.
+    const path = pdf_url || `/api/download-history/${history_id}`;
+    window.open(`${apiBase}${path}`, "_blank");
   }
 
   const regenPanelJSX = regenPanel ? (

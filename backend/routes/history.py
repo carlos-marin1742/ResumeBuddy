@@ -17,7 +17,7 @@ from sqlmodel import Session, select
 
 from db import get_session
 from models import TailoredResumeRecord
-from routes.generate import _store_resume
+from routes.generate import _store_resume, ensure_record_pdf
 from services.ownership import get_owned_record
 from services.input_validation import validate_identifier
 from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
@@ -172,8 +172,8 @@ def download_history_pdf(
     http_request: Request = None,
 ) -> FileResponse:
     """
-    Re-serve the cached PDF for a history record.
-    Returns 404 if the record doesn't exist or the PDF file has been cleaned up.
+    Serve the PDF for a history record, rendering it on demand when none is
+    cached (pending initial render, or cleaned up from disk).
     """
     try:
         record_id = validate_identifier(record_id, "record_id")
@@ -182,15 +182,7 @@ def download_history_pdf(
     record = get_owned_record(db, TailoredResumeRecord, record_id, http_request.state.user_id if http_request else None)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found.")
-    if not record.pdf_path:
-        raise HTTPException(status_code=404, detail="No PDF cached for this record.")
-
-    pdf_path = Path(record.pdf_path)
-    if not pdf_path.exists():
-        raise HTTPException(
-            status_code=410,
-            detail="PDF has been cleaned up from disk. Re-generate to get a fresh copy.",
-        )
+    pdf_path = ensure_record_pdf(db, record)
 
     person_name  = record.tailored_resume.get("contact", {}).get("name", "") if record.tailored_resume else ""
     display_name = f"{person_name}-{record.company}-{record.job_title} Resume.pdf" if person_name else f"{record.company}-{record.job_title} Resume.pdf"
