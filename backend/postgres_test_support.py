@@ -72,7 +72,12 @@ def disposable_postgres_database():
 
 def _truncate_persistence_tables(engine: Engine) -> None:
     with engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE master_resumes, tailored_resumes"))
+        connection.execute(
+            text(
+                "TRUNCATE TABLE auth_tokens, user_sessions, master_resumes, "
+                "tailored_resumes, users"
+            )
+        )
 
 
 @pytest.fixture(scope="session")

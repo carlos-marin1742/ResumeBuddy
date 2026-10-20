@@ -23,7 +23,7 @@ class TailoredResumeRecord(SQLModel, table=True):
     __tablename__ = "tailored_resumes"
 
     id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
-    user_id: str = Field(foreign_key="users.id", index=True)
+    user_id: str = Field(foreign_key="users.id", ondelete="CASCADE", index=True)
     created_at: datetime = Field(
         default_factory=_utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
@@ -60,7 +60,7 @@ class MasterResumeRecord(SQLModel, table=True):
     __tablename__ = "master_resumes"
 
     id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
-    user_id: str = Field(foreign_key="users.id", index=True)
+    user_id: str = Field(foreign_key="users.id", ondelete="CASCADE", index=True)
     created_at: datetime = Field(
         default_factory=_utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
@@ -99,7 +99,7 @@ class AuthToken(SQLModel, table=True):
     __tablename__ = "auth_tokens"
 
     id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
-    user_id: str = Field(foreign_key="users.id", index=True)
+    user_id: str = Field(foreign_key="users.id", ondelete="CASCADE", index=True)
     token_hash: str = Field(index=True, sa_column_kwargs={"unique": True})
     purpose: str = Field(index=True)
     expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
@@ -111,7 +111,7 @@ class UserSession(SQLModel, table=True):
     __tablename__ = "user_sessions"
 
     id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
-    user_id: str = Field(foreign_key="users.id", index=True)
+    user_id: str = Field(foreign_key="users.id", ondelete="CASCADE", index=True)
     token_hash: str = Field(index=True, sa_column_kwargs={"unique": True})
     created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
