@@ -1,10 +1,12 @@
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import create_engine
 
 import main
 from main import app
+from services import readiness
 
 client = TestClient(app)
 
@@ -115,3 +117,41 @@ def test_health_routes_skip_auth_and_rate_limits(monkeypatch):
     finally:
         main._api_rate_limit_hits.clear()
         main._read_rate_limit_hits.clear()
+
+
+@pytest.fixture
+def fresh_binary_cache():
+    readiness._resolved_chromium_path.cache_clear()
+    yield
+    readiness._resolved_chromium_path.cache_clear()
+
+
+def _readiness_with_install_dirs(tmp_path, *, headless_shell: bool, full_chromium: bool):
+    """Probe /health/ready against fake Playwright install directories."""
+    shell_dir = tmp_path / "chromium_headless_shell-1"
+    shell_dir.mkdir()
+    if headless_shell:
+        binary = shell_dir / "chrome-headless-shell-linux64" / "chrome-headless-shell"
+        binary.parent.mkdir()
+        binary.write_text("")
+    if full_chromium:
+        full = tmp_path / "chromium-1" / "chrome-linux64" / "chrome"
+        full.parent.mkdir(parents=True)
+        full.write_text("")
+    with patch("services.readiness.database_ready", return_value=True),             patch("services.readiness._headless_shell_install_dir", return_value=shell_dir):
+        return client.get("/health/ready")
+
+
+def test_readiness_checks_the_headless_shell_that_launch_uses(tmp_path, fresh_binary_cache, monkeypatch):
+    monkeypatch.setenv("STATIC_PROFILES_ENABLED", "false")
+    response = _readiness_with_install_dirs(tmp_path, headless_shell=True, full_chromium=False)
+
+    assert response.status_code == 200
+
+
+def test_readiness_fails_when_only_the_full_chromium_binary_exists(tmp_path, fresh_binary_cache, monkeypatch):
+    monkeypatch.setenv("STATIC_PROFILES_ENABLED", "false")
+    response = _readiness_with_install_dirs(tmp_path, headless_shell=False, full_chromium=True)
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable"}

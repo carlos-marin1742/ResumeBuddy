@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import subprocess
 from functools import lru_cache
 from pathlib import Path
 
@@ -25,16 +26,40 @@ def database_ready() -> bool:
         return False
 
 
+def _headless_shell_install_dir() -> Path:
+    """Ask Playwright where it installs the headless shell (no launch).
+
+    Playwright's Python API only exposes the full-Chromium path, but
+    chromium.launch() runs chrome-headless-shell. The CLI's dry-run prints the
+    install location it resolves, honouring PLAYWRIGHT_BROWSERS_PATH.
+    """
+    from playwright._impl._driver import compute_driver_executable, get_driver_env
+
+    node, cli = compute_driver_executable()
+    result = subprocess.run(
+        [node, cli, "install", "--dry-run", "chromium"],
+        capture_output=True, text=True, timeout=30, check=True, env=get_driver_env(),
+    )
+    in_headless_block = False
+    for line in result.stdout.splitlines():
+        if "Headless Shell" in line:
+            in_headless_block = True
+        elif in_headless_block and "Install location:" in line:
+            return Path(line.split("Install location:", 1)[1].strip())
+    raise RuntimeError("Headless shell install location not reported by Playwright")
+
+
 @lru_cache(maxsize=1)
 def _resolved_chromium_path() -> str:
-    """Resolve Playwright's Chromium path without launching it.
+    """Resolve the executable that chromium.launch() actually runs.
 
     Raising keeps lru_cache from caching a failure, so a later probe retries.
     """
-    from playwright.sync_api import sync_playwright
-
-    with sync_playwright() as playwright:
-        return playwright.chromium.executable_path
+    install_dir = _headless_shell_install_dir()
+    for candidate in install_dir.rglob("chrome-headless-shell*"):
+        if candidate.is_file() and candidate.stem == "chrome-headless-shell":
+            return str(candidate)
+    raise FileNotFoundError("chrome-headless-shell is not installed")
 
 
 def chromium_ready() -> bool:
