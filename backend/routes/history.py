@@ -42,7 +42,7 @@ class HistoryItem(BaseModel):
     matched_keywords: list[str]
     extracted_keywords_count: int
     job_description: str
-    pdf_path: str | None
+    has_pdf: bool  # whether a PDF has been rendered; the server path stays internal
     cover_letter: str | None
 
 
@@ -72,7 +72,7 @@ def _to_item(record: TailoredResumeRecord) -> HistoryItem:
         matched_keywords=tailored.get("_ats_matched_keywords", []),
         extracted_keywords_count=tailored.get("_extracted_keywords_count", 0),
         job_description=record.job_description or "",
-        pdf_path=record.pdf_path,
+        has_pdf=bool(record.pdf_path),
         cover_letter=record.cover_letter,
     )
 

@@ -253,7 +253,7 @@ function HistoryDetail({ record, onBack }) {
         >
           {restoring ? <><span className="spinner" /> Loading…</> : "Preview Resume"}
         </button>
-        {record.pdf_path && (
+        {record.has_pdf && (
           <a
             className="btn btn-secondary"
             href={`${API}/api/download-history/${record.id}`}

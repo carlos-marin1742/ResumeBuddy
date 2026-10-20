@@ -16,7 +16,7 @@ from services.skill_dictionary_service import (
     seed_backoff_active,
     seed_skill_dictionary,
 )
-from services.ownership import get_owned_record
+from services.ownership import get_owned_record, require_user_id
 from services.input_validation import StrictRequest, validate_identifier
 
 
@@ -204,8 +204,11 @@ def list_master_resumes(
     db: Session = Depends(get_session),
     http_request: Request = None,
 ) -> MasterResumeListResponse:
+    user_id = require_user_id(http_request.state.user_id if http_request else None, "list_master_resumes")
     records = db.exec(
-        select(MasterResumeRecord).where(MasterResumeRecord.user_id == http_request.state.user_id).order_by(MasterResumeRecord.updated_at.desc()) if http_request else select(MasterResumeRecord).order_by(MasterResumeRecord.updated_at.desc())
+        select(MasterResumeRecord)
+        .where(MasterResumeRecord.user_id == user_id)
+        .order_by(MasterResumeRecord.updated_at.desc())
     ).all()
     return MasterResumeListResponse(resumes=[
         MasterResumeListItem(

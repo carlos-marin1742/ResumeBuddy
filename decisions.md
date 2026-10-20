@@ -345,7 +345,7 @@ Revision `e5b2c8f1a9d3` makes `user_id` NOT NULL on both resume tables, adds `ON
 
 ## Ownership lookups fail closed
 
-`get_owned_record`, `get_owned_resume`, `_get_owned_history_record` and the history list query used to skip the owner filter when the user id was `None`, so a call site that forgot the id silently returned another user's data. They now raise `OwnershipContextError` through `require_user_id`, which logs an error; `main.py` answers it with a generic 500. The authentication middleware always sets a user id on `/api` requests, so this is only reachable through a coding mistake. Unit tests use the `user_request` and `test_user_id` fixtures in `backend/conftest.py`, and Postgres tests use `owner_request`. Not yet converted, and still unscoped when called without a request: `list_master_resumes` and `download_resume`.
+`get_owned_record`, `get_owned_resume`, `_get_owned_history_record`, the history and master-resume list queries, and `download_resume` used to skip the owner filter when the user id was `None`, so a call site that forgot the id silently returned another user's data. They now raise `OwnershipContextError` through `require_user_id`, which logs an error; `main.py` answers it with a generic 500. The authentication middleware always sets a user id on `/api` requests, so this is only reachable through a coding mistake. Unit tests use the `user_request` and `test_user_id` fixtures in `backend/conftest.py`, and Postgres tests use `owner_request`. History responses expose `has_pdf` instead of the server-side `pdf_path`, which stays internal.
 
 ## API docs are off in production
 

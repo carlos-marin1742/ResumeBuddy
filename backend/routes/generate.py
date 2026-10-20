@@ -519,15 +519,15 @@ def download_resume(
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,200}\.pdf", filename):
         raise HTTPException(status_code=400, detail="Invalid filename.")
 
+    user_id = require_user_id(http_request.state.user_id if http_request else None, "download_resume")
     file_path = OUTPUTS_DIR / filename
-    if http_request:
-        record = db.exec(select(TailoredResumeRecord).where(
-            TailoredResumeRecord.user_id == http_request.state.user_id,
-            TailoredResumeRecord.pdf_path == str(file_path),
-        )).first()
-        if not record:
-            raise HTTPException(status_code=404, detail="File not found or has expired.")
-    if http_request and not file_path.exists():
+    record = db.exec(select(TailoredResumeRecord).where(
+        TailoredResumeRecord.user_id == user_id,
+        TailoredResumeRecord.pdf_path == str(file_path),
+    )).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found or has expired.")
+    if not file_path.exists():
         ensure_record_pdf(db, record)  # re-render a cleaned-up PDF on demand
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found or has expired.")

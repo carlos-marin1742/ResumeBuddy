@@ -10,8 +10,9 @@ import pytest
 import main
 from models import MasterResumeRecord
 from routes.cover_letter import _get_owned_history_record
-from routes.generate import RESUME_STORE, RESUME_STORE_OWNERS, get_owned_resume
+from routes.generate import RESUME_STORE, RESUME_STORE_OWNERS, download_resume, get_owned_resume
 from routes.history import list_history
+from routes.master_resumes import list_master_resumes
 from services.ownership import OwnershipContextError, get_owned_record
 
 
@@ -66,6 +67,43 @@ def test_list_history_raises_when_the_request_carries_no_user_id():
         list_history(db=db, http_request=request)
 
     db.exec.assert_not_called()
+
+
+def test_list_master_resumes_raises_without_a_request_and_never_queries():
+    db = MagicMock()
+
+    with pytest.raises(OwnershipContextError):
+        list_master_resumes(db=db)
+
+    db.exec.assert_not_called()
+
+
+def test_list_master_resumes_raises_when_the_request_carries_no_user_id():
+    db = MagicMock()
+    request = SimpleNamespace(state=SimpleNamespace(user_id=None))
+
+    with pytest.raises(OwnershipContextError):
+        list_master_resumes(db=db, http_request=request)
+
+    db.exec.assert_not_called()
+
+
+def test_download_resume_raises_without_a_request_and_never_queries(tmp_path, monkeypatch):
+    db = MagicMock()
+    (tmp_path / "Resume_abc.pdf").write_bytes(b"%PDF-1.4 private")
+    monkeypatch.setattr("routes.generate.OUTPUTS_DIR", tmp_path)
+
+    with pytest.raises(OwnershipContextError):
+        download_resume("Resume_abc.pdf", db=db)
+
+    db.exec.assert_not_called()
+
+
+def test_download_resume_still_rejects_a_bad_filename_before_the_ownership_check():
+    with pytest.raises(Exception) as exc_info:
+        download_resume("../etc/passwd", db=MagicMock())
+
+    assert getattr(exc_info.value, "status_code", None) == 400
 
 
 def test_the_error_is_logged_when_ownership_is_unknown(monkeypatch):

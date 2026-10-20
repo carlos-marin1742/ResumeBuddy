@@ -474,6 +474,20 @@ def test_lists_contain_only_the_callers_own_items(world):
     assert world.a_ids.history not in b_history and world.a_ids.master not in b_masters
 
 
+def test_history_responses_hide_the_server_path_and_report_has_pdf(world):
+    listed = world.a.get("/api/history")
+    detail = world.a.get(f"/api/history/{world.a_ids.history}")
+
+    for response in (listed, detail):
+        assert response.status_code == 200
+        assert "pdf_path" not in response.text
+        assert "outputs" not in response.text
+    record = listed.json()["records"][0]
+    assert "pdf_path" not in record
+    assert record["has_pdf"] is True
+    assert detail.json()["has_pdf"] is True
+
+
 def test_static_profiles_are_hidden_from_everyone_when_disabled(world):
     assert world.a.get("/api/resumes").json() == {"resumes": []}
     assert world.b.get("/api/resumes").json() == {"resumes": []}
