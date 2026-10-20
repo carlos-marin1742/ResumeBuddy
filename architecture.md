@@ -167,7 +167,7 @@ Required protections include:
 
 Per-user ownership is enforced for persisted master resumes and tailored-history records. Generated in-memory artifacts are short-lived, tagged with their creating user, and reject access from any other authenticated account.
 
-Known gaps: account deletion and a password-reset UI are not implemented; cross-user isolation lacks dedicated tests; `RESUME_STORE` is process memory; generated PDFs remain on local disk (they are re-rendered on demand when missing); and login throttling is per client IP only.
+Known gaps: account deletion and a password-reset UI are not implemented; cross-user isolation is tested over HTTP in `test_isolation_http_postgres.py`; `RESUME_STORE` is process memory; generated PDFs remain on local disk (they are re-rendered on demand when missing); and login throttling is per client IP only.
 
 ## Container
 

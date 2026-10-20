@@ -127,7 +127,7 @@ The former broader pytest collection blockers were resolved by removing obsolete
 
 ## Recommended Next Step
 
-Add dedicated cross-user isolation tests, beginning with history and download routes.
+Cross-user isolation is covered by `backend/test_isolation_http_postgres.py` (real registration, verification and login for two users over HTTP against a migrated disposable PostgreSQL database; external services mocked). It attacks every resource-bearing route as the other user, requires 404 identical to a nonexistent ID, and fails if a new route is neither covered nor explicitly exempt. Next: add an account-deletion route and password-reset UI.
 
 The `DetachedInstanceError` in authenticated middleware was present at `7cbac04^` before the lazy-engine change (`d28b773`): both revisions accessed `user.id` after `get_current_user()` had committed and its session had closed. The middleware now reads the scalar ID while the session remains open.
 
