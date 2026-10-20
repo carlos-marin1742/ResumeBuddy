@@ -1,5 +1,5 @@
 # ── Stage 1: Build React frontend ────────────────────────────────────────────
-FROM node:20-slim AS frontend-build
+FROM node:20.20.2-slim AS frontend-build
 
 WORKDIR /app/client
 COPY client/package*.json ./
@@ -8,7 +8,7 @@ COPY client/ ./
 RUN npm run build
 
 # ── Stage 2: Python backend + Playwright ─────────────────────────────────────
-FROM python:3.11-slim
+FROM python:3.11.17-slim-trixie
 
 # System deps required by Playwright/Chromium
 RUN apt-get update && apt-get install -y \
@@ -43,8 +43,9 @@ WORKDIR /app/backend
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium
+# Install Playwright browsers in a shared path the non-root user can read
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw
+RUN playwright install chromium && chmod -R a+rX /opt/pw
 
 # Copy backend source
 COPY backend/ .
