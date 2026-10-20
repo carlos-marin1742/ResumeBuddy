@@ -40,11 +40,15 @@ Backend responsibilities:
 - `build_resume_pdf.py`: resume HTML and Playwright PDF generation, including spacing overrides.
 - `cover_letter_service.py`: LangChain/Anthropic generation and letter formatting.
 - `build_cover_letter_pdf.py`: sanitized filenames and 12pt Times New Roman PDF rendering.
-- `generate.py`: `_build_tailored_resume_dict`, persistence, the bounded in-memory `RESUME_STORE`, and initial PDF generation.
+- `pdf_concurrency.py`: process-wide semaphore shared by every Chromium render (`PDF_MAX_CONCURRENCY`, default 2). Waiting longer than `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) raises `PdfBusyError`, which `main.py` answers with 503 and `Retry-After`; routes that wrap PDF builds in `except Exception` must re-raise it first.
+- `readiness.py`: the dependency checks behind `/health/ready`.
+- `generate.py`: `_build_tailored_resume_dict`, persistence, the bounded in-memory `RESUME_STORE`, and the initial PDF render. The history record is persisted before rendering, so a busy PDF queue or render error returns the full result with `pdf_url: null` and `pdf_status: "pending"`; `ensure_record_pdf` renders on demand for `/api/download-history/{id}` and `/api/download/{filename}`.
 
 ## API Routes
 
-- `GET /health`, `GET /api/resumes`: readiness and available JSON profiles.
+- `GET /health`: liveness only (200 `{"status":"ok"}`, no dependency checks); the container `HEALTHCHECK` and compose healthcheck use it.
+- `GET /health/ready`: readiness; `SELECT 1` against the database, the `chrome-headless-shell` binary that `chromium.launch()` runs (resolved through Playwright, no launch), and `base_resume.json` only when `STATIC_PROFILES_ENABLED` is true. Failure returns a generic 503. Neither health route is authenticated or rate limited.
+- `GET /api/resumes`: available JSON profiles.
 - `POST /api/extract-keywords`: extract and compare JD keywords with a profile.
 - `POST /api/generate-resume`, `GET /api/download/{filename}`: tailor, score, persist, and download.
 - `POST /api/preview-html`, `POST /api/download-custom`: merge user edits and preview/download with spacing controls.
@@ -60,7 +64,7 @@ Backend responsibilities:
 
 ResumeBuddy uses first-party email/password authentication: bcrypt password hashes, peppered-hash server-side sessions, and email verification. With secure cookies enabled, the browser receives the `__Host-resumebuddy_session` HttpOnly cookie; sessions have idle and absolute expiry. Global middleware protects `/api/*` except `/api/auth/*` and must read the authenticated user's scalar ID before the database session closes; persisted history and master-resume owner mismatches return 404. Keep the absence of account deletion, a password-reset UI, and cross-user isolation tests explicit.
 
-Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `DATABASE_URL`, `AUTH_TOKEN_PEPPER`, SMTP settings, and optional comma-separated `ALLOWED_ORIGINS`. `STATIC_PROFILES_ENABLED` defaults to false; only local development should set it true to expose checked-in static profiles. `db.py` creates its engine lazily, but startup and first real database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
+Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `DATABASE_URL`, `AUTH_TOKEN_PEPPER`, SMTP settings, and optional comma-separated `ALLOWED_ORIGINS`. `STATIC_PROFILES_ENABLED` defaults to false; only local development should set it true to expose checked-in static profiles. `db.py` creates its engine lazily, but startup and first real database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. Keep secrets and personal resume data out of commits. Playwright requires Chromium. Optional `PDF_MAX_CONCURRENCY` (default 2) and `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) bound simultaneous renders. The Docker image installs Chromium into `PLAYWRIGHT_BROWSERS_PATH=/opt/pw` so the non-root `appuser` can launch it, pins both base images to exact tags, and pins every `backend/requirements.txt` entry; update those pins deliberately.
 
 ## Development and Validation
 
@@ -77,7 +81,7 @@ docker compose up --build
 
 Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
 
-Pytest files are named `test_*.py` beside services, under `backend/routes/`, or at the backend package root. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/test_auth_middleware.py` exercises verified, absent, revoked, and unverified cookie-session middleware behavior. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test. With no externally configured database, the latest run was 228 passed, 28 skipped, and 6 pre-existing tailoring/skill-dictionary failures; PostgreSQL migration tests remain opt-in through `POSTGRES_TEST_DATABASE_URL`.
+Pytest files are named `test_*.py` beside services, under `backend/routes/`, or at the backend package root. Mock Anthropic, Groq, filesystem, database, and Playwright boundaries; cover validation and failure paths. `backend/test_auth_middleware.py` exercises verified, absent, revoked, and unverified cookie-session middleware behavior. `backend/smoke_extract_keywords.py` is a credential-dependent smoke script, not a unit test. With no externally configured database and no private profile files, the latest backend run (inside the built container) was 258 passed, 28 skipped, and 0 failed; the frontend run was 81 passed plus one expected `it.fails`; PostgreSQL migration tests remain opt-in through `POSTGRES_TEST_DATABASE_URL`.
 
 Frontend tests mock `fetch`, clipboard, and browser download boundaries. `CoverLetterStep.test.jsx` contains one `it.fails` regression: clearing the letter unmounts its textarea. Do not remove the marker without fixing and verifying the component. No coverage threshold is enforced.
 

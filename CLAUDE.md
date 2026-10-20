@@ -44,11 +44,15 @@ Backend responsibilities:
 - `build_resume_pdf.py`: resume HTML and Playwright PDF generation, including spacing overrides.
 - `cover_letter_service.py`: LangChain/Anthropic generation and letter formatting.
 - `build_cover_letter_pdf.py`: sanitized filenames and 12pt Times New Roman PDF rendering.
-- `generate.py`: `_build_tailored_resume_dict`, persistence, the bounded in-memory `RESUME_STORE`, and initial PDF generation.
+- `pdf_concurrency.py`: process-wide semaphore shared by every Chromium render (`PDF_MAX_CONCURRENCY`, default 2). Waiting longer than `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) raises `PdfBusyError`, which `main.py` answers with 503 and `Retry-After`; routes that wrap PDF builds in `except Exception` must re-raise it first.
+- `readiness.py`: the dependency checks behind `/health/ready`.
+- `generate.py`: `_build_tailored_resume_dict`, persistence, the bounded in-memory `RESUME_STORE`, and the initial PDF render. The history record is persisted before rendering, so a busy PDF queue or render error returns the full result with `pdf_url: null` and `pdf_status: "pending"`; `ensure_record_pdf` renders on demand for `/api/download-history/{id}` and `/api/download/{filename}`.
 
 ## API Routes
 
-- `GET /health`, `GET /api/resumes`: readiness and available JSON profiles.
+- `GET /health`: liveness only (200 `{"status":"ok"}`, no dependency checks); the container `HEALTHCHECK` and compose healthcheck use it.
+- `GET /health/ready`: readiness; `SELECT 1` against the database, the `chrome-headless-shell` binary that `chromium.launch()` runs (resolved through Playwright, no launch), and `base_resume.json` only when `STATIC_PROFILES_ENABLED` is true. Failure returns a generic 503. Neither health route is authenticated or rate limited.
+- `GET /api/resumes`: available JSON profiles.
 - `POST /api/extract-keywords`: extract and compare JD keywords with a profile.
 - `POST /api/generate-resume`, `GET /api/download/{filename}`: tailor, score, persist, and download.
 - `POST /api/preview-html`, `POST /api/download-custom`: merge user edits and preview/download with spacing controls.
@@ -70,7 +74,7 @@ ResumeBuddy uses first-party email/password authentication with bcrypt hashes, e
 
 `main.py` rate-limits registration, login, verification, and password-reset requests per client IP. AI-backed POST routes (`/api/extract-keywords`, `/api/generate-resume`, `/api/regenerate-section`, `/api/generate-cover-letter`) are limited by both client IP and authenticated user. Add any new paid-API route to `_RATE_LIMITED_PATHS` in `main.py`. A second middleware adds `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` headers to every response; do not remove either middleware.
 
-Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `DATABASE_URL`, `AUTH_TOKEN_PEPPER`, SMTP settings, and optional comma-separated `ALLOWED_ORIGINS`. `STATIC_PROFILES_ENABLED` defaults to false; set it true only for local development that intentionally exposes static JSON profiles. `db.py` defers engine creation until use, but application startup and first database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. Keep secrets and personal resume data out of commits. Playwright requires Chromium.
+Create root `.env` with `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `DATABASE_URL`, `AUTH_TOKEN_PEPPER`, SMTP settings, and optional comma-separated `ALLOWED_ORIGINS`. `STATIC_PROFILES_ENABLED` defaults to false; set it true only for local development that intentionally exposes static JSON profiles. `db.py` defers engine creation until use, but application startup and first database use still require `DATABASE_URL` or `DATABASE_PASSWORD_FILE`. Keep secrets and personal resume data out of commits. Playwright requires Chromium. Optional `PDF_MAX_CONCURRENCY` (default 2) and `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) bound simultaneous renders. The Docker image installs Chromium into `PLAYWRIGHT_BROWSERS_PATH=/opt/pw` so the non-root `appuser` can launch it, pins both base images to exact tags, and pins every `backend/requirements.txt` entry; update those pins deliberately.
 
 Tailoring derives its occupation descriptor from optional `meta.occupation`, then `meta.target_roles`, then the resume title, with a neutral fallback; do not branch on fixed role types. The resolved occupation reaches the model as `candidate_target_occupation` in untrusted resume data, not as a system persona. The builder separately asks for an optional target job title, distinct from its `targetRole` filing label: the title identifies the saved resume and is not printed, while the target job title feeds `meta.occupation` and therefore the tailoring data.
 
@@ -87,13 +91,15 @@ cd backend && python -m pytest -v
 docker compose up --build
 ```
 
-Alembic migration-chain and ORM persistence tests are opt-in: set `POSTGRES_TEST_DATABASE_URL` to a reachable PostgreSQL database whose role can create databases and run the normal backend pytest command. Do not assume the Windows host's `localhost:5432` is the Compose service; when it is not, run validation inside the Compose network. They create and drop UUID-named disposable databases; persistence tests use the Alembic-created PostgreSQL schema rather than SQLite. With no externally configured database, the latest run was 228 passed, 28 skipped, and 6 failed due to unrelated tailoring/skill-dictionary assertion failures. PostgreSQL-enabled counts have not been remeasured.
+Alembic migration-chain and ORM persistence tests are opt-in: set `POSTGRES_TEST_DATABASE_URL` to a reachable PostgreSQL database whose role can create databases and run the normal backend pytest command. Do not assume the Windows host's `localhost:5432` is the Compose service; when it is not, run validation inside the Compose network. They create and drop UUID-named disposable databases; persistence tests use the Alembic-created PostgreSQL schema rather than SQLite. With no externally configured database and no private profile files, the latest backend run (inside the built container) was 258 passed, 28 skipped, and 0 failed; the frontend run was 81 passed plus the one expected `it.fails`. PostgreSQL-enabled counts have not been remeasured.
 
 Vite runs on port 5175 and proxies `/api` to port 8000. Vitest uses jsdom, Testing Library, and `vite.config.js`; tests are colocated as `*.test.jsx`. Docker builds the frontend into `backend/static` and mounts `backend/data` and `backend/outputs`.
 
 PostgreSQL 16 runs as the Compose `postgres` service and persists to `postgres_data`. From `backend/`, run `alembic upgrade head` to apply migrations and `alembic revision --autogenerate -m "describe schema change"` to generate a reviewed revision. SQLite is gone.
 
 ## PDF fitting
+
+Chromium renders are bounded by `pdf_concurrency.py`; both resume workers close the browser and delete temp PDFs in `try/finally`. A busy queue during generation never discards the paid result (see `generate.py` above).
 
 Resume fitting compresses spacing but never reduces the requested font size. Dense resumes can remain multi-page after spacing reaches its floor; the PDF is still produced and the backend reports its page count and whether it fit on one page. Custom-download responses provide the same metadata in `X-PDF-Page-Count` and `X-PDF-Fitted-To-One-Page` headers.
 

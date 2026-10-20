@@ -70,7 +70,7 @@ CoverLetterStep
 
 ## Backend
 
-`backend/main.py` validates PostgreSQL configuration at startup, configures CORS, registers routers, exposes health information, and serves the production frontend.
+`backend/main.py` validates PostgreSQL configuration at startup, configures CORS, registers routers, exposes `/health` (liveness) and `/health/ready` (database, headless-shell Chromium, and static profiles when enabled), and serves the production frontend.
 
 The client uses same-origin `/api` paths. Vite proxies those paths to FastAPI during development, and FastAPI serves both the built client and API in production. Do not hard-code a loopback backend address in browser code because it breaks deployed, containerized, and remote-client usage.
 
@@ -106,7 +106,7 @@ Skill lines such as `Frontend: React, TypeScript` are preserved as structured ca
 
 - `claude_service.py` handles Groq keyword extraction, Anthropic tailoring and regeneration, skill filtering, and local ATS scoring.
 - `project_selection.py` limits projects using work-project priority and job relevance.
-- `generate.py` merges generated content, maintains bounded `RESUME_STORE` session state, persists application history, and creates the initial PDF.
+- `generate.py` merges generated content, maintains bounded `RESUME_STORE` session state, persists application history, and then attempts the initial PDF. If the PDF queue is busy or the render fails, the response still carries the full result with `pdf_url: null` and `pdf_status: "pending"`; `ensure_record_pdf` renders the stored record on demand for the history and filename download routes.
 - `preview.py` merges user edits and renders HTML or custom PDFs.
 
 ### Documents
@@ -114,6 +114,7 @@ Skill lines such as `Frontend: React, TypeScript` are preserved as structured ca
 - `build_resume_pdf.py` renders resume HTML and uses Playwright for PDF output.
 - `cover_letter_service.py` generates and formats cover-letter text.
 - `build_cover_letter_pdf.py` renders cover-letter PDFs.
+- `pdf_concurrency.py` bounds simultaneous Chromium renders across both renderers (`PDF_MAX_CONCURRENCY`, default 2). A request that waits longer than `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) gets 503 with `Retry-After`; the client shows a plain-language message and each fetch has a timeout (120 s generation, 60 s others) defined in `client/src/api.js`.
 
 The current `build_resume_pdf.py` contract targets job-tailored resume data and does not directly match `MasterResumeRecord.resume_data`. A future master-resume HTML/PDF renderer will consume the saved master schema directly.
 
@@ -166,7 +167,11 @@ Required protections include:
 
 Per-user ownership is enforced for persisted master resumes and tailored-history records. Generated in-memory artifacts are short-lived, tagged with their creating user, and reject access from any other authenticated account.
 
-Known gaps: account deletion and a password-reset UI are not implemented; cross-user isolation lacks dedicated tests; `RESUME_STORE` is process memory; generated PDFs remain on local disk; and login throttling is per client IP only.
+Known gaps: account deletion and a password-reset UI are not implemented; cross-user isolation lacks dedicated tests; `RESUME_STORE` is process memory; generated PDFs remain on local disk (they are re-rendered on demand when missing); and login throttling is per client IP only.
+
+## Container
+
+The image is multi-stage with exact-tag base images (`node:20.20.2-slim`, `python:3.11.17-slim-trixie`) and fully pinned Python dependencies. Chromium is installed to `/opt/pw` (`PLAYWRIGHT_BROWSERS_PATH`) so the non-root `appuser` can launch it, and `fonts-liberation` supplies metric-compatible Arial and Times New Roman substitutes. Resume text wraps identically to the Windows render. `.dockerignore` keeps `.env*`, private profiles, tests, fixtures, and golden files out of the image. The `HEALTHCHECK` calls `/health` with `X-Forwarded-Proto: https` so it passes the `REQUIRE_HTTPS` middleware.
 
 ## Testing
 

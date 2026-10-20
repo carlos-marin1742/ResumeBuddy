@@ -304,3 +304,33 @@ The seed prompt includes target role, category keys and display labels, existing
 # PDF fitting reports honest overflow (2026-09-16)
 
 Font size is user input, never a fitting lever. Once the existing spacing compression reaches its floor, the renderer keeps the requested type size and returns the valid multi-page PDF with its actual page count and fitted status. An honest two-page result is preferable to silently reducing readability or falsely describing a clipped preview as one page.
+
+
+# Deployment readiness decisions (2026-10-19)
+
+## Persist the tailored result before rendering its PDF
+
+`generate-resume` previously rendered the PDF first, so a busy PDF queue (503) or render error discarded a completed Claude tailoring and ATS-scoring pass, and the user paid again on retry. The history record is now committed first, then the render is attempted. A busy queue or render error returns 200 with the full result, `pdf_url: null`, and `pdf_status: "pending"`, and logs a warning.
+
+Why:
+
+- The paid, non-repeatable work is the AI call; the PDF is a deterministic function of the stored record, so it can be rebuilt at any time.
+- The editing and preview flow (`preview-html`, `download-custom`) uses the in-memory session, not the initial PDF, so a missing initial PDF blocks nothing.
+- A pending result has a recovery path: `/api/download-history/{id}` and `/api/download/{filename}` render on demand (`ensure_record_pdf`), still answering 503 with `Retry-After` while the queue is busy.
+- `pdf_path` is stored only after a successful render, so history never points at a file that does not exist.
+
+## Bound concurrent PDF renders
+
+Each render launches its own Chromium. Six simultaneous renders peaked near 800 MiB in a 1 GiB container, against about 380 MiB with a limit of two. A single process-wide semaphore (`PDF_MAX_CONCURRENCY`, default 2) covers every render path; callers wait up to `PDF_QUEUE_TIMEOUT_SECONDS` (default 30) and then receive 503 rather than hanging. The client times out generation at 120 s and other calls at 60 s, so a full queue wait never outlasts the client.
+
+## Separate liveness from readiness
+
+`/health` only proves the process is up so a database or Chromium outage does not restart-loop the container. `/health/ready` checks the database and the Chromium binary and returns a generic 503 without paths or secrets. The container healthcheck uses `/health` only.
+
+## Readiness checks the binary that renders launch
+
+Playwright's Python `executable_path` returns the full Chromium binary, but headless `chromium.launch()` runs `chrome-headless-shell`, so an `executable_path` check could pass while renders fail. Readiness resolves the headless-shell install directory through Playwright's own `install --dry-run` output (honouring `PLAYWRIGHT_BROWSERS_PATH`) and looks for the binary, without launching it. This relies on a private Playwright helper, so the Playwright version stays pinned.
+
+## Pin base images and dependencies
+
+Base images use exact tags and every Python dependency is pinned to the versions verified in the image, so rebuilds are reproducible and Playwright's expected Chromium revision cannot drift. Upgrade the pins deliberately and re-run the container suite.

@@ -108,13 +108,22 @@ npm.cmd run build
 Observed results:
 
 - Focused backend master-resume/import/parser tests: 13 passed.
-- Full backend suite with no externally configured database: 242 passed and 28 skipped. The test fixture supplies SQLite only after collection.
-- Frontend tests: 29 passed and 1 existing expected failure.
+- Full backend suite with no externally configured database or private profile files, run inside the built container: 258 passed, 28 skipped, 0 failed. The test fixture supplies SQLite only after collection.
+- Frontend tests: 81 passed and 1 existing expected failure.
 - Frontend build: passed.
 - ESLint: no errors; two existing hook-dependency warnings remain in `PDFPreview.jsx` and `ResumePreview.jsx`.
 - `git diff --check`: passed.
 
 The former broader pytest collection blockers were resolved by removing obsolete `limit_character_count` tests and renaming the credential-dependent smoke script to `backend/smoke_extract_keywords.py`.
+
+## Deployment Readiness (2026-10-19)
+
+- Image: exact-tag bases, fully pinned dependencies, non-root `appuser`, Chromium in `/opt/pw`, Liberation fonts, `.dockerignore` excluding secrets, tests, fixtures, and golden files. PDFs rendered in the container wrap line-for-line like the Windows host (Arial vs Liberation Sans, same Chromium build).
+- Health: `/health` (liveness, used by `HEALTHCHECK`) and `/health/ready` (database, headless-shell binary, static profiles when enabled).
+- PDF limits: `PDF_MAX_CONCURRENCY` (2) and `PDF_QUEUE_TIMEOUT_SECONDS` (30). Six concurrent renders at `-m 1g`: all succeeded, 381 MiB peak with the default limit, 804 MiB without it.
+- Generation persists before rendering; a busy queue returns `pdf_status: "pending"` and the download routes render on demand.
+- Client: fetch timeouts (120 s generate, 60 s others) and plain-language 503/429/timeout messages, all in `client/src/api.js`.
+- Not yet verified: the production `docker-compose.yml` (needs `./secrets/*` and `PUBLIC_APP_HOST`), Render's request timeout against the 30 s queue wait, and a per-render hang timeout (a wedged Chromium holds its slot).
 
 ## Recommended Next Step
 
@@ -125,7 +134,7 @@ The `DetachedInstanceError` in authenticated middleware was present at `7cbac04^
 Known gaps to preserve explicitly:
 
 1. There is no account deletion or password-reset UI.
-2. `RESUME_STORE` is in memory and generated PDFs remain on local disk.
+2. `RESUME_STORE` is in memory and generated PDFs remain on local disk (they are re-rendered on demand when missing).
 3. Login throttling is per client IP only.
 4. Historical unowned records need an explicit non-public archival or assignment decision.
 5. Production still needs a unique `AUTH_TOKEN_PEPPER`, `PUBLIC_APP_URL`, SMTP configuration, and secure cookies behind HTTPS.
