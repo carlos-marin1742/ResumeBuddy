@@ -151,7 +151,7 @@ def test_history_fetch_delete_and_restore_real_record(postgres_session, postgres
 
 def test_cover_letter_store_updates_existing_record_without_insert(postgres_session, postgres_user):
     record = _persist(postgres_session, user_id=postgres_user.id)
-    _store_cover_letter(postgres_session, record.id, "Dear Hiring Manager,\n\nStored letter")
+    _store_cover_letter(postgres_session, record.id, "Dear Hiring Manager,\n\nStored letter", postgres_user.id)
     postgres_session.expire_all()
 
     records = postgres_session.exec(select(TailoredResumeRecord)).all()
@@ -169,7 +169,7 @@ def test_cover_letter_none_reads_back_and_download_routes_use_real_record(postgr
     assert exc_info.value.status_code == 404
 
     stored = _persist(postgres_session, user_id=postgres_user.id, company="Letter Co")
-    _store_cover_letter(postgres_session, stored.id, "Dear Hiring Manager,\n\nStored letter")
+    _store_cover_letter(postgres_session, stored.id, "Dear Hiring Manager,\n\nStored letter", postgres_user.id)
 
     def write_pdf(letter, output_path):
         assert letter == "Dear Hiring Manager,\n\nStored letter"

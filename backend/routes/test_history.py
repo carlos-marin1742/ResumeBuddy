@@ -32,10 +32,10 @@ def test_history_item_supports_legacy_record_without_cover_letter():
 
 
 @patch("routes.history.build_cover_letter_pdf")
-def test_download_history_cover_letter_renders_stored_text(mock_build_pdf, tmp_path):
+def test_download_history_cover_letter_renders_stored_text(mock_build_pdf, tmp_path, user_request):
     record = make_record(cover_letter="Dear Hiring Manager,\n\nStored letter")
     db = MagicMock()
-    db.get.return_value = record
+    db.exec.return_value.first.return_value = record
 
     def create_pdf(letter, output_path):
         assert letter == record.cover_letter
@@ -44,7 +44,7 @@ def test_download_history_cover_letter_renders_stored_text(mock_build_pdf, tmp_p
     mock_build_pdf.side_effect = create_pdf
 
     with patch("routes.history.OUTPUTS_DIR", tmp_path):
-        response = download_history_cover_letter(record.id, db)
+        response = download_history_cover_letter(record.id, db, http_request=user_request)
 
     assert response.media_type == "application/pdf"
     assert "Carlos-Marin-Example-Co-Engineer-Cover-Letter.pdf" in (
@@ -53,12 +53,12 @@ def test_download_history_cover_letter_renders_stored_text(mock_build_pdf, tmp_p
     assert response.headers["cache-control"] == "no-store"
 
 
-def test_download_history_cover_letter_rejects_record_without_letter():
+def test_download_history_cover_letter_rejects_record_without_letter(user_request):
     db = MagicMock()
-    db.get.return_value = make_record()
+    db.exec.return_value.first.return_value = make_record()
 
     with pytest.raises(HTTPException) as exc_info:
-        download_history_cover_letter("history-123", db)
+        download_history_cover_letter("history-123", db, http_request=user_request)
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "No cover letter stored for this record."

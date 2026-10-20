@@ -21,6 +21,7 @@ from services.cover_letter_service import generate_cover_letter, CoverLetterResu
 from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
 from services.pdf_concurrency import PdfBusyError
 from routes.generate import get_owned_resume
+from services.ownership import require_user_id
 from services.input_validation import StrictRequest, validate_identifier
 
 router = APIRouter()
@@ -74,19 +75,17 @@ def _cover_letter_display_name(request: CoverLetterDownloadRequest) -> str:
 def _get_owned_history_record(
     db: Session, history_id: str, user_id: str | None,
 ) -> TailoredResumeRecord:
-    record = (
-        db.exec(select(TailoredResumeRecord).where(
-            TailoredResumeRecord.id == history_id,
-            TailoredResumeRecord.user_id == user_id,
-        )).first()
-        if user_id is not None else db.get(TailoredResumeRecord, history_id)
-    )
+    user_id = require_user_id(user_id, "_get_owned_history_record")
+    record = db.exec(select(TailoredResumeRecord).where(
+        TailoredResumeRecord.id == history_id,
+        TailoredResumeRecord.user_id == user_id,
+    )).first()
     if not record:
         raise HTTPException(status_code=404, detail="History record not found.")
     return record
 
 
-def _store_cover_letter(db: Session, history_id: str | None, letter: str, user_id: str | None = None) -> None:
+def _store_cover_letter(db: Session, history_id: str | None, letter: str, user_id: str | None) -> None:
     if not history_id:
         return
     record = _get_owned_history_record(db, history_id, user_id)

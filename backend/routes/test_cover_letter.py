@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from main import app
-from routes.generate import RESUME_STORE
+from routes.generate import RESUME_STORE, RESUME_STORE_OWNERS, _store_resume
 from routes.cover_letter import _store_cover_letter
 from services.cover_letter_service import CoverLetterResult
 
@@ -12,7 +12,7 @@ client = TestClient(app)
 
 
 @patch("routes.cover_letter.generate_cover_letter")
-def test_route_recovers_name_from_session_when_edit_patch_omits_contact(mock_generate):
+def test_route_recovers_name_from_session_when_edit_patch_omits_contact(mock_generate, test_user_id):
     session_id = "cover-letter-test-session"
     contact = {
         "name": "Carlos Marin",
@@ -20,7 +20,7 @@ def test_route_recovers_name_from_session_when_edit_patch_omits_contact(mock_gen
         "phone": "713-555-0555",
         "email": "MYEMAIL@EMAIL.COM",
     }
-    RESUME_STORE[session_id] = {"contact": contact}
+    _store_resume(session_id, {"contact": contact}, test_user_id)
     mock_generate.return_value = CoverLetterResult(
         letter="Dear Hiring Manager,\n\nLetter\n\nThank You\nCarlos Marin",
         word_count=8,
@@ -42,6 +42,7 @@ def test_route_recovers_name_from_session_when_edit_patch_omits_contact(mock_gen
         )
     finally:
         RESUME_STORE.pop(session_id, None)
+        RESUME_STORE_OWNERS.pop(session_id, None)
 
     assert response.status_code == 200
     assert mock_generate.call_args.kwargs["candidate_name"] == "Carlos Marin"
@@ -96,22 +97,22 @@ def test_download_cover_letter_rejects_empty_text():
     assert response.json()["detail"] == "cover letter cannot be empty."
 
 
-def test_store_cover_letter_updates_history_record():
+def test_store_cover_letter_updates_history_record(test_user_id):
     record = MagicMock()
     db = MagicMock()
-    db.get.return_value = record
+    db.exec.return_value.first.return_value = record
 
-    _store_cover_letter(db, "history-123", "Edited letter")
+    _store_cover_letter(db, "history-123", "Edited letter", test_user_id)
 
     assert record.cover_letter == "Edited letter"
     db.add.assert_called_once_with(record)
     db.commit.assert_called_once()
 
 
-def test_store_cover_letter_preserves_backward_compatibility_without_history_id():
+def test_store_cover_letter_preserves_backward_compatibility_without_history_id(test_user_id):
     db = MagicMock()
 
-    _store_cover_letter(db, None, "Generated letter")
+    _store_cover_letter(db, None, "Generated letter", test_user_id)
 
-    db.get.assert_not_called()
+    db.exec.assert_not_called()
     db.commit.assert_not_called()

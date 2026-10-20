@@ -47,6 +47,7 @@ from db import get_database_url, get_session
 from services.auth_service import get_current_user
 from services.security_logging import audit, configure_logging
 from services import readiness
+from services.ownership import OwnershipContextError
 from services.pdf_concurrency import PdfBusyError, PdfRenderTimeoutError
 from services.static_profiles import static_profiles_enabled
 
@@ -318,6 +319,15 @@ async def pdf_render_timeout_handler(request: Request, exc: PdfRenderTimeoutErro
         content={"detail": "PDF rendering timed out. Please try again in a moment."},
         headers={"Retry-After": "5"},
     )
+
+
+@app.exception_handler(OwnershipContextError)
+async def ownership_context_handler(request: Request, exc: OwnershipContextError):
+    """A lookup ran without a user id: a bug, answered with a generic 500.
+
+    The lookup has already logged the error; nothing about it reaches the client.
+    """
+    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
 
 @app.get("/health", tags=["meta"])

@@ -2,14 +2,14 @@ import pytest
 from fastapi import HTTPException
 from unittest.mock import patch
 
-from routes.generate import RESUME_STORE
+from routes.generate import RESUME_STORE, RESUME_STORE_OWNERS, _store_resume
 from routes.preview import DownloadRequest, _resolve_resume, download_custom
 from services.build_resume_pdf import PdfBuildResult
 
 
-def test_resolve_resume_merges_supported_edits_and_preserves_unedited_data():
+def test_resolve_resume_merges_supported_edits_and_preserves_unedited_data(test_user_id):
     session_id = "preview-merge"
-    RESUME_STORE[session_id] = {
+    _store_resume(session_id, {
         "contact": {"name": "Candidate"},
         "tailored_summary": "Old summary",
         "experience": [
@@ -28,7 +28,7 @@ def test_resolve_resume_merges_supported_edits_and_preserves_unedited_data():
                 "bullets": [{"id": "proj-1", "text": "Old project"}],
             }
         ],
-    }
+    }, test_user_id)
 
     try:
         result = _resolve_resume(
@@ -48,9 +48,11 @@ def test_resolve_resume_merges_supported_edits_and_preserves_unedited_data():
                     }
                 ],
             },
+            test_user_id,
         )
     finally:
         RESUME_STORE.pop(session_id, None)
+        RESUME_STORE_OWNERS.pop(session_id, None)
 
     assert result["tailored_summary"] == "Edited summary"
     assert result["contact"] == {"name": "Candidate"}
@@ -64,19 +66,19 @@ def test_resolve_resume_merges_supported_edits_and_preserves_unedited_data():
     ]
 
 
-def test_resolve_resume_without_patch_returns_stored_session():
+def test_resolve_resume_without_patch_returns_stored_session(test_user_id):
     stored = {"tailored_summary": "Summary"}
-    RESUME_STORE["preview-no-patch"] = stored
+    _store_resume("preview-no-patch", stored, test_user_id)
 
     try:
-        assert _resolve_resume("preview-no-patch", None) is stored
+        assert _resolve_resume("preview-no-patch", None, test_user_id) is stored
     finally:
         RESUME_STORE.pop("preview-no-patch", None)
 
 
-def test_resolve_resume_rejects_expired_session():
+def test_resolve_resume_rejects_expired_session(test_user_id):
     with pytest.raises(HTTPException) as exc_info:
-        _resolve_resume("missing-session", None)
+        _resolve_resume("missing-session", None, test_user_id)
 
     assert exc_info.value.status_code == 404
     assert "Please regenerate your resume" in exc_info.value.detail

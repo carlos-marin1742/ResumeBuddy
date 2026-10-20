@@ -30,7 +30,7 @@ from services.skill_dictionary_service import (
     learn_static_skill_placements,
     skill_dictionary_is_current,
 )
-from services.ownership import get_owned_record
+from services.ownership import get_owned_record, require_user_id
 from services.input_validation import StrictRequest, validate_identifier
 from services.static_profiles import static_profiles_enabled
 
@@ -61,10 +61,14 @@ def _store_resume(session_id: str, resume_data: dict, user_id: str | None = None
         RESUME_STORE_OWNERS[session_id] = user_id
 
 
-def get_owned_resume(session_id: str, user_id: str | None = None) -> dict:
-    """Return a transient resume only when it belongs to the signed-in user."""
+def get_owned_resume(session_id: str, user_id: str | None) -> dict:
+    """Return a transient resume only when it belongs to the signed-in user.
+
+    Raises OwnershipContextError when ``user_id`` is None.
+    """
+    user_id = require_user_id(user_id, "get_owned_resume")
     resume = RESUME_STORE.get(session_id)
-    if not resume or (user_id is not None and RESUME_STORE_OWNERS.get(session_id) != user_id):
+    if not resume or RESUME_STORE_OWNERS.get(session_id) != user_id:
         raise HTTPException(status_code=404, detail="Session not found. Please regenerate your resume.")
     return resume
 

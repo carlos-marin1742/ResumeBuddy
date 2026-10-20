@@ -18,7 +18,7 @@ from sqlmodel import Session, select
 from db import get_session
 from models import TailoredResumeRecord
 from routes.generate import _store_resume, ensure_record_pdf
-from services.ownership import get_owned_record
+from services.ownership import get_owned_record, require_user_id
 from services.input_validation import validate_identifier
 from services.build_cover_letter_pdf import build_cover_letter_pdf, cover_letter_filename
 from services.pdf_concurrency import PdfBusyError
@@ -94,7 +94,10 @@ def list_history(
             profile = validate_identifier(profile, "profile")
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-    query = select(TailoredResumeRecord).where(TailoredResumeRecord.user_id == http_request.state.user_id).order_by(TailoredResumeRecord.created_at.desc()) if http_request else select(TailoredResumeRecord).order_by(TailoredResumeRecord.created_at.desc())
+    user_id = require_user_id(http_request.state.user_id if http_request else None, "list_history")
+    query = select(TailoredResumeRecord).where(
+        TailoredResumeRecord.user_id == user_id,
+    ).order_by(TailoredResumeRecord.created_at.desc())
     records = db.exec(query).all()
 
     if profile:
