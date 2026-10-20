@@ -40,7 +40,7 @@ def test_flatten_resume_keywords_supports_legacy_dict_skills_and_keywords():
     }
 
 
-def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkeypatch, postgres_session):
+def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkeypatch, postgres_session, owner_request):
     monkeypatch.setattr(
         extract_module,
         "claude_extract_keywords",
@@ -57,6 +57,7 @@ def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkey
 
     db = postgres_session
     record = MasterResumeRecord(
+        user_id=owner_request.state.user_id,
         name="Jamie Rivera",
         target_role="Operations Coordinator",
         resume_data={
@@ -83,6 +84,7 @@ def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkey
     response = extract_keywords_route(
         ExtractRequest(job_description="Looking for Python and Excel skills.", master_resume_id=record.id),
         db,
+        http_request=owner_request,
     )
 
     by_keyword = {kw.keyword: kw.present_in_resume for kw in response.keywords}
@@ -90,7 +92,7 @@ def test_extract_keywords_route_matches_array_shaped_master_resume_skills(monkey
     assert by_keyword["Microsoft Office (Word, Excel, Outlook)"] is True
 
 
-def test_extract_keywords_route_matches_skill_in_user_named_builder_category(monkeypatch, postgres_session):
+def test_extract_keywords_route_matches_skill_in_user_named_builder_category(monkeypatch, postgres_session, owner_request):
     monkeypatch.setattr(
         extract_module,
         "claude_extract_keywords",
@@ -107,6 +109,7 @@ def test_extract_keywords_route_matches_skill_in_user_named_builder_category(mon
 
     db = postgres_session
     record = MasterResumeRecord(
+        user_id=owner_request.state.user_id,
         name="Jamie Rivera",
         target_role="Phlebotomist",
         resume_data={
@@ -128,13 +131,14 @@ def test_extract_keywords_route_matches_skill_in_user_named_builder_category(mon
             master_resume_id=record.id,
         ),
         db,
+        http_request=owner_request,
     )
 
     assert response.keywords[0].keyword == "Venipuncture"
     assert response.keywords[0].present_in_resume is True
 
 
-def test_extract_keywords_route_matches_skill_saved_as_a_raw_comma_string(monkeypatch, postgres_session):
+def test_extract_keywords_route_matches_skill_saved_as_a_raw_comma_string(monkeypatch, postgres_session, owner_request):
     """Regression: a master resume saved with items as a raw comma string
     (e.g. a legacy record, or a non-browser client posting directly) must
     have its skills split server-side so gap-matching finds them, instead of
@@ -169,13 +173,14 @@ def test_extract_keywords_route_matches_skill_saved_as_a_raw_comma_string(monkey
     })
 
     db = postgres_session
-    created = create_master_resume(save_request, db)
+    created = create_master_resume(save_request, db, http_request=owner_request)
     response = extract_keywords_route(
         ExtractRequest(
             job_description="Looking for React and Vite skills.",
             master_resume_id=created.id,
         ),
         db,
+        http_request=owner_request,
     )
 
     by_keyword = {kw.keyword: kw.present_in_resume for kw in response.keywords}

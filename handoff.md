@@ -136,7 +136,7 @@ Known gaps to preserve explicitly:
 1. There is no account deletion or password-reset UI.
 2. `RESUME_STORE` is in memory and generated PDFs remain on local disk (they are re-rendered on demand when missing).
 3. Login throttling is per client IP only.
-4. Historical unowned records need an explicit non-public archival or assignment decision.
+4. Migration `e5b2c8f1a9d3` deletes pre-authentication rows that have no owner. Any database with unowned rows that matter needs them assigned to a user before upgrading.
 5. Production still needs a unique `AUTH_TOKEN_PEPPER`, `PUBLIC_APP_URL`, SMTP configuration, and secure cookies behind HTTPS.
 6. Commit `0adb688` moved the user-controlled occupation out of the tailoring system prompt to prevent prompt injection. Commit `a294d65` restored occupation-aware tailoring through the `candidate_target_occupation` field in the untrusted resume-data block.
 

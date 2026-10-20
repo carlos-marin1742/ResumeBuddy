@@ -338,3 +338,7 @@ Playwright's Python `executable_path` returns the full Chromium binary, but head
 ## Pin base images and dependencies
 
 Base images use exact tags and every Python dependency is pinned to the versions verified in the image, so rebuilds are reproducible and Playwright's expected Chromium revision cannot drift. Upgrade the pins deliberately and re-run the container suite.
+
+## Enforce ownership in the schema and fail tests on drift
+
+Revision `e5b2c8f1a9d3` makes `user_id` NOT NULL on both resume tables, adds `ON DELETE CASCADE` foreign keys to `users.id` on all four user-owned tables, and collapses each unique-constraint-plus-index pair into the single unique index the models declare. It deletes pre-authentication rows that have no owner, because they were never reachable by any user; an owned-but-orphaned `user_id` makes the foreign key fail loudly instead of being deleted. `test_schema_drift_postgres.py` migrates a disposable database to head and fails, listing every difference, when it differs from the models (the same comparison as `alembic check`, including `ondelete`). FK names are declared only in the migration, not in the models, so autogenerate cannot detect renamed constraints.

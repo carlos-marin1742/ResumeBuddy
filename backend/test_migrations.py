@@ -6,17 +6,15 @@ from uuid import uuid4
 
 import pytest
 from alembic import command
+from alembic.script import ScriptDirectory
 from sqlalchemy import MetaData, Table, create_engine, inspect, select, text
 from sqlalchemy.engine import URL, make_url
-from sqlalchemy.dialects import postgresql
 
-from models import MasterResumeRecord, TailoredResumeRecord
-from postgres_test_support import alembic_config, disposable_postgres_database
+from postgres_test_support import alembic_config, disposable_postgres_database, schema_drift
 
 
 BACKEND_DIR = Path(__file__).resolve().parent
 INITIAL_REVISION = "f8ed9f77d689"
-HEAD_REVISION = "d4a1b2c3e4f5"
 TECH_FIXTURE = BACKEND_DIR / "data" / "fixtures" / "tech_fixture.json"
 
 
@@ -28,40 +26,34 @@ def _normalized_type_name(type_name: str) -> str:
     )
 
 
-def _expected_model_column_types() -> dict[str, dict[str, str]]:
-    dialect = postgresql.dialect()
-    return {
-        table.name: {
-            column.name: _normalized_type_name(column.type.compile(dialect=dialect))
-            for column in table.columns
-        }
-        for table in (MasterResumeRecord.__table__, TailoredResumeRecord.__table__)
-    }
+def _head_revision() -> str:
+    return ScriptDirectory.from_config(
+        alembic_config(make_url("postgresql+psycopg://unused/unused"))
+    ).get_current_head()
 
 
-EXPECTED_MODEL_COLUMN_TYPES = _expected_model_column_types()
+def _assign_pre_ownership_rows_to_user(database_url: URL) -> str:
+    """At b7a9c2d4e6f8, give every existing resume row a real owner.
 
-
-def _assert_schema_matches_models(database_url: URL) -> None:
+    Rows written before authentication have no owner, and the head migration
+    deletes those, so tests that carry old rows forward must adopt them first.
+    """
+    user_id = uuid4().hex
     engine = create_engine(database_url)
     try:
-        inspector = inspect(engine)
-        dialect = postgresql.dialect()
-        assert {"tailored_resumes", "master_resumes", "alembic_version"} <= set(
-            inspector.get_table_names()
-        )
-
-        for table_name, expected_types in EXPECTED_MODEL_COLUMN_TYPES.items():
-            actual_types = {
-                column["name"]: _normalized_type_name(column["type"].compile(dialect=dialect))
-                for column in inspector.get_columns(table_name)
-            }
-            assert set(expected_types) <= set(actual_types)
-            assert {
-                name: actual_types[name] for name in expected_types
-            } == expected_types
+        with engine.begin() as connection:
+            connection.execute(
+                text("""
+                    INSERT INTO users (id, email, password_hash, failed_login_count, created_at)
+                    VALUES (:id, 'owner@example.com', 'not-a-real-hash', 0, now())
+                """),
+                {"id": user_id},
+            )
+            for table in ("master_resumes", "tailored_resumes"):
+                connection.execute(text(f"UPDATE {table} SET user_id = :id"), {"id": user_id})
     finally:
         engine.dispose()
+    return user_id
 
 
 def _payload_column_types(database_url: URL) -> dict[str, str]:
@@ -96,11 +88,11 @@ def migration_database() -> URL:
 def test_revision_chain_applies_from_empty_database(migration_database: URL):
     command.upgrade(alembic_config(migration_database), "head")
 
-    _assert_schema_matches_models(migration_database)
+    assert schema_drift(migration_database) == []
     engine = create_engine(migration_database)
     try:
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD_REVISION
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == _head_revision()
     finally:
         engine.dispose()
 
@@ -168,8 +160,10 @@ def test_jsonb_conversion_preserves_existing_payloads(migration_database: URL):
         f"{migration_database.render_as_string(hide_password=False)}"
         "?options=-c+TimeZone=America/Chicago"
     )
+    command.upgrade(alembic_config(non_utc_database), "b7a9c2d4e6f8")
+    _assign_pre_ownership_rows_to_user(non_utc_database)
     command.upgrade(alembic_config(non_utc_database), "head")
-    _assert_schema_matches_models(non_utc_database)
+    assert schema_drift(non_utc_database) == []
     assert _payload_column_types(non_utc_database) == {
         "resume_data": "JSONB",
         "selected_keywords": "JSONB",
@@ -216,6 +210,8 @@ def test_skill_dictionary_migration_leaves_existing_rows_null(migration_database
     finally:
         engine.dispose()
 
+    command.upgrade(alembic_config(migration_database), "b7a9c2d4e6f8")
+    _assign_pre_ownership_rows_to_user(migration_database)
     command.upgrade(alembic_config(migration_database), "head")
     engine = create_engine(migration_database)
     try:
@@ -225,6 +221,61 @@ def test_skill_dictionary_migration_leaves_existing_rows_null(migration_database
             """)).scalar_one() is None
     finally:
         engine.dispose()
+
+
+def test_ownership_migration_deletes_null_owner_rows_and_keeps_owned_rows(
+    migration_database: URL,
+):
+    command.upgrade(alembic_config(migration_database), "b7a9c2d4e6f8")
+    owner_id = uuid4().hex
+    engine = create_engine(migration_database)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("""
+                    INSERT INTO users (id, email, password_hash, failed_login_count, created_at)
+                    VALUES (:id, 'owner@example.com', 'not-a-real-hash', 0, now())
+                """),
+                {"id": owner_id},
+            )
+            for row_id, user_id in (("master-owned", owner_id), ("master-orphan", None)):
+                connection.execute(
+                    text("""
+                        INSERT INTO master_resumes
+                            (id, created_at, updated_at, name, target_role, resume_data, user_id)
+                        VALUES (:id, now(), now(), 'Avery', 'Technician', '{}'::jsonb, :user_id)
+                    """),
+                    {"id": row_id, "user_id": user_id},
+                )
+            for row_id, user_id in (("tailored-owned", owner_id), ("tailored-orphan", None)):
+                connection.execute(
+                    text("""
+                        INSERT INTO tailored_resumes
+                            (id, created_at, company, job_title, profile, job_description,
+                             selected_keywords, tailored_resume, user_id)
+                        VALUES (:id, now(), 'Co', 'Role', 'p', 'jd', '[]'::jsonb, '{}'::jsonb, :user_id)
+                    """),
+                    {"id": row_id, "user_id": user_id},
+                )
+    finally:
+        engine.dispose()
+
+    command.upgrade(alembic_config(migration_database), "e5b2c8f1a9d3")
+
+    engine = create_engine(migration_database)
+    try:
+        with engine.connect() as connection:
+            masters = connection.execute(
+                text("SELECT id, user_id FROM master_resumes ORDER BY id")
+            ).all()
+            tailored = connection.execute(
+                text("SELECT id, user_id FROM tailored_resumes ORDER BY id")
+            ).all()
+    finally:
+        engine.dispose()
+
+    assert masters == [("master-owned", owner_id)]
+    assert tailored == [("tailored-owned", owner_id)]
 
 
 def test_revision_chain_downgrades_to_base(migration_database: URL):

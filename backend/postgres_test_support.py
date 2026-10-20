@@ -2,15 +2,20 @@
 import os
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from alembic import command
+from alembic.autogenerate import compare_metadata
 from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, URL, make_url
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import Session
+from sqlmodel import Session, SQLModel
+
+from models import User
 
 
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -24,6 +29,27 @@ def alembic_config(database_url: URL) -> Config:
         hide_password=False
     ).replace("%", "%%")
     return config
+
+
+def schema_drift(database_url: URL) -> list[str]:
+    """Differences `alembic check` would report between the database and the models.
+
+    Uses the same comparison options as alembic/env.py (compare_type=True).
+    An empty list means the migrated schema matches the models exactly.
+    """
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            context = MigrationContext.configure(connection, opts={"compare_type": True})
+            diffs = compare_metadata(context, SQLModel.metadata)
+    finally:
+        engine.dispose()
+    # Table-level changes are tuples; column changes arrive grouped in lists.
+    return [
+        repr(diff)
+        for entry in diffs
+        for diff in (entry if isinstance(entry, list) else [entry])
+    ]
 
 
 @contextmanager
@@ -101,3 +127,19 @@ def postgres_session(postgres_persistence_engine: Engine):
             yield session
     finally:
         _truncate_persistence_tables(postgres_persistence_engine)
+
+
+@pytest.fixture
+def postgres_user(postgres_session: Session) -> User:
+    """A persisted user that owns the rows a test creates through routes."""
+    user = User(email="owner@example.com", password_hash="not-a-real-hash")
+    postgres_session.add(user)
+    postgres_session.commit()
+    postgres_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def owner_request(postgres_user: User) -> SimpleNamespace:
+    """Stands in for the Request the auth middleware stamps with state.user_id."""
+    return SimpleNamespace(state=SimpleNamespace(user_id=postgres_user.id))

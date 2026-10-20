@@ -32,6 +32,7 @@ def _resume() -> dict:
 def _persist(
     db,
     *,
+    user_id: str,
     company: str = "Example Co",
     profile: str = "tech_fixture",
     resume: dict | None = None,
@@ -49,13 +50,15 @@ def _persist(
         final_resume=resume if resume is not None else _resume(),
         ats_score=ats_score,
         pdf_path="outputs/example-platform-engineer.pdf",
+        user_id=user_id,
     )
 
 
-def test_generation_persistence_round_trips_every_intended_field(postgres_session):
+def test_generation_persistence_round_trips_every_intended_field(postgres_session, postgres_user):
     resume = _resume()
     record = _persist(
         postgres_session,
+        user_id=postgres_user.id,
         resume=resume,
         ats_score={"overall_score": 91, "keyword_coverage": 0.75},
     )
@@ -82,8 +85,8 @@ def test_generation_persistence_round_trips_every_intended_field(postgres_sessio
     assert stored.created_at == expected_created_at
 
 
-def test_generation_persistence_keeps_null_ats_scores(postgres_session):
-    record = _persist(postgres_session)
+def test_generation_persistence_keeps_null_ats_scores(postgres_session, postgres_user):
+    record = _persist(postgres_session, user_id=postgres_user.id)
     postgres_session.expire_all()
     stored = postgres_session.get(TailoredResumeRecord, record.id)
 
@@ -92,10 +95,10 @@ def test_generation_persistence_keeps_null_ats_scores(postgres_session):
     assert stored.ats_keyword_coverage is None
 
 
-def test_history_lists_newest_first_and_filters_profile(postgres_session):
-    oldest = _persist(postgres_session, company="Oldest", profile="tech_fixture")
-    middle = _persist(postgres_session, company="Middle", profile="clinical_fixture")
-    newest = _persist(postgres_session, company="Newest", profile="tech_fixture")
+def test_history_lists_newest_first_and_filters_profile(postgres_session, postgres_user, owner_request):
+    oldest = _persist(postgres_session, user_id=postgres_user.id, company="Oldest", profile="tech_fixture")
+    middle = _persist(postgres_session, user_id=postgres_user.id, company="Middle", profile="clinical_fixture")
+    newest = _persist(postgres_session, user_id=postgres_user.id, company="Newest", profile="tech_fixture")
     oldest.created_at = datetime(2026, 9, 14, 10, 0, tzinfo=timezone.utc)
     middle.created_at = datetime(2026, 9, 14, 11, 0, tzinfo=timezone.utc)
     newest.created_at = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
@@ -103,8 +106,8 @@ def test_history_lists_newest_first_and_filters_profile(postgres_session):
     postgres_session.commit()
     postgres_session.expire_all()
 
-    all_history = list_history(db=postgres_session)
-    tech_history = list_history(profile="tech_fixture", db=postgres_session)
+    all_history = list_history(db=postgres_session, http_request=owner_request)
+    tech_history = list_history(profile="tech_fixture", db=postgres_session, http_request=owner_request)
 
     assert [item.id for item in all_history.records] == [newest.id, middle.id, oldest.id]
     assert [item.created_at for item in all_history.records] == [
@@ -117,37 +120,37 @@ def test_history_lists_newest_first_and_filters_profile(postgres_session):
     assert tech_history.total == 2
 
 
-def test_history_fetch_delete_and_restore_real_record(postgres_session, monkeypatch):
+def test_history_fetch_delete_and_restore_real_record(postgres_session, postgres_user, owner_request, monkeypatch):
     resume = _resume()
-    record = _persist(postgres_session, resume=resume)
+    record = _persist(postgres_session, user_id=postgres_user.id, resume=resume)
     record.created_at = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
     postgres_session.add(record)
     postgres_session.commit()
     postgres_session.expire_all()
 
-    fetched = get_history_record(record.id, postgres_session)
+    fetched = get_history_record(record.id, postgres_session, http_request=owner_request)
     assert fetched.id == record.id
     assert fetched.created_at == "2026-09-14T12:00:00+00:00"
     assert fetched.selected_keywords == ["FastAPI", "PostgreSQL", "JSONB"]
 
     restored = {}
-    monkeypatch.setattr("routes.history._store_resume", lambda session_id, value: restored.update({session_id: value}))
-    result = restore_session(record.id, postgres_session)
-    assert restored[result["session_id"]] == resume
+    monkeypatch.setattr("routes.history._store_resume", lambda session_id, value, user_id: restored.update({session_id: (value, user_id)}))
+    result = restore_session(record.id, postgres_session, http_request=owner_request)
+    assert restored[result["session_id"]] == (resume, owner_request.state.user_id)
 
-    deleted = delete_history_record(record.id, postgres_session)
+    deleted = delete_history_record(record.id, postgres_session, http_request=owner_request)
     assert deleted.deleted is True
     with pytest.raises(HTTPException, match="Record not found") as exc_info:
-        get_history_record(record.id, postgres_session)
+        get_history_record(record.id, postgres_session, http_request=owner_request)
     assert exc_info.value.status_code == 404
 
     with pytest.raises(HTTPException, match="Record not found") as exc_info:
-        get_history_record("missing-record", postgres_session)
+        get_history_record("missing-record", postgres_session, http_request=owner_request)
     assert exc_info.value.status_code == 404
 
 
-def test_cover_letter_store_updates_existing_record_without_insert(postgres_session):
-    record = _persist(postgres_session)
+def test_cover_letter_store_updates_existing_record_without_insert(postgres_session, postgres_user):
+    record = _persist(postgres_session, user_id=postgres_user.id)
     _store_cover_letter(postgres_session, record.id, "Dear Hiring Manager,\n\nStored letter")
     postgres_session.expire_all()
 
@@ -157,15 +160,15 @@ def test_cover_letter_store_updates_existing_record_without_insert(postgres_sess
     assert records[0].cover_letter == "Dear Hiring Manager,\n\nStored letter"
 
 
-def test_cover_letter_none_reads_back_and_download_routes_use_real_record(postgres_session, monkeypatch, tmp_path):
-    no_letter = _persist(postgres_session)
+def test_cover_letter_none_reads_back_and_download_routes_use_real_record(postgres_session, postgres_user, owner_request, monkeypatch, tmp_path):
+    no_letter = _persist(postgres_session, user_id=postgres_user.id)
     postgres_session.expire_all()
     assert postgres_session.get(TailoredResumeRecord, no_letter.id).cover_letter is None
     with pytest.raises(HTTPException, match="No cover letter stored") as exc_info:
-        download_history_cover_letter(no_letter.id, postgres_session)
+        download_history_cover_letter(no_letter.id, postgres_session, http_request=owner_request)
     assert exc_info.value.status_code == 404
 
-    stored = _persist(postgres_session, company="Letter Co")
+    stored = _persist(postgres_session, user_id=postgres_user.id, company="Letter Co")
     _store_cover_letter(postgres_session, stored.id, "Dear Hiring Manager,\n\nStored letter")
 
     def write_pdf(letter, output_path):
@@ -174,20 +177,20 @@ def test_cover_letter_none_reads_back_and_download_routes_use_real_record(postgr
 
     monkeypatch.setattr("routes.history.OUTPUTS_DIR", tmp_path)
     monkeypatch.setattr("routes.history.build_cover_letter_pdf", write_pdf)
-    response = download_history_cover_letter(stored.id, postgres_session)
+    response = download_history_cover_letter(stored.id, postgres_session, http_request=owner_request)
 
     assert response.media_type == "application/pdf"
     assert "Alex-Example-Letter-Co-Platform-Engineer-Cover-Letter.pdf" in response.headers["content-disposition"]
     assert response.headers["cache-control"] == "no-store"
 
 
-def test_jsonb_payloads_round_trip_nested_unicode_and_quotes(postgres_session, postgres_persistence_engine):
+def test_jsonb_payloads_round_trip_nested_unicode_and_quotes(postgres_session, postgres_user, postgres_persistence_engine):
     resume = _resume()
     resume["round_trip"] = {
         "nested": [{"city": "Montréal", "quote": "She said, \"ship it\"."}],
         "values": ["résumé", {"emoji": "✓"}],
     }
-    record = _persist(postgres_session, resume=resume)
+    record = _persist(postgres_session, user_id=postgres_user.id, resume=resume)
     postgres_session.expire_all()
     stored = postgres_session.get(TailoredResumeRecord, record.id)
 
@@ -214,7 +217,7 @@ def test_jsonb_payloads_round_trip_nested_unicode_and_quotes(postgres_session, p
 
 
 def test_master_skill_dictionary_round_trips_as_jsonb_and_defaults_to_null(
-    postgres_session, postgres_persistence_engine
+    postgres_session, postgres_user, postgres_persistence_engine
 ):
     dictionary = {
         "terms": {"venipuncture": "clinical"},
@@ -224,10 +227,10 @@ def test_master_skill_dictionary_round_trips_as_jsonb_and_defaults_to_null(
         "last_attempt_failed": False,
     }
     with_dictionary = MasterResumeRecord(
-        name="Dictionary", target_role="Technician", resume_data={}, skill_dictionary=dictionary
+        user_id=postgres_user.id, name="Dictionary", target_role="Technician", resume_data={}, skill_dictionary=dictionary
     )
     without_dictionary = MasterResumeRecord(
-        name="No Dictionary", target_role="Technician", resume_data={}
+        user_id=postgres_user.id, name="No Dictionary", target_role="Technician", resume_data={}
     )
     postgres_session.add_all([with_dictionary, without_dictionary])
     postgres_session.commit()
