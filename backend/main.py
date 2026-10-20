@@ -61,10 +61,21 @@ if os.getenv("APP_ENV") == "production":
     if missing or not REQUIRE_HTTPS or os.getenv("SESSION_COOKIE_SECURE", "true").lower() != "true":
         raise RuntimeError("Production security configuration is incomplete.")
 
+def docs_settings(app_env: str | None) -> dict[str, str | None]:
+    """Interactive API docs and the OpenAPI schema are served outside production.
+
+    They are unauthenticated and list every route, so production answers 404.
+    """
+    if app_env == "production":
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
+
+
 app = FastAPI(
     title="ATS Resume Builder",
     description="Tailors resumes for specific job descriptions using Claude.",
     version="1.0.0",
+    **docs_settings(os.getenv("APP_ENV")),
 )
 
 _raw_origins = os.getenv(

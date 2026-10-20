@@ -68,13 +68,16 @@ PUBLIC = {
     ("POST", "/api/auth/verify-email"),
     ("GET", "/health"),
     ("GET", "/health/ready"),
+    # Needs a session cookie but answers 401 itself rather than through the
+    # /api/ middleware, so it is checked in the authentication tests instead.
+    ("GET", "/api/auth/me"),
+}
+# Registered only outside production (main.docs_settings); a 404 there.
+DOCS_ROUTES = {
     ("GET", "/docs"),
     ("GET", "/docs/oauth2-redirect"),
     ("GET", "/openapi.json"),
     ("GET", "/redoc"),
-    # Needs a session cookie but answers 401 itself rather than through the
-    # /api/ middleware, so it is checked in the authentication tests instead.
-    ("GET", "/api/auth/me"),
 }
 
 
@@ -570,8 +573,13 @@ def test_generate_cover_letter_with_a_supplied_resume_uses_only_that_resume(worl
 
 def test_every_route_is_covered_or_explicitly_exempt():
     registered = _app_routes()
-    accounted = ISOLATION_COVERED | STATELESS_AUTHENTICATED | PUBLIC
+    accounted = ISOLATION_COVERED | STATELESS_AUTHENTICATED | PUBLIC | DOCS_ROUTES
+    docs_enabled = main.app.openapi_url is not None
 
+    assert (DOCS_ROUTES <= registered) if docs_enabled else not (DOCS_ROUTES & registered), (
+        "Docs routes must exist exactly when main.docs_settings enables them"
+    )
+    registered |= DOCS_ROUTES if not docs_enabled else set()  # absent by design in production
     assert not registered - accounted, (
         "Routes with no isolation coverage or exemption (add them to "
         f"ISOLATION_COVERED, STATELESS_AUTHENTICATED or PUBLIC): {sorted(registered - accounted)}"
