@@ -73,7 +73,7 @@ desktop.ini
 .pytest-tmp/
 .coverage
 htmlcov/
-.mypy_cache/backend/data/*.json
+.mypy_cache/
 backend/data/*.JSON
 
 
