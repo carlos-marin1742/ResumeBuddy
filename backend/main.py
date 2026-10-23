@@ -38,6 +38,7 @@ from services.security_logging import audit, configure_logging
 from services import readiness
 from services.ownership import OwnershipContextError
 from services.pdf_concurrency import PdfBusyError, PdfRenderTimeoutError
+from services.production_config import validate_production_config
 from services.registration import registration_mode
 from services.static_profiles import static_profiles_enabled
 
@@ -45,11 +46,7 @@ SECURITY_LOG = configure_logging()
 REQUIRE_HTTPS = os.getenv("REQUIRE_HTTPS", "false").lower() == "true"
 static_profiles_enabled()
 
-if os.getenv("APP_ENV") == "production":
-    required_settings = ("AUTH_TOKEN_PEPPER", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "SMTP_HOST", "SMTP_FROM")
-    missing = [name for name in required_settings if not os.getenv(name)]
-    if missing or not REQUIRE_HTTPS or os.getenv("SESSION_COOKIE_SECURE", "true").lower() != "true":
-        raise RuntimeError("Production security configuration is incomplete.")
+validate_production_config()
 
 def docs_settings(app_env: str | None) -> dict[str, str | None]:
     """Interactive API docs and the OpenAPI schema are served outside production.
