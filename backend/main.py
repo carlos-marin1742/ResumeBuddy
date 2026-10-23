@@ -49,6 +49,7 @@ from services.security_logging import audit, configure_logging
 from services import readiness
 from services.ownership import OwnershipContextError
 from services.pdf_concurrency import PdfBusyError, PdfRenderTimeoutError
+from services.registration import registration_mode
 from services.static_profiles import static_profiles_enabled
 
 SECURITY_LOG = configure_logging()
@@ -97,6 +98,7 @@ app.add_middleware(
 def validate_database_configuration() -> None:
     """Fail application startup before accepting requests without a database."""
     get_database_url()
+    registration_mode()
 
 MAX_JSON_BODY_BYTES = 1 * 1024 * 1024
 MAX_UPLOAD_BODY_BYTES = 5 * 1024 * 1024 + 64 * 1024

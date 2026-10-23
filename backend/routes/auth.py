@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from db import get_session
 from models import User, UserSession
 from services.auth_service import (LOGIN_LOCK_MINUTES, MAX_LOGIN_FAILURES, SESSION_COOKIE, as_utc, consume_token, create_session, digest, hash_password, issue_token, send_email, utcnow, verify_password)
+from services.registration import registration_allowed, registration_open
 from services.security_logging import audit
 from services.input_validation import StrictRequest
 
@@ -25,13 +26,21 @@ class CurrentUser(BaseModel): email: EmailStr
 def email(value): return str(value).strip().casefold()
 def set_cookie(response, raw): response.set_cookie(SESSION_COOKIE, raw, httponly=True, secure=os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true", samesite="lax", max_age=int(os.getenv("SESSION_ABSOLUTE_HOURS", "12"))*3600, path="/")
 
+REGISTER_MESSAGE = "If this address can register, a verification email has been sent."
+
+@router.get("/config")
+def auth_config():
+    return {"registration_open": registration_open()}
+
 @router.post("/register", response_model=Message, status_code=status.HTTP_202_ACCEPTED)
 def register(payload: Credentials, db: Session = Depends(get_session)):
     address = email(payload.email)
-    if db.exec(select(User).where(User.email == address)).first(): return Message(detail="If this address can register, a verification email has been sent.")
-    user = User(email=address, password_hash=hash_password(payload.password)); db.add(user); db.flush()
+    # Hash on every path so refused, existing and new addresses cost the same bcrypt time.
+    password_hash = hash_password(payload.password)
+    if not registration_allowed(address) or db.exec(select(User).where(User.email == address)).first(): return Message(detail=REGISTER_MESSAGE)
+    user = User(email=address, password_hash=password_hash); db.add(user); db.flush()
     token = issue_token(db, user, "verify_email"); send_email(address, "Verify your ResumeBuddy email", f"{PUBLIC_URL}/verify-email?token={token}"); db.commit()
-    return Message(detail="If this address can register, a verification email has been sent.")
+    return Message(detail=REGISTER_MESSAGE)
 
 @router.post("/verify-email", response_model=Message)
 def verify_email(payload: TokenRequest, db: Session = Depends(get_session)):

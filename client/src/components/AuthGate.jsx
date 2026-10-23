@@ -15,19 +15,22 @@ export default function AuthGate({ children }) {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    // Only signed-out visitors need this. Registration stays hidden unless the server says it is open, including when the request fails.
+    const loadConfig = () => api("/config").then((config) => setRegistrationOpen(config.registration_open === true)).catch(() => {});
     const token = new URLSearchParams(window.location.search).get("token");
     const isVerify = window.location.pathname === "/verify-email";
     if (token && isVerify) {
       api("/verify-email", { method: "POST", body: JSON.stringify({ token }) })
-        .then((data) => setMessage(data.detail)).catch((error) => setMessage(error.message)).finally(() => setReady(true));
+        .then((data) => setMessage(data.detail)).catch((error) => setMessage(error.message)).then(loadConfig).finally(() => setReady(true));
       return;
     }
-    api("/me").then(() => setSignedIn(true)).catch(() => {}).finally(() => setReady(true));
+    api("/me").then(() => setSignedIn(true)).catch(loadConfig).finally(() => setReady(true));
   }, []);
 
   if (!ready) return <main className="app"><p>Checking your session…</p></main>;
@@ -49,6 +52,6 @@ export default function AuthGate({ children }) {
       <button className="btn btn-primary" type="submit">{registering ? "Create account" : "Sign in"}</button>
     </form>
     {message && <p role="status">{message}</p>}
-    <button className="btn btn-secondary" type="button" onClick={() => { setRegistering(!registering); setMessage(""); }}>{registering ? "Already have an account? Sign in" : "Need an account? Register"}</button>
+    {registrationOpen && <button className="btn btn-secondary" type="button" onClick={() => { setRegistering(!registering); setMessage(""); }}>{registering ? "Already have an account? Sign in" : "Need an account? Register"}</button>}
   </section></main>;
 }

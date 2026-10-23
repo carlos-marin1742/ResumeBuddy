@@ -18,6 +18,7 @@ def auth_client(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database_path.as_posix()}")
     monkeypatch.setenv("DATABASE_PASSWORD_FILE", "")
     monkeypatch.setenv("AUTH_TOKEN_PEPPER", "auth-middleware-test-pepper")
+    monkeypatch.setenv("REGISTRATION_MODE", "open")
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
     monkeypatch.setenv("STATIC_PROFILES_ENABLED", "false")

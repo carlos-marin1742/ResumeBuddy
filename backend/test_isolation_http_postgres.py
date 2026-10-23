@@ -66,6 +66,7 @@ PUBLIC = {
     ("POST", "/api/auth/password-reset/confirm"),
     ("POST", "/api/auth/register"),
     ("POST", "/api/auth/verify-email"),
+    ("GET", "/api/auth/config"),
     ("GET", "/health"),
     ("GET", "/health/ready"),
     # Needs a session cookie but answers 401 itself rather than through the
@@ -165,6 +166,7 @@ def _apply_http_patches(monkeypatch, database_url: str) -> None:
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("DATABASE_PASSWORD_FILE", "")
     monkeypatch.setenv("AUTH_TOKEN_PEPPER", "isolation-test-pepper")
+    monkeypatch.setenv("REGISTRATION_MODE", "open")
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
     monkeypatch.setenv("STATIC_PROFILES_ENABLED", "false")
