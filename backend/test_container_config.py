@@ -40,3 +40,16 @@ def test_start_command_runs_a_single_worker(dockerfile):
     cmd = _instruction(dockerfile, "CMD")
     assert "--workers" not in cmd
     assert "memory" in dockerfile.lower() and "RESUME_STORE" in dockerfile
+
+
+def test_test_only_helper_modules_are_kept_out_of_the_image():
+    ignored = {line.strip() for line in (DOCKERFILE.parent / ".dockerignore").read_text(encoding="utf-8").splitlines()}
+    backend = DOCKERFILE.parent / "backend"
+    helpers = [
+        path.name
+        for path in backend.glob("*.py")
+        if not path.name.startswith("test_") and "import pytest" in path.read_text(encoding="utf-8")
+    ]
+    assert helpers, "expected at least one test helper module"
+    leaked = [name for name in helpers if f"backend/{name}" not in ignored]
+    assert leaked == []

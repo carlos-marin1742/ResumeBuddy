@@ -17,6 +17,7 @@ backend/outputs/
 backend/**/test_*.py
 backend/conftest.py
 backend/postgres_test_support.py
+backend/auth_http_support.py
 backend/smoke_*.py
 backend/data/fixtures/
 backend/services/golden/
