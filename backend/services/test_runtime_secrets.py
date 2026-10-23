@@ -114,11 +114,22 @@ def test_loader_fails_when_a_secret_is_set_both_ways(monkeypatch, tmp_path):
         ("postgresql://u:p@h:5432/d", "postgresql+psycopg://u:p@h:5432/d"),
         ("postgresql+psycopg://u:p@h:5432/d", "postgresql+psycopg://u:p@h:5432/d"),
         ("sqlite://", "sqlite://"),
+        ("postgres://u:p@h/d?sslmode=require", "postgresql+psycopg://u:p@h/d?sslmode=require"),
+        ("postgresql://u:p@h:5432/d?sslmode=require&connect_timeout=5", "postgresql+psycopg://u:p@h:5432/d?sslmode=require&connect_timeout=5"),
     ],
 )
 def test_database_url_scheme_is_normalized_to_the_psycopg_driver(monkeypatch, given, expected):
     monkeypatch.setenv("DATABASE_URL", given)
     assert db.get_database_url() == expected
+
+
+def test_sslmode_query_reaches_the_driver_after_normalization(monkeypatch):
+    from sqlalchemy.engine import make_url
+
+    monkeypatch.setenv("DATABASE_URL", "postgres://u:p@h/d?sslmode=require")
+    url = make_url(db.get_database_url())
+    assert url.drivername == "postgresql+psycopg"
+    assert dict(url.query) == {"sslmode": "require"}
 
 
 def test_database_password_from_a_plain_env_var(monkeypatch):

@@ -1,0 +1,39 @@
+# Render Blueprint: one Docker web service and one managed Postgres database.
+# Secret values are never stored here; Render prompts for each `sync: false`
+# variable when the Blueprint is first created. See docs/deploy-render.md.
+services:
+  - type: web
+    name: resumebuddy
+    runtime: docker
+    plan: 0.5c-512mb
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: resumebuddy-db
+          property: connectionString
+      - key: APP_ENV
+        value: production
+      - key: REQUIRE_HTTPS
+        value: "true"
+      - key: PDF_MAX_CONCURRENCY
+        value: "1"
+      - key: AUTH_TOKEN_PEPPER
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+databases:
+  - name: resumebuddy-db
+    plan: 0.1c-256mb
+    region: ohio
+    databaseName: resumebuddy
+    user: resumebuddy
