@@ -17,20 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from services.runtime_secrets import load_runtime_secrets
+
 load_dotenv()
-
-
-def load_runtime_secrets() -> None:
-    """Load Docker/Kubernetes file-mounted secrets without logging their values."""
-    for name in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "AUTH_TOKEN_PEPPER", "SMTP_USERNAME", "SMTP_PASSWORD"):
-        secret_file = os.getenv(f"{name}_FILE")
-        if secret_file and not os.getenv(name):
-            try:
-                os.environ[name] = Path(secret_file).read_text(encoding="utf-8").strip()
-            except OSError as exc:
-                raise RuntimeError(f"Required secret {name} is unavailable.") from exc
-
-
 load_runtime_secrets()
 
 from routes.extract import router as extract_router

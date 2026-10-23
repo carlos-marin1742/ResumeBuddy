@@ -35,8 +35,11 @@ def digest(value: str) -> str:
     return hashlib.sha256(f"{pepper}:{value}".encode()).hexdigest()
 
 
+MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH = 12, 128
+
+
 def hash_password(password: str) -> str:
-    if not 12 <= len(password) <= 128:
+    if not MIN_PASSWORD_LENGTH <= len(password) <= MAX_PASSWORD_LENGTH:
         raise HTTPException(status_code=422, detail="Password must be 12 to 128 characters.")
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
 
