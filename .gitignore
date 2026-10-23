@@ -75,3 +75,11 @@ desktop.ini
 htmlcov/
 .mypy_cache/backend/data/*.json
 backend/data/*.JSON
+
+
+# ── Data — ignore everything except fixtures and schema ──────
+backend/data/*
+!backend/data/fixtures/
+!backend/data/fixtures/*.json
+!backend/data/base_resume_schema.md
+*.db
