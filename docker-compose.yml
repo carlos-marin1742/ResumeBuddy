@@ -23,6 +23,8 @@ services:
     environment:
       APP_ENV: production
       REQUIRE_HTTPS: "true"
+      # Caddy reaches the app from another container; keep trusting its forwarded headers.
+      FORWARDED_ALLOW_IPS: "*"
       DATABASE_HOST: postgres
       DATABASE_NAME: resumebuddy
       DATABASE_USER: resumebuddy

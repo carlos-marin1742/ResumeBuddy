@@ -9,24 +9,30 @@ dependency; it does not create or migrate tables at application startup.
 """
 import os
 from functools import lru_cache
-from pathlib import Path
 from urllib.parse import quote_plus
 
 from sqlmodel import Session, create_engine
 
+from services.runtime_secrets import read_secret
+
 # ── Database location ─────────────────────────────────────────────────
+def normalize_database_url(url: str) -> str:
+    """Point bare postgres:// and postgresql:// URLs at the installed psycopg 3 driver.
+
+    Hosting platforms hand out the bare schemes; SQLAlchemy would read them as
+    psycopg2 (not installed) or reject them.
+    """
+    for bare in ("postgres://", "postgresql://"):
+        if url.startswith(bare):
+            return "postgresql+psycopg://" + url[len(bare):]
+    return url
+
+
 def _database_url() -> str:
     """Build the deployment connection URL without placing its password in env."""
     if url := os.getenv("DATABASE_URL"):
-        return url
-    password_file = os.getenv("DATABASE_PASSWORD_FILE")
-    if password_file:
-        try:
-            password = Path(password_file).read_text(encoding="utf-8").strip()
-        except OSError as exc:
-            raise RuntimeError("Database password secret is unavailable.") from exc
-        if not password:
-            raise RuntimeError("Database password secret is empty.")
+        return normalize_database_url(url)
+    if (password := read_secret("DATABASE_PASSWORD")) is not None:
         return (
             "postgresql+psycopg://"
             f"{quote_plus(os.getenv('DATABASE_USER', 'resumebuddy'))}:"
@@ -35,7 +41,7 @@ def _database_url() -> str:
         )
     raise RuntimeError(
         "Database configuration is required. Set DATABASE_URL locally or "
-        "DATABASE_PASSWORD_FILE in a secret-managed deployment."
+        "DATABASE_PASSWORD_FILE (or DATABASE_PASSWORD) in a deployment."
     )
 
 

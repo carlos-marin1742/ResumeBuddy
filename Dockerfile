@@ -58,10 +58,16 @@ RUN mkdir -p outputs && useradd --create-home --uid 10001 appuser && chown -R ap
 
 USER appuser
 
+# The app listens on $PORT (hosting platforms set it) and defaults to 8000.
 EXPOSE 8000
 
 # Liveness only (/health). The forwarded-proto header satisfies REQUIRE_HTTPS.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/health', headers={'X-Forwarded-Proto': 'https'}), timeout=4)"]
+    CMD ["python", "-c", "import os, urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:%s/health' % os.environ.get('PORT', '8000'), headers={'X-Forwarded-Proto': 'https'}), timeout=4)"]
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"]
+# Keep this at one uvicorn worker: RESUME_STORE and the rate-limit counters live
+# in process memory, so extra workers would each hold their own copy and
+# per-IP/per-user limits and in-flight resume sessions would stop being shared.
+# FORWARDED_ALLOW_IPS names the proxy addresses whose X-Forwarded-* headers are
+# trusted; the default trusts only loopback, so set it for the platform's proxy.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-127.0.0.1}"]
