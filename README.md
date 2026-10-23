@@ -260,6 +260,36 @@ Point the DNS record to the host before starting Compose so Caddy can complete
 ACME validation. Do not publish port 5432 or 8000 through another
 firewall/load-balancer rule.
 
+### First deploy on a platform that injects plain env vars (closed registration)
+
+This is the smallest set that boots `APP_ENV=production` with `REGISTRATION_MODE` unset (closed), verified by
+booting the production image with exactly these variables. No SMTP, `PUBLIC_APP_URL` or `*_FILE` secret is needed
+while nobody can register and no email is sent.
+
+Required:
+
+| Variable | Notes |
+|---|---|
+| `APP_ENV` | `production` |
+| `REQUIRE_HTTPS` | `true` (startup refuses anything else in production) |
+| `DATABASE_URL` | `postgres://` or `postgresql://` is rewritten to the psycopg 3 driver |
+| `AUTH_TOKEN_PEPPER` | at least 32 characters |
+| `ANTHROPIC_API_KEY` | |
+| `GROQ_API_KEY` | |
+
+Optional: `PORT` (the platform usually sets it; default 8000), `FORWARDED_ALLOW_IPS` (default `127.0.0.1`; until it
+includes your proxy every user shares the proxy's address for rate limits and logs), `PDF_MAX_CONCURRENCY`,
+`ALLOWED_ORIGINS` (not needed when the SPA and API share an origin), `LOG_LEVEL`, `STATIC_PROFILES_ENABLED` (leave unset).
+`SESSION_COOKIE_SECURE` defaults to true and must stay true in production.
+
+Add users with the admin script in the service shell: `python -m scripts.manage_users create you@example.com`.
+
+Email is only needed once `REGISTRATION_MODE` is `allowlist` or `open`, or when you set `SMTP_HOST`. Then startup
+also requires `SMTP_HOST`, `SMTP_FROM` and `PUBLIC_APP_URL` (an `https://` URL that is not localhost). A bad
+setting stops startup with an error that names the variable, never its value. If sending fails at runtime the
+request still answers with the normal 202, one generic `email_delivery_failed` log event is written, and a new
+registration is rolled back so the address can try again.
+
 The application returns `429 Too Many Requests` for automated abuse. Configure
 the IP and account ceilings in `.env` from `.env.example`; monitor structured
 `*_rate_limit_exceeded` and `suspicious_client_pattern` log events. The shipped

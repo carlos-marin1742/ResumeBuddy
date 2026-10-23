@@ -133,7 +133,19 @@ The former broader pytest collection blockers were resolved by removing obsolete
 - Validation (Docker, `rb-test` image with the working tree mounted, against a throwaway `postgres:16`): backend 433 passed with PostgreSQL; 336 passed and 97 skipped without it. Frontend: 91 passed plus the one expected failure; ESLint 0 errors, 2 existing warnings. The baseline quoted in the task (377 and 299/78) was stale; the tree measured 383 and 304/79 before any change.
 - Existing HTTP auth tests now set `REGISTRATION_MODE=open` themselves.
 - Known gap: open-registration hardening is pending: per-account login throttling, and an Origin check that currently lets requests with no Origin header through.
-- Not verified: a full `docker build` of the image and a deploy on the hosting platform; the start command and healthcheck were exercised by hand with `PORT=9123` in the test image.
+- Not verified then: a full `docker build` and a deploy on the hosting platform (the production image build and boot are covered in batch 2 below; a real hosting deploy is not).
+
+## Private-Deploy Batch 2 (2026-10-22): local production rehearsal
+
+- Built the real production Dockerfile (2.09 GB, 120 s with layer cache) and booted it against a throwaway `postgres:16` with env vars only: `DATABASE_URL` in `postgres://` form, `PORT=8080`, `APP_ENV=production`, closed registration, no SMTP. It reached healthy; `/health`, `/health/ready` and the Dockerfile HEALTHCHECK worked on 8080.
+- Rehearsal found that production startup demanded SMTP and `REQUIRE_HTTPS` and that a missing SMTP setting made register and password-reset answer 503 for real addresses only (an address oracle). Fixed in four commits: SMTP (and `PUBLIC_APP_URL`) are required only when `REGISTRATION_MODE` is not closed or `SMTP_HOST`/`SMTP_FROM` is set; startup errors name the settings; send failures are caught, logged as one generic `email_delivery_failed` event, and answered with the normal 202 (a failed registration is rolled back so a retry works); `PUBLIC_APP_URL` must be `https://` and not localhost when email can be sent; the pepper must be at least 32 characters. All in `services/production_config.py` and `routes/auth.py`.
+- Also fixed: `auth_http_support.py` (a test helper) was being copied into the image; it is now in `.dockerignore`, with a test.
+- Exact first-deploy env list: see "First deploy on a platform that injects plain env vars" in the README. Required: `APP_ENV=production`, `REQUIRE_HTTPS=true`, `DATABASE_URL`, `AUTH_TOKEN_PEPPER` (32+ chars), `ANTHROPIC_API_KEY`, `GROQ_API_KEY`.
+- Admin script, login, cookie flags (`__Host-` name, Secure, HttpOnly, SameSite=lax, Path=/), `/api/auth/me`, `/api/master-resumes`, logout and revocation, and `/api/auth/config` (`registration_open` false) were exercised against the running container; a closed-mode register returned the generic 202 and created no row.
+- Proxy evidence (nginx in front, six registrations with six different `X-Forwarded-For` values): with `FORWARDED_ALLOW_IPS=127.0.0.1` all six counted against the proxy's address (sixth got 429) and logs showed the proxy IP; with `*` each got its own bucket and logs showed the forwarded address. With `*` and a directly reachable port, a client can spoof `X-Forwarded-For` and evade the per-IP limit. The right value for the hosting platform is still to be chosen by the operator.
+- Audits: `pip-audit` of `backend/requirements.txt` (with `--no-deps`, so only listed pins) found nothing; `npm audit --omit=dev` found 0 vulnerabilities.
+- In production `/docs`, `/redoc` and `/openapi.json` are disabled but answer 200 with the SPA's `index.html` because of the catch-all route; no schema is exposed.
+- Still open: per-account login throttling and the Origin check (including requests with no Origin header) before opening registration; an SMTP timeout (10 s) holds a worker thread during a send.
 
 ## Recommended Next Step
 
