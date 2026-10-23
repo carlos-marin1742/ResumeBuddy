@@ -11,6 +11,7 @@ BASE = {
     "ANTHROPIC_API_KEY": "a",
     "GROQ_API_KEY": "g",
     "REQUIRE_HTTPS": "true",
+    "ALLOWED_ORIGINS": "https://resume.example.com",
 }
 SMTP = {"SMTP_HOST": "smtp.example.test", "SMTP_FROM": "noreply@example.test"}
 
@@ -42,7 +43,7 @@ def test_half_configured_smtp_is_rejected_even_when_closed():
         validate_production_config(env(SMTP_FROM="noreply@example.test"))
 
 
-@pytest.mark.parametrize("missing", ["AUTH_TOKEN_PEPPER", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "REQUIRE_HTTPS"])
+@pytest.mark.parametrize("missing", ["AUTH_TOKEN_PEPPER", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "REQUIRE_HTTPS", "ALLOWED_ORIGINS"])
 def test_core_settings_remain_required(missing):
     settings = env()
     del settings[missing]
@@ -122,3 +123,40 @@ def test_public_url_must_be_https_and_not_local(url):
 
 def test_public_url_with_port_and_path_is_accepted():
     validate_production_config(env(PUBLIC_APP_URL="https://resume.example.com:8443/app/", **SMTP))
+
+
+@pytest.mark.parametrize(
+    "origins",
+    [
+        "",
+        " , ",
+        "*",
+        "https://*.example.com",
+        "http://resume.example.com",
+        "resume.example.com",
+        "https://localhost",
+        "https://app.localhost",
+        "https://127.0.0.1",
+        "http://localhost:5175,https://resume.example.com",
+        "https://resume.example.com,http://localhost:8000",
+        "https://resume.example.com/",
+        "https://resume.example.com/app",
+        "https://user@resume.example.com",
+    ],
+)
+def test_allowed_origins_must_be_public_https_origins(origins):
+    with pytest.raises(RuntimeError) as caught:
+        validate_production_config(env(ALLOWED_ORIGINS=origins))
+    assert "ALLOWED_ORIGINS" in str(caught.value)
+
+
+def test_allowed_origins_accepts_several_https_origins_with_ports():
+    validate_production_config(
+        env(ALLOWED_ORIGINS="https://resume.example.com, https://www.example.com:8443")
+    )
+
+
+def test_allowed_origins_error_does_not_echo_the_value():
+    with pytest.raises(RuntimeError) as caught:
+        validate_production_config(env(ALLOWED_ORIGINS="http://internal-secret-host.test"))
+    assert "internal-secret-host" not in str(caught.value)

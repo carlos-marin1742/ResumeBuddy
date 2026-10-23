@@ -276,10 +276,11 @@ Required:
 | `AUTH_TOKEN_PEPPER` | at least 32 characters |
 | `ANTHROPIC_API_KEY` | |
 | `GROQ_API_KEY` | |
+| `ALLOWED_ORIGINS` | comma-separated public origins of the site, each `https://host[:port]` (no path, wildcard or localhost); the browser Origin on every POST/PUT/PATCH/DELETE must match one, so unset would reject all real traffic |
 
 Optional: `PORT` (the platform usually sets it; default 8000), `FORWARDED_ALLOW_IPS` (default `127.0.0.1`; until it
 includes your proxy every user shares the proxy's address for rate limits and logs), `PDF_MAX_CONCURRENCY`,
-`ALLOWED_ORIGINS` (not needed when the SPA and API share an origin), `LOG_LEVEL`, `STATIC_PROFILES_ENABLED` (leave unset).
+`LOG_LEVEL`, `STATIC_PROFILES_ENABLED` (leave unset).
 `SESSION_COOKIE_SECURE` defaults to true and must stay true in production.
 
 Add users with the admin script in the service shell: `python -m scripts.manage_users create you@example.com`.

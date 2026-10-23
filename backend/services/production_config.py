@@ -27,6 +27,27 @@ def _public_url_ok(value: str) -> bool:
     return not (address.is_loopback or address.is_unspecified)
 
 
+def _origins_ok(value: str) -> bool:
+    """A non-empty list of bare https origins (scheme://host[:port]) on public hosts.
+
+    Browsers send the Origin header with no path, so an entry with one could never match.
+    """
+    entries = [entry.strip() for entry in value.split(",") if entry.strip()]
+    if not entries:
+        return False
+    for entry in entries:
+        if "*" in entry or not _public_url_ok(entry):
+            return False
+        try:
+            parsed = urlparse(entry)
+            parsed.port
+        except ValueError:
+            return False
+        if parsed.path or parsed.params or parsed.query or parsed.fragment or parsed.username or parsed.password:
+            return False
+    return True
+
+
 def validate_production_config(environ: Mapping[str, str] | None = None) -> None:
     env = os.environ if environ is None else environ
     if env.get("APP_ENV") != "production":
@@ -41,6 +62,9 @@ def validate_production_config(environ: Mapping[str, str] | None = None) -> None
         problems.append(f"AUTH_TOKEN_PEPPER (at least {MIN_PEPPER_LENGTH} characters)")
     if sends_email and env.get("PUBLIC_APP_URL") and not _public_url_ok(env["PUBLIC_APP_URL"]):
         problems.append("PUBLIC_APP_URL (must be an https:// URL that is not localhost)")
+    # Unset falls back to localhost origins in main.py, which rejects every real browser POST.
+    if not _origins_ok(env.get("ALLOWED_ORIGINS", "")):
+        problems.append("ALLOWED_ORIGINS (comma-separated https:// origins, no localhost, path or wildcard)")
     if env.get("REQUIRE_HTTPS", "false").lower() != "true":
         problems.append("REQUIRE_HTTPS (must be true)")
     if env.get("SESSION_COOKIE_SECURE", "true").lower() != "true":
