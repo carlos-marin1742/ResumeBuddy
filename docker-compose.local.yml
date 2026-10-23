@@ -1,0 +1,43 @@
+# Standalone local stack: docker compose -f docker-compose.local.yml up --build
+name: resumebuddy-local
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: resumebuddy
+      POSTGRES_USER: resumebuddy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - local_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resumebuddy -d resumebuddy"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  resumebuddy:
+    image: resumebuddy:local
+    build: .
+    init: true
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://resumebuddy:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/resumebuddy
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    volumes:
+      - ./backend/data:/app/backend/data:ro
+      - local_outputs:/app/backend/outputs
+
+volumes:
+  local_postgres_data:
+  local_outputs:
