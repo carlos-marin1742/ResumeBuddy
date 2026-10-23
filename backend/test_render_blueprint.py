@@ -81,6 +81,13 @@ def test_auto_deploy_is_off_through_the_current_field(web):
     assert web["autoDeployTrigger"] == "off"  # a bare YAML `off` would parse as False
 
 
+@pytest.mark.skipif(not RUNBOOK.exists(), reason="runbook is outside the test image")
+def test_runbook_set_by_hand_list_matches_the_prompted_secrets(web):
+    prompted = {key for key, entry in _env_by_key(web).items() if entry.get("sync") is False}
+    assert prompted == SECRET_KEYS
+    assert _runbook_set_by_hand() == prompted
+
+
 def test_every_required_production_variable_is_in_the_file_or_the_runbook_list(web):
     required = _readme_required_vars()
     assert {"APP_ENV", "DATABASE_URL", "ALLOWED_ORIGINS"} <= required, "README table was not parsed"
