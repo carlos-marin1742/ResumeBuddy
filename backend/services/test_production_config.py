@@ -32,7 +32,7 @@ def test_closed_mode_boots_without_smtp():
 def test_smtp_is_required_once_registration_can_send_email(mode):
     with pytest.raises(RuntimeError, match="Production security configuration is incomplete"):
         validate_production_config(env(REGISTRATION_MODE=mode))
-    validate_production_config(env(REGISTRATION_MODE=mode, **SMTP))
+    validate_production_config(env(REGISTRATION_MODE=mode, PUBLIC_APP_URL="https://resume.example.com", **SMTP))
 
 
 def test_half_configured_smtp_is_rejected_even_when_closed():
@@ -79,3 +79,46 @@ def test_error_names_every_problem_setting_and_never_a_value():
         assert name in message
     assert "ANTHROPIC_API_KEY" not in message
     assert "smtp-secret-host.test" not in message
+
+
+def test_short_pepper_is_rejected_by_name_without_echoing_it():
+    with pytest.raises(RuntimeError) as caught:
+        validate_production_config(env(AUTH_TOKEN_PEPPER="short-pepper-31-chars-xxxxxxxxxx"[:31]))
+    assert "AUTH_TOKEN_PEPPER" in str(caught.value)
+    assert "short-pepper" not in str(caught.value)
+    validate_production_config(env(AUTH_TOKEN_PEPPER="p" * 32))
+
+
+def test_public_url_is_not_required_while_email_cannot_be_sent():
+    validate_production_config(env())
+
+
+@pytest.mark.parametrize("trigger", [{"REGISTRATION_MODE": "open", **SMTP}, {"REGISTRATION_MODE": "allowlist", **SMTP}, SMTP])
+def test_public_url_is_required_once_email_can_be_sent(trigger):
+    with pytest.raises(RuntimeError, match="PUBLIC_APP_URL"):
+        validate_production_config(env(**trigger))
+    validate_production_config(env(PUBLIC_APP_URL="https://resume.example.com", **trigger))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://resume.example.com",
+        "resume.example.com",
+        "https://",
+        "https://localhost",
+        "https://LOCALHOST:8443/",
+        "https://app.localhost",
+        "https://127.0.0.1",
+        "https://[::1]",
+        "https://0.0.0.0",
+        "ftp://resume.example.com",
+    ],
+)
+def test_public_url_must_be_https_and_not_local(url):
+    with pytest.raises(RuntimeError, match="PUBLIC_APP_URL"):
+        validate_production_config(env(PUBLIC_APP_URL=url, **SMTP))
+
+
+def test_public_url_with_port_and_path_is_accepted():
+    validate_production_config(env(PUBLIC_APP_URL="https://resume.example.com:8443/app/", **SMTP))
