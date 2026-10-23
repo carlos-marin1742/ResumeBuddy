@@ -350,3 +350,15 @@ Revision `e5b2c8f1a9d3` makes `user_id` NOT NULL on both resume tables, adds `ON
 ## API docs are off in production
 
 `/docs`, `/redoc`, `/openapi.json` and `/docs/oauth2-redirect` need no login and list every route, so `main.docs_settings` drops them when `APP_ENV` is `production` (404) and serves them otherwise. The isolation suite's route guard lists them separately (`DOCS_ROUTES`) and checks they exist exactly when docs are enabled.
+
+## Registration is closed unless enabled
+
+A deployment that forgets to configure registration must not let strangers create accounts that spend the Anthropic and Groq budget, so `REGISTRATION_MODE` defaults to `closed` when unset and an unknown value stops startup rather than guessing. Users are then added with `python -m scripts.manage_users`, or by `allowlist` mode for a known set of addresses, and `open` is an explicit choice. A refused address gets the same 202 body as an accepted one and the route hashes the password on every path, so neither the response nor its timing says whether an address is allowed or already registered (measured: refused, new and existing within about 6 ms of a roughly 180 ms request; real SMTP delivery on the accepted path still adds time that cannot be hidden without a queue). `GET /api/auth/config` reports only whether registration is open, so it reveals nothing about the allowlist. Open registration still needs per-account login throttling and an Origin check that rejects missing Origin headers; both are pending.
+
+## Secrets come from a file or an env var, never both
+
+Hosting platforms inject plain env vars while Compose mounts files. `read_secret` takes either form and fails startup if both are set, because silently preferring one hides a stale value (the old loader let an env var quietly beat `NAME_FILE`). The database password follows the same rule as `DATABASE_PASSWORD`. Errors name variables only, never values. The admin script loads secrets through the same module as the app.
+
+## Container settings follow the platform
+
+The start command binds `$PORT` (default 8000) and the healthcheck reads the same variable. `--forwarded-allow-ips` comes from `FORWARDED_ALLOW_IPS`, defaulting to loopback instead of `*`, so a host that exposes the port directly cannot have its client IPs spoofed. The value for a given platform is the operator's decision. Compose sets `*` explicitly to keep its Caddy deployment unchanged. The image stays at one worker because `RESUME_STORE` and the rate-limit buckets are process memory.

@@ -125,6 +125,16 @@ The former broader pytest collection blockers were resolved by removing obsolete
 - Client: fetch timeouts (120 s generate, 60 s others) and plain-language 503/429/timeout messages, all in `client/src/api.js`.
 - Not yet verified: the production `docker-compose.yml` (needs `./secrets/*` and `PUBLIC_APP_HOST`), Render's request timeout against the 30 s queue wait.
 
+## Private-Deploy Batch 1 (2026-10-22)
+
+- Registration modes (`REGISTRATION_MODE` closed/allowlist/open, default closed; `REGISTRATION_ALLOWLIST`), `GET /api/auth/config`, and an `AuthGate` that hides registration unless the server says it is open.
+- Admin script: `python -m scripts.manage_users create|reset|list`. In a deployed service run it in that service's shell (for example `docker compose exec resumebuddy python -m scripts.manage_users list`, or the platform's remote shell) so it sees the same environment; it never prints connection strings or secrets and `reset` revokes the user's sessions.
+- `read_secret` accepts `NAME` or `NAME_FILE` (both set fails startup), `DATABASE_URL` accepts `postgres://` and `postgresql://`, the container binds `$PORT`, and `FORWARDED_ALLOW_IPS` replaces the hardcoded `*` (default `127.0.0.1`; the value for the hosting platform is still to be chosen by the operator).
+- Validation (Docker, `rb-test` image with the working tree mounted, against a throwaway `postgres:16`): backend 433 passed with PostgreSQL; 336 passed and 97 skipped without it. Frontend: 91 passed plus the one expected failure; ESLint 0 errors, 2 existing warnings. The baseline quoted in the task (377 and 299/78) was stale; the tree measured 383 and 304/79 before any change.
+- Existing HTTP auth tests now set `REGISTRATION_MODE=open` themselves.
+- Known gap: open-registration hardening is pending: per-account login throttling, and an Origin check that currently lets requests with no Origin header through.
+- Not verified: a full `docker build` of the image and a deploy on the hosting platform; the start command and healthcheck were exercised by hand with `PORT=9123` in the test image.
+
 ## Recommended Next Step
 
 Cross-user isolation is covered by `backend/test_isolation_http_postgres.py` (real registration, verification and login for two users over HTTP against a migrated disposable PostgreSQL database; external services mocked). It attacks every resource-bearing route as the other user, requires 404 identical to a nonexistent ID, and fails if a new route is neither covered nor explicitly exempt. Next: add an account-deletion route and password-reset UI.
@@ -135,7 +145,7 @@ Known gaps to preserve explicitly:
 
 1. There is no account deletion or password-reset UI.
 2. `RESUME_STORE` is in memory and generated PDFs remain on local disk (they are re-rendered on demand when missing).
-3. Login throttling is per client IP only.
+3. Login throttling is per client IP only (per-account throttling is pending before registration is opened).
 4. Migration `e5b2c8f1a9d3` deletes pre-authentication rows that have no owner. Any database with unowned rows that matter needs them assigned to a user before upgrading.
 5. Production still needs a unique `AUTH_TOKEN_PEPPER`, `PUBLIC_APP_URL`, SMTP configuration, and secure cookies behind HTTPS.
 6. Commit `0adb688` moved the user-controlled occupation out of the tailoring system prompt to prevent prompt injection. Commit `a294d65` restored occupation-aware tailoring through the `candidate_target_occupation` field in the untrusted resume-data block.

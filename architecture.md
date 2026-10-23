@@ -141,7 +141,7 @@ Accounts use bcrypt password hashes, verified email, and opaque peppered-hash se
 
 Production Compose places Caddy at the public HTTPS edge. Uvicorn and PostgreSQL are internal-only services; the database password is mounted as a Docker secret rather than included in `DATABASE_URL`. Request, authentication, rate-limit, and server-error events are emitted as structured logs without request bodies, passwords, tokens, or email addresses.
 
-No credential has a checked-in runtime fallback. Local development supplies secrets through ignored environment variables; production loads API keys, the authentication-token pepper, SMTP credentials, and the database password from mounted secret files before routes initialize. The React client uses only same-origin API requests and has no credential or build-time environment-variable access.
+No credential has a checked-in runtime fallback. Local development supplies secrets through ignored environment variables; production loads API keys, the authentication-token pepper, SMTP credentials, and the database password from mounted secret files before routes initialize. `services/runtime_secrets.read_secret` accepts each secret as `NAME_FILE` or `NAME` and fails startup if both are set. The React client uses only same-origin API requests and has no credential or build-time environment-variable access.
 
 All public JSON bodies use strict, exact schemas: unexpected fields, type coercion, control characters, excessive nesting, oversized fields, and invalid identifiers are rejected at the API boundary. Resume HTML is escaped at rendering time. Uploads are limited to 5 MB PDF/DOCX files and are checked by extension, optional declared content type, file signature, archive structure, extraction size, and page/member limits before parsing; imports remain in memory only.
 
@@ -152,6 +152,8 @@ All resume-derived content sent to an LLM is JSON-encoded within an explicit unt
 PostgreSQL runtime data lives outside the repository and Alembic owns schema changes. `db.py` defers engine creation until use, while FastAPI startup and first real database use clearly fail without `DATABASE_URL` or `DATABASE_PASSWORD_FILE`.
 
 ## Security Boundaries
+
+Registration is gated by `REGISTRATION_MODE` (`services/registration.py`): `closed` (the default when unset), `allowlist` (`REGISTRATION_ALLOWLIST`, exact match after trim and lowercase, empty list behaves as closed) or `open`; any other value fails startup. `POST /api/auth/register` hashes the password on every path and answers a refused, existing or new address with the same 202 body, creating no row and sending no email for refused ones. `GET /api/auth/config` is public and returns only `{"registration_open": bool}` (true only in open mode), and `AuthGate` hides the register toggle unless it is true or the request fails. Administrators create and reset users with `python -m scripts.manage_users` (`create`, `reset`, `list`); passwords come only from an interactive prompt.
 
 All `/api` application routes require an authenticated, verified account. `/api/auth/*` contains registration, verification, login, logout, and expiring password-reset flows. Raw sessions and one-time tokens are random values sent only in HttpOnly cookies or email links; PostgreSQL stores only peppered SHA-256 digests. SMTP credentials and the token pepper are backend-only environment variables.
 
@@ -167,11 +169,11 @@ Required protections include:
 
 Per-user ownership is enforced for persisted master resumes and tailored-history records. Generated in-memory artifacts are short-lived, tagged with their creating user, and reject access from any other authenticated account.
 
-Known gaps: account deletion and a password-reset UI are not implemented; cross-user isolation is tested over HTTP in `test_isolation_http_postgres.py`; `RESUME_STORE` is process memory; generated PDFs remain on local disk (they are re-rendered on demand when missing); and login throttling is per client IP only.
+Known gaps: account deletion and a password-reset UI are not implemented; cross-user isolation is tested over HTTP in `test_isolation_http_postgres.py`; `RESUME_STORE` is process memory; generated PDFs remain on local disk (they are re-rendered on demand when missing); and login throttling is per client IP only; open-registration hardening (per-account login throttling, and an Origin check that also rejects state-changing requests with no Origin header) is still pending.
 
 ## Container
 
-The image is multi-stage with exact-tag base images (`node:20.20.2-slim`, `python:3.11.17-slim-trixie`) and fully pinned Python dependencies. Chromium is installed to `/opt/pw` (`PLAYWRIGHT_BROWSERS_PATH`) so the non-root `appuser` can launch it, and `fonts-liberation` supplies metric-compatible Arial and Times New Roman substitutes. Resume text wraps identically to the Windows render. `.dockerignore` keeps `.env*`, private profiles, tests, fixtures, and golden files out of the image. The `HEALTHCHECK` calls `/health` with `X-Forwarded-Proto: https` so it passes the `REQUIRE_HTTPS` middleware.
+The image is multi-stage with exact-tag base images (`node:20.20.2-slim`, `python:3.11.17-slim-trixie`) and fully pinned Python dependencies. Chromium is installed to `/opt/pw` (`PLAYWRIGHT_BROWSERS_PATH`) so the non-root `appuser` can launch it, and `fonts-liberation` supplies metric-compatible Arial and Times New Roman substitutes. Resume text wraps identically to the Windows render. `.dockerignore` keeps `.env*`, private profiles, tests, fixtures, and golden files out of the image. The `HEALTHCHECK` calls `/health` with `X-Forwarded-Proto: https` so it passes the `REQUIRE_HTTPS` middleware. The server binds to `$PORT` (default 8000; the healthcheck follows it), runs one uvicorn worker because `RESUME_STORE` and the rate-limit counters are in memory, and trusts `X-Forwarded-*` only from `FORWARDED_ALLOW_IPS` (default `127.0.0.1`; the bundled compose file sets `*` for Caddy). `REQUIRE_HTTPS` reads the `X-Forwarded-Proto` header directly, but client IPs for rate limiting and logs come from uvicorn's forwarded handling, so an untrusted proxy makes every client share the proxy's IP bucket. `DATABASE_URL` schemes `postgres://` and `postgresql://` are rewritten to `postgresql+psycopg://`.
 
 ## Testing
 
