@@ -28,6 +28,20 @@ def set_cookie(response, raw): response.set_cookie(SESSION_COOKIE, raw, httponly
 
 REGISTER_MESSAGE = "If this address can register, a verification email has been sent."
 
+def deliver(db: Session, recipient: str, subject: str, url: str) -> bool:
+    """Send one email. Any failure rolls back, logs one generic event and returns False.
+
+    Nothing about the failure (exception text, address, token or URL) is logged, and callers
+    answer exactly as they do on success so delivery problems cannot reveal which addresses exist.
+    """
+    try:
+        send_email(recipient, subject, url)
+    except Exception:
+        db.rollback()
+        audit(SECURITY_LOG, logging.ERROR, "email_delivery_failed")
+        return False
+    return True
+
 @router.get("/config")
 def auth_config():
     return {"registration_open": registration_open()}
@@ -39,7 +53,9 @@ def register(payload: Credentials, db: Session = Depends(get_session)):
     password_hash = hash_password(payload.password)
     if not registration_allowed(address) or db.exec(select(User).where(User.email == address)).first(): return Message(detail=REGISTER_MESSAGE)
     user = User(email=address, password_hash=password_hash); db.add(user); db.flush()
-    token = issue_token(db, user, "verify_email"); send_email(address, "Verify your ResumeBuddy email", f"{PUBLIC_URL}/verify-email?token={token}"); db.commit()
+    token = issue_token(db, user, "verify_email")
+    # A failed send rolls the new user back so the address can simply register again once email works.
+    if deliver(db, address, "Verify your ResumeBuddy email", f"{PUBLIC_URL}/verify-email?token={token}"): db.commit()
     return Message(detail=REGISTER_MESSAGE)
 
 @router.post("/verify-email", response_model=Message)
@@ -67,7 +83,8 @@ def login(payload: Credentials, response: Response, db: Session = Depends(get_se
 def request_reset(payload: EmailRequest, db: Session = Depends(get_session)):
     user = db.exec(select(User).where(User.email == email(payload.email))).first()
     if user:
-        token = issue_token(db, user, "password_reset"); send_email(user.email, "Reset your ResumeBuddy password", f"{PUBLIC_URL}/reset-password?token={token}"); db.commit()
+        token = issue_token(db, user, "password_reset")
+        if deliver(db, user.email, "Reset your ResumeBuddy password", f"{PUBLIC_URL}/reset-password?token={token}"): db.commit()
     return Message(detail="If an account exists, a reset email has been sent.")
 
 @router.post("/password-reset/confirm", response_model=Message)
