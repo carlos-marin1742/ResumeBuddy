@@ -66,3 +66,16 @@ def test_main_refuses_to_import_with_an_incomplete_production_config():
     )
     assert result.returncode != 0
     assert "Production security configuration is incomplete" in result.stderr
+
+
+def test_error_names_every_problem_setting_and_never_a_value():
+    settings = env(SESSION_COOKIE_SECURE="false", SMTP_HOST="smtp-secret-host.test", GROQ_API_KEY="")
+    del settings["AUTH_TOKEN_PEPPER"]
+    del settings["REQUIRE_HTTPS"]
+    with pytest.raises(RuntimeError) as caught:
+        validate_production_config(settings)
+    message = str(caught.value)
+    for name in ("AUTH_TOKEN_PEPPER", "GROQ_API_KEY", "SMTP_FROM", "REQUIRE_HTTPS", "SESSION_COOKIE_SECURE"):
+        assert name in message
+    assert "ANTHROPIC_API_KEY" not in message
+    assert "smtp-secret-host.test" not in message

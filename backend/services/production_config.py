@@ -16,8 +16,11 @@ def validate_production_config(environ: Mapping[str, str] | None = None) -> None
     # Email is only sent when registration is enabled or SMTP was configured on purpose.
     if registration_mode(env) != "closed" or env.get("SMTP_HOST") or env.get("SMTP_FROM"):
         required.extend(SMTP_REQUIRED)
-    missing = [name for name in required if not env.get(name)]
-    https_ok = env.get("REQUIRE_HTTPS", "false").lower() == "true"
-    cookie_ok = env.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
-    if missing or not https_ok or not cookie_ok:
-        raise RuntimeError("Production security configuration is incomplete.")
+    problems = [name for name in required if not env.get(name)]
+    if env.get("REQUIRE_HTTPS", "false").lower() != "true":
+        problems.append("REQUIRE_HTTPS (must be true)")
+    if env.get("SESSION_COOKIE_SECURE", "true").lower() != "true":
+        problems.append("SESSION_COOKIE_SECURE (must not be false)")
+    if problems:
+        # Names only: values may be secrets.
+        raise RuntimeError(f"Production security configuration is incomplete: {', '.join(problems)}.")
